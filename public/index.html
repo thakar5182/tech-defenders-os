@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sign in - Tech Defenders Business OS</title>
+<link rel="stylesheet" href="/css/styles.css">
+<link rel="icon" type="image/webp" href="/assets/tech-defenders-logo.webp">
+</head>
+<body class="auth-body">
+
+<div class="auth-wrap">
+
+  <!-- ============ LEFT : BRAND PANEL (black + gold) ============ -->
+  <aside class="auth-brand">
+    <div class="brand-glow brand-glow-1"></div>
+    <div class="brand-glow brand-glow-2"></div>
+
+    <div class="brand-top">
+      <img class="brand-logo" src="/assets/tech-defenders-logo.webp" alt="Tech Defenders logo">
+      <div>
+        <div class="brand-name">TECH DEFENDERS</div>
+        <div class="brand-sub">BUSINESS&nbsp;OS</div>
+      </div>
+    </div>
+
+    <div class="brand-mid">
+      <h1>Run your entire business<br><span class="gold-text">from one command centre.</span></h1>
+      <p class="brand-lede">CRM, sales, purchase, inventory, manufacturing, accounts and service &mdash; connected end to end, so data flows from first enquiry to final payment without re-entry.</p>
+
+      <ul class="feature-list">
+        <li><span class="f-ico">&#9670;</span><div><strong>Lead-to-Cash</strong><small>Quotations, orders, GST invoices & receipts in one chain</small></div></li>
+        <li><span class="f-ico">&#9670;</span><div><strong>Procure-to-Pay</strong><small>Requisitions, vendor comparison, POs & GRN with QC</small></div></li>
+        <li><span class="f-ico">&#9670;</span><div><strong>Plan-to-Produce</strong><small>BOMs, job orders, material issue & production output</small></div></li>
+        <li><span class="f-ico">&#9670;</span><div><strong>Ticket-to-Renewal</strong><small>AMC contracts, SLA tickets & engineer visits</small></div></li>
+      </ul>
+    </div>
+
+    <div class="brand-stats">
+      <div><b id="stat-mods">11</b><span>Modules</span></div>
+      <div><b>4</b><span>Core workflows</span></div>
+      <div><b>100%</b><span>Connected data</span></div>
+    </div>
+
+    <div class="brand-foot">Original interface &middot; Workflow-grade ERP &middot; Built for Indian business</div>
+  </aside>
+
+  <!-- ============ RIGHT : AUTH CARD (white) ============ -->
+  <main class="auth-main">
+    <div class="auth-card">
+
+      <div class="tabs" role="tablist">
+        <button class="tab active" id="tab-signin" onclick="Auth.showTab('signin')">Sign In</button>
+        <button class="tab" id="tab-register" onclick="Auth.showTab('register')">Create Account</button>
+        <span class="tab-slider"></span>
+      </div>
+
+      <!-- SIGN IN -->
+      <form id="form-signin" class="auth-form" autocomplete="on">
+        <h2>Welcome back</h2>
+        <p class="muted">Sign in to your workspace to continue.</p>
+
+        <label class="field">
+          <span>Work email</span>
+          <input type="email" id="si-email" placeholder="you@company.com" required>
+        </label>
+
+        <label class="field">
+          <span>Password</span>
+          <div class="pw-box">
+            <input type="password" id="si-password" placeholder="Enter your password" required>
+            <button type="button" class="pw-toggle" onclick="Auth.togglePw('si-password', this)">Show</button>
+          </div>
+        </label>
+
+        <div class="row-between">
+          <label class="check"><input type="checkbox" id="si-remember" checked> Remember me</label>
+          <a href="#" class="link" onclick="Auth.openForgot(); return false;">Forgot password?</a>
+        </div>
+
+        <button type="submit" class="btn btn-gold btn-block" id="si-submit">Sign In</button>
+        <div class="auth-divider"><span>or</span></div>
+        <button type="button" class="btn btn-outline btn-block" id="si-otp" onclick="Auth.startLoginOtp()">Sign in with Email OTP</button>
+        <p class="otp-hint">Brevo free-tier email delivery is used when configured by the administrator.</p>
+
+        <div class="demo-box">
+          <div class="demo-title">Super Admin &mdash; all organizations and data</div>
+          <button type="button" class="btn btn-outline btn-sm" onclick="Auth.fillDemo()">Fill Super Admin credentials</button>
+          <code>superadmin@techdefenders.in &nbsp;/&nbsp; Super@123</code>
+        </div>
+      </form>
+
+      <!-- REGISTER -->
+      <form id="form-register" class="auth-form hidden" autocomplete="off">
+        <h2>Create your workspace</h2>
+        <p class="muted">Start a new organization. You become its administrator.</p>
+
+        <div class="grid-2">
+          <label class="field"><span>Your name *</span><input id="rg-name" required placeholder="Full name"></label>
+          <label class="field"><span>Company name *</span><input id="rg-company" required placeholder="Company Pvt Ltd"></label>
+        </div>
+        <label class="field"><span>Work email *</span><input type="email" id="rg-email" required placeholder="you@company.com"></label>
+        <div class="grid-2">
+          <label class="field"><span>Password * <small>(min 8 chars)</small></span>
+            <div class="pw-box"><input type="password" id="rg-password" minlength="8" required><button type="button" class="pw-toggle" onclick="Auth.togglePw('rg-password', this)">Show</button></div>
+          </label>
+          <label class="field"><span>Confirm password *</span><input type="password" id="rg-confirm" minlength="8" required></label>
+        </div>
+        <div class="grid-2">
+          <label class="field"><span>Mobile</span><input id="rg-phone" placeholder="+91 ..."></label>
+          <label class="field"><span>State code (GST)</span>
+            <select id="rg-state">
+              <option value="27">Maharashtra (27)</option>
+              <option value="29">Karnataka (29)</option>
+              <option value="24" selected>Gujarat (24)</option>
+              <option value="33">Tamil Nadu (33)</option>
+              <option value="36">Telangana (36)</option>
+              <option value="07">Delhi (07)</option>
+              <option value="09">Uttar Pradesh (09)</option>
+              <option value="03">Punjab (03)</option>
+              <option value="06">Haryana (06)</option>
+              <option value="23">Madhya Pradesh (23)</option>
+            </select>
+          </label>
+        </div>
+
+        <label class="check terms"><input type="checkbox" id="rg-terms" required> I agree to the Terms of Service and confirm this workspace is for legitimate business use.</label>
+
+        <button type="submit" class="btn btn-dark btn-block" id="rg-submit">Email OTP &amp; Create Workspace</button>
+        <p class="fine muted">A 6-digit code verifies your email before the workspace is created. Your account then becomes the Organization Owner.</p>
+      </form>
+
+      <!-- RESET -->
+      <form id="form-reset" class="auth-form hidden" autocomplete="off">
+        <h2>Reset password</h2>
+        <p class="muted">Paste the reset token you received and choose a new password.</p>
+        <label class="field"><span>Reset token</span><input id="rs-token" required></label>
+        <label class="field"><span>New password</span><input type="password" id="rs-password" minlength="8" required></label>
+        <button type="submit" class="btn btn-gold btn-block">Update Password</button>
+        <a href="#" class="link center" onclick="Auth.showTab('signin'); return false;">Back to sign in</a>
+      </form>
+
+    </div>
+    <div class="auth-foot">&copy; 2026 Tech Defenders OS &middot; v3.2.1 Brevo OTP + App Launcher</div>
+  </main>
+</div>
+
+<!-- toast host -->
+<div id="toast-host" class="toast-host"></div>
+
+<script src="/js/auth.js"></script>
+</body>
+</html>

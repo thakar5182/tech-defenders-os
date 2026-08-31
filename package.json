@@ -1,0 +1,26 @@
+{
+  "name": "tech-defenders-business-os",
+  "version": "3.2.1",
+  "private": true,
+  "description": "Tech Defenders OS v3 - CRM, ERP, approvals, automation and AI-ready business platform",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "setup": "npm install",
+    "seed": "node db/seed.js --force",
+    "backup": "node scripts/backup.js",
+    "configure:ollama": "node scripts/configure-ollama.js",
+    "smoke": "node smoke-test.js",
+    "test:v3": "node v3-test.js",
+    "test:integrations": "node integration-test.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.7",
+    "express": "^4.19.2",
+    "jsonwebtoken": "^9.0.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
