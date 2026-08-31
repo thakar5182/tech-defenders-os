@@ -214,7 +214,8 @@ router.post('/register/verify-otp', loginLimiter, (req, res) => {
   const { org, user } = createOrganization(registration);
   const token = signToken(user);
   res.cookie('td_token', token, sessionCookieOptions());
-  res.json({ user: publicUser(user), org });
+  // Mobile clients store this bearer token in Expo SecureStore; browser sessions still use the cookie.
+  res.json({ user: publicUser(user), org, token });
 });
 
 router.post('/register', (_req, res) => res.status(409).json({
@@ -233,7 +234,7 @@ router.post('/login', loginLimiter, (req, res) => {
   audit(user.orgId, user.id, 'login', 'user', user.id);
   const token = signToken(user);
   res.cookie('td_token', token, sessionCookieOptions());
-  res.json({ user: publicUser(user) });
+  res.json({ user: publicUser(user), token });
 });
 
 router.post('/login/request-otp', loginLimiter, async (req, res) => {
@@ -260,8 +261,9 @@ router.post('/login/verify-otp', loginLimiter, (req, res) => {
   if (!user || !user.active) return res.status(401).json({ error: 'Verification code is invalid' });
   store.update('users', user.id, { lastLoginAt: new Date().toISOString() });
   audit(user.orgId, user.id, 'login_otp', 'user', user.id);
-  res.cookie('td_token', signToken(user), sessionCookieOptions());
-  res.json({ user: publicUser(user) });
+  const token = signToken(user);
+  res.cookie('td_token', token, sessionCookieOptions());
+  res.json({ user: publicUser(user), token });
 });
 
 router.post('/forgot', loginLimiter, (req, res) => {
