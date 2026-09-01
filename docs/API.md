@@ -26,6 +26,15 @@ Live provider groups under `/integrations`:
 - `/gst/verify`, `/gst/einvoice/:invoiceId`, `/gst/ewaybill/:invoiceId`, `/gst/submissions`
 - Public verified callbacks: `/webhooks/meta`, `/webhooks/brevo`, `/webhooks/msg91`
 
+v4 operations under `/ops`:
+
+- `/imports`, `/imports/:id`, mapping validation, confirm, cancel, rollback and error CSV
+- `/email/templates`, `/email/send`, `/email/campaigns`, failed-job retry
+- `/whatsapp/link` for user-confirmed deep links and `/whatsapp/send` for official Meta API
+- `/communications`, `/analytics`
+- `/automations`, `/automations/:id`, test and execution history
+- Signed public invoice PDF and unsubscribe links under `/public`
+
 All provider configuration/actions require authentication and RBAC except the
 callback endpoints, which require a provider signature or high-entropy webhook
 token. API secrets are never accepted in request bodies.

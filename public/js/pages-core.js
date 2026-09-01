@@ -200,7 +200,10 @@ Core.route('crm/customers', async () => {
 });
 
 Core.route('crm/customers/:id', async p => {
-  const d = await Core.get('/crm/customers/' + p.id);
+  const [d, comm] = await Promise.all([
+    Core.get('/crm/customers/' + p.id),
+    Core.can('communication', 'view') ? Core.get('/ops/communications?customerId=' + encodeURIComponent(p.id)) : Promise.resolve({ communications: [] })
+  ]);
   const c = d.customer;
   document.getElementById('content').innerHTML = `
     ${Core.pageHead(c.name, 'Customer 360-degree view',
@@ -232,7 +235,8 @@ Core.route('crm/customers/:id', async p => {
           ${d.tickets.map(t => `<li><b>${Core.esc(t.subject)}</b><small>${Core.esc(t.number)} &middot; ${Core.badge(t.status)}</small></li>`).join('')}
         </ul>` : '<div class="empty-state">No service history.</div>'}
       </div>
-    </div>`;
+    </div>
+    ${Core.can('communication', 'view') ? `<div class="card" style="margin-top:16px"><div class="card-head"><h3>Communication Timeline</h3><a class="link" href="#/communication/history">View all</a></div>${comm.communications.length ? `<ul class="timeline" style="padding:16px 20px">${comm.communications.slice(0,20).map(item => `<li><b>${Core.esc(String(item.messageType || 'message').replace(/_/g,' '))} · ${Core.esc(item.channel)}</b><small>${Core.fmtDate(item.createdAt)} · ${Core.badge(item.status)}</small></li>`).join('')}</ul>` : '<div class="empty-state">No communication history for this customer.</div>'}</div>` : ''}`;
 });
 
 Pages.openCustomerForm = function () {

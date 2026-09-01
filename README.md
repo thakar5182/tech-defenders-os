@@ -1,8 +1,13 @@
-# Tech Defenders OS v3.2.1 · Ready Brevo OTP + Business App Launcher
+# Tech Defenders OS v4.2.0 · Mobile Connected
 
 Tech Defenders OS is a connected CRM + ERP for a single-company or
 multi-organization Super Admin deployment. The interface uses the supplied Tech
 Defenders logo and a productivity-first black, gold and white design.
+
+The included Android source connects to this API with short-lived mobile bearer
+sessions, so daily CRM/ERP work can run from a phone without keeping a laptop or
+PC switched on. The server must remain deployed on an HTTPS cloud host. See
+`docs/MOBILE.md` for the mobile contract and production checklist.
 
 This package starts clean: it retains the Tech Defenders organization, nine
 login accounts, numbering series and the chart of accounts only. It contains no
@@ -11,7 +16,7 @@ purchase records, jobs, tickets, employees, notifications or audit events.
 
 ## Windows setup
 
-Requirements: Windows 10/11 and Node.js 18 or newer.
+Requirements: Windows 10/11 and Node.js 22.3 or newer.
 
 ```powershell
 # Extract Tech-Defenderss-OS.zip, then:
@@ -60,6 +65,48 @@ npm start
 Change these passwords before production use.
 
 ## Main workflows
+
+### Client Data Package Studio
+
+- Open **Data Import → Data Package Studio**, then select or drop up to 250 files.
+- Smart routing inspects supported business data and uses file-name/type signals
+  for Word files, images, videos, archives and other documents.
+- Review or change every suggested destination, add the client name/reference,
+  then download one normal ZIP.
+- The ZIP contains the original files, a routing manifest and SHA-256 checksums.
+  Upload it under **Smart Data Import**; checksum verification runs before review.
+- On confirmation, CSV/Excel/JSON/XML/PDF records reach CRM, Sales, Inventory,
+  Purchase, Accounts, HR or Service. Other files appear under **Client Documents**.
+- Potentially executable content is stored as restricted, download-only data and
+  is never executed or rendered by Tech Defenders OS.
+- Defaults are 25 MB per file and 100 MB per package. All limits can be changed
+  with environment variables without editing the source.
+
+### Smart business data import
+
+- Upload a Data Package ZIP, CSV, XLSX, XLS, JSON, XML or PDF under **Data Import → Smart Data Import**.
+- The server securely inspects archives, detects business modules, maps column
+  synonyms/fuzzy matches, validates rows and shows category totals.
+- Duplicates default to Skip; choose Merge or Keep Both explicitly.
+- Confirm only after preview. Completed imports include an audited rollback and
+  downloadable CSV error report.
+
+### Email Center, WhatsApp and communication history
+
+- **Communication → Email Center** provides individual/bulk email, reusable
+  variables, scheduling, invoice PDF attachment, retry/backoff and campaign status.
+- Invoice WhatsApp deep links contain an expiring signed PDF URL and still require
+  the user to press Send. Official automated templates use Meta Cloud API.
+- Customer 360 includes an organization-scoped communication timeline.
+
+### Automation Builder and analytics
+
+- **Automations → Automation Builder** provides WHEN / IF / THEN rules, delay,
+  enable/disable, test execution, job history, idempotency and retries.
+- Supported actions include email, official WhatsApp, tasks/reminders,
+  notifications, safe status changes and report generation.
+- **Communication → Delivery Analytics** shows email, WhatsApp, invoice and
+  automation execution figures from real records.
 
 ### Secure email OTP and free messaging options
 
@@ -198,6 +245,8 @@ npm start          # start the server
 npm run smoke      # 61 backward-compatibility checks in disposable data
 npm run test:v3    # 34 v3 feature/security checks in disposable data
 npm run test:integrations # 22 provider/OTP checks against a local HTTP mock
+npm run test:operations   # 25 import/communication/automation checks
+npm test                  # all 142 isolated checks
 npm run backup     # create a backup now
 npm run seed       # DESTRUCTIVE: reset to accounts/config only
 ```
@@ -246,6 +295,8 @@ from the ZIP and is not uploaded by the Blueprint.
 - Backward compatibility: 61/61 checks pass
 - v3 regression: 34/34 checks pass
 - Provider/OTP contract regression: 22/22 checks pass
+- Mobile/Data Package operations regression: 32/32 checks pass
+- Total automated checks: 149/149 pass
 - JavaScript syntax: all project source files pass
 - Dependency audit: run `npm audit --omit=dev` on the deployment machine
 - Clean reset: 1 organization, 9 users, 23 sequences, 20 accounts, 0 business records

@@ -1,8 +1,8 @@
 {
   "name": "tech-defenders-business-os",
-  "version": "3.2.1",
+  "version": "4.2.0",
   "private": true,
-  "description": "Tech Defenders OS v3 - CRM, ERP, approvals, automation and AI-ready business platform",
+  "description": "Tech Defenders OS v4 - CRM, ERP, secure imports, communications, automation and AI-ready business platform",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
@@ -12,15 +12,25 @@
     "configure:ollama": "node scripts/configure-ollama.js",
     "smoke": "node smoke-test.js",
     "test:v3": "node v3-test.js",
-    "test:integrations": "node integration-test.js"
+    "test:integrations": "node integration-test.js",
+    "test:operations": "node operations-test.js",
+    "test": "npm run smoke && npm run test:v3 && npm run test:integrations && npm run test:operations"
   },
   "dependencies": {
+    "@e965/xlsx": "^0.20.3",
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.7",
     "express": "^4.19.2",
-    "jsonwebtoken": "^9.0.2"
+    "fast-xml-parser": "^5.11.1",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.3.0",
+    "pdf-parse": "^2.4.5",
+    "pdfkit": "^0.17.2",
+    "yazl": "^3.3.1",
+    "yauzl": "^3.4.0"
   },
   "engines": {
-    "node": ">=18"
-  }
+    "node": ">=22.3.0"
+  },
+  "devDependencies": {}
 }

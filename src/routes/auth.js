@@ -23,6 +23,11 @@ const { audit, effectiveAccess } = require('../util');
 const { sendSystemEmail, ProviderError } = require('../services/integrations');
 
 const router = express.Router();
+
+function sessionResponse(req, payload, token) {
+  const mobileClient = req.get('X-TD-Client') === 'mobile' || req.body?.client === 'mobile';
+  return mobileClient ? { ...payload, token } : payload;
+}
 function publicUser(u) {
   return safeUser(u);
 }
@@ -215,7 +220,7 @@ router.post('/register/verify-otp', loginLimiter, (req, res) => {
   const token = signToken(user);
   res.cookie('td_token', token, sessionCookieOptions());
   // Mobile clients store this bearer token in Expo SecureStore; browser sessions still use the cookie.
-  res.json({ user: publicUser(user), org, token });
+  res.json(sessionResponse(req, { user: publicUser(user), org }, token));
 });
 
 router.post('/register', (_req, res) => res.status(409).json({
@@ -234,7 +239,7 @@ router.post('/login', loginLimiter, (req, res) => {
   audit(user.orgId, user.id, 'login', 'user', user.id);
   const token = signToken(user);
   res.cookie('td_token', token, sessionCookieOptions());
-  res.json({ user: publicUser(user), token });
+  res.json(sessionResponse(req, { user: publicUser(user) }, token));
 });
 
 router.post('/login/request-otp', loginLimiter, async (req, res) => {
@@ -263,7 +268,7 @@ router.post('/login/verify-otp', loginLimiter, (req, res) => {
   audit(user.orgId, user.id, 'login_otp', 'user', user.id);
   const token = signToken(user);
   res.cookie('td_token', token, sessionCookieOptions());
-  res.json({ user: publicUser(user), token });
+  res.json(sessionResponse(req, { user: publicUser(user) }, token));
 });
 
 router.post('/forgot', loginLimiter, (req, res) => {

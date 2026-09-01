@@ -30,8 +30,24 @@ const Core = {
   },
   get(u) { return this.api('GET', u); },
   post(u, b) { return this.api('POST', u, b); },
+  put(u, b) { return this.api('PUT', u, b); },
   patch(u, b) { return this.api('PATCH', u, b); },
   del(u) { return this.api('DELETE', u); },
+  async upload(u, file) {
+    const body = new FormData(); body.append('file', file);
+    const res = await fetch('/api' + u, { method: 'POST', credentials: 'same-origin', body });
+    let data = {}; try { data = await res.json(); } catch (_) {}
+    if (res.status === 401) { location.href = '/'; throw new Error('Session expired'); }
+    if (!res.ok) throw new Error(data.error || `Upload failed (${res.status})`);
+    return data;
+  },
+  async uploadForm(u, formData) {
+    const res = await fetch('/api' + u, { method: 'POST', credentials: 'same-origin', body: formData });
+    let data = {}; try { data = await res.json(); } catch (_) {}
+    if (res.status === 401) { location.href = '/'; throw new Error('Session expired'); }
+    if (!res.ok) throw new Error(data.error || `Upload failed (${res.status})`);
+    return data;
+  },
 
   /* ---------------- permissions ---------------- */
   can(mod, action) {
@@ -132,11 +148,23 @@ const Core = {
       { path: '#/reports/funnel', label: 'Lead Funnel', icon: '&#9711;', mod: 'reports' },
       { path: '#/reports/service', label: 'Service Summary', icon: '&#9889;', mod: 'reports' }
     ]},
+    { group: 'Communication', items: [
+      { path: '#/communication/email', label: 'Email Center', icon: '&#9993;', mod: 'communication' },
+      { path: '#/communication/history', label: 'Communication History', icon: '&#8635;', mod: 'communication' },
+      { path: '#/communication/analytics', label: 'Delivery Analytics', icon: '&#9636;', mod: 'communication' }
+    ]},
+    { group: 'Automations', items: [
+      { path: '#/automation/builder', label: 'Automation Builder', icon: '&#9889;', mod: 'automation' }
+    ]},
+    { group: 'Data Import', items: [
+      { path: '#/data-package', label: 'Data Package Studio', icon: '&#10024;', mod: 'dataImport' },
+      { path: '#/data-import', label: 'Smart Data Import', icon: '&#8682;', mod: 'dataImport' },
+      { path: '#/client-documents', label: 'Client Documents', icon: '&#9636;', mod: 'dataImport' }
+    ]},
     { group: 'Administration', items: [
       { path: '#/admin/platform', label: 'Platform Control', icon: '&#9733;', mod: 'admin', superOnly: true },
       { path: '#/admin/users', label: 'Users & Roles', icon: '&#9820;', mod: 'admin' },
       { path: '#/admin/approvals', label: 'Approval Center', icon: '&#10003;', mod: 'admin' },
-      { path: '#/admin/automation', label: 'Automation', icon: '&#8635;', mod: 'admin' },
       { path: '#/admin/integrations', label: 'Live Integrations', icon: '&#9881;', mod: 'admin' },
       { path: '#/admin/branches', label: 'Branches', icon: '&#8962;', mod: 'admin' },
       { path: '#/admin/settings', label: 'Company Settings', icon: '&#9881;', mod: 'admin' },
@@ -434,6 +462,7 @@ const Core = {
   moduleForHash(hash) {
     const first = String(hash || '').replace(/^#\//, '').split('/')[0] || 'dashboard';
     if (first === 'print') return 'sales';
+    if (['data-import', 'data-package', 'client-documents'].includes(first)) return 'dataImport';
     return first;
   },
 

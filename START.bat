@@ -1,15 +1,23 @@
 @echo off
-title Tech Defenders OS v3.2.1
+title Tech Defenders OS v4.2.0
 cd /d "%~dp0"
 
 echo ==================================================
-echo   TECH DEFENDERS OS v3.2.1 - starting...
+echo   TECH DEFENDERS OS v4.2.0 - Mobile Connected - starting...
 echo ==================================================
 
 where node >nul 2>nul
 if errorlevel 1 (
   echo [ERROR] Node.js is not installed or not in PATH.
   echo Download it from https://nodejs.org  and run this file again.
+  pause
+  exit /b 1
+)
+
+node -e "const v=process.versions.node.split('.').map(Number);process.exit(Math.max(0,22003-(v[0]*1000+v[1])))"
+if errorlevel 1 (
+  echo [ERROR] Node.js 22.3 or newer is required. Current version:
+  node --version
   pause
   exit /b 1
 )

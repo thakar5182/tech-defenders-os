@@ -31,6 +31,10 @@ const COLLECTIONS = [
   'employees', 'leaveRequests',
   'approvalWorkflows', 'approvalRequests',
   'automationRules', 'backgroundJobs', 'integrationConfigs', 'messageDeliveries',
+  'importJobs', 'importFiles', 'importRecords', 'importMappings', 'importErrors',
+  'clientDocuments',
+  'emailTemplates', 'emailCampaigns', 'emailQueue', 'communicationLogs',
+  'automationExecutions', 'whatsappIntegrations',
   'providerWebhooks', 'gstSubmissions', 'aiDrafts', 'authChallenges',
   'savedReports', 'notifications', 'auditEvents'
 ];

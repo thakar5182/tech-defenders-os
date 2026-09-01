@@ -11,6 +11,11 @@ process.env.AUTO_SEED = 'true';
 process.env.JWT_SECRET = 'v3-test-only-secret-that-is-longer-than-32-characters';
 process.env.NODE_ENV = 'test';
 process.env.OLLAMA_ENABLED = 'false';
+process.env.BREVO_API_KEY = '';
+process.env.BREVO_SENDER_EMAIL = '';
+process.env.MSG91_AUTH_KEY = '';
+process.env.META_WHATSAPP_TOKEN = '';
+process.env.META_PHONE_NUMBER_ID = '';
 
 const app = require('./server');
 const store = require('./db/store');

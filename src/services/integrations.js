@@ -206,6 +206,9 @@ async function sendBrevoEmail(input) {
   };
   if (htmlContent) payload.htmlContent = htmlContent;
   else payload.textContent = textContent;
+  const attachments = (Array.isArray(input.attachments) ? input.attachments : []).slice(0, 5)
+    .filter(item => item && /^[a-z0-9][a-z0-9._ -]{0,119}$/i.test(clean(item.name, 120)) && /^[A-Za-z0-9+/=]+$/.test(clean(item.content, 8_000_000)));
+  if (attachments.length) payload.attachment = attachments.map(item => ({ name: clean(item.name, 120), content: clean(item.content, 8_000_000) }));
   const result = await requestJson(providerBase('brevo', 'https://api.brevo.com') + '/v3/smtp/email', {
     method: 'POST',
     headers: { accept: 'application/json', 'content-type': 'application/json', 'api-key': process.env.BREVO_API_KEY },

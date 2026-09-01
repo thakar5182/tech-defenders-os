@@ -68,7 +68,7 @@ app.use((req, res, next) => {
 app.use(attachUser);
 
 /* ---------------- API routes ---------------- */
-app.get('/api/health', (req, res) => res.json({ ok: true, name: 'Tech Defenders OS', version: '3.2.1', storage: store.DATA_DIR, time: new Date().toISOString() }));
+app.get('/api/health', (req, res) => res.json({ ok: true, name: 'Tech Defenders OS', version: '4.2.0', mobileApi: true, storage: store.DATA_DIR, time: new Date().toISOString() }));
 app.use('/api/auth', require('./src/routes/auth'));
 app.use('/api/dashboard', require('./src/routes/dashboard'));
 app.use('/api/crm', require('./src/routes/crm'));
@@ -81,6 +81,7 @@ app.use('/api/finance', require('./src/routes/finance'));
 app.use('/api/reports', require('./src/routes/reports'));
 app.use('/api/admin', require('./src/routes/admin'));
 app.use('/api/integrations', require('./src/routes/integrations'));
+app.use('/api/ops', require('./src/routes/operations'));
 const advancedRoutes = require('./src/routes/advanced');
 app.use('/api/v3', advancedRoutes);
 
@@ -105,7 +106,7 @@ if (require.main === module) {
   const server = app.listen(PORT, () => {
     console.log('');
     console.log('  ================================================');
-    console.log('   TECH DEFENDERS OS v3.2.1');
+    console.log('   TECH DEFENDERS OS v4.2.0 · MOBILE CONNECTED');
     console.log(`   Running at  http://localhost:${PORT}`);
     console.log('   Super Admin superadmin@techdefenders.in / Super@123');
     console.log('  ================================================');
@@ -138,6 +139,17 @@ if ((process.env.AUTO_AUTOMATION || 'true') === 'true' && process.env.NODE_ENV !
     try { advancedRoutes.runScheduledAutomations(); }
     catch (error) { console.error('[automation] Scheduled run failed:', error.message); }
   }, 15 * 60 * 1000).unref();
+}
+
+if (process.env.NODE_ENV !== 'test') {
+  const communications = require('./src/services/communications');
+  const automations = require('./src/services/automation-engine');
+  const runWorkers = () => {
+    communications.runEmailWorker().catch(error => console.error('[email-worker]', error.message));
+    automations.runAutomationWorker().catch(error => console.error('[automation-worker]', error.message));
+  };
+  setTimeout(runWorkers, 5000).unref();
+  setInterval(runWorkers, 60_000).unref();
 }
 
 module.exports = app;

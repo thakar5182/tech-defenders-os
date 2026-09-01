@@ -26,6 +26,7 @@ const SEQ_PREFIX = {
   proforma: 'PI', deliveryChallan: 'DC', debitNote: 'DN', purchaseInvoice: 'PINV',
   purchaseReturn: 'PRTN', supplierPayment: 'SPAY', reservation: 'RSV',
   approval: 'APR', bankTransaction: 'BTX'
+  , importJob: 'IMP', emailCampaign: 'EMC', automationExecution: 'AEX'
 };
 function nextNumber(orgId, type) {
   const prefix = SEQ_PREFIX[type] || type.toUpperCase().slice(0, 3);
@@ -132,13 +133,13 @@ function stockBalance(orgId, productId, warehouseId) {
 const ROLE_PERMS = {
   super_admin:        { '*': ['*'] },
   admin:              { '*': ['*'] },
-  sales_manager:      { crm: ['*'], sales: ['*'], inventory: ['view'], reports: ['view'], service: ['view'] },
-  sales_exec:         { crm: ['view', 'create', 'edit'], sales: ['view', 'create', 'edit'], inventory: ['view'], reports: ['view'] },
+  sales_manager:      { crm: ['*'], sales: ['*'], inventory: ['view'], reports: ['view'], service: ['view'], communication: ['*'], automation: ['view'] },
+  sales_exec:         { crm: ['view', 'create', 'edit'], sales: ['view', 'create', 'edit'], inventory: ['view'], reports: ['view'], communication: ['view', 'create', 'edit'] },
   purchase_manager:   { purchase: ['*'], inventory: ['view', 'create', 'edit'], reports: ['view'] },
   store_manager:      { inventory: ['*'], purchase: ['view', 'edit'], manufacturing: ['view', 'edit'], reports: ['view'] },
   production_manager: { manufacturing: ['*'], inventory: ['view', 'edit'], reports: ['view'] },
-  accountant:         { finance: ['*'], sales: ['view', 'edit'], purchase: ['view', 'approve'], reports: ['view'], hr: ['view', 'approve'] },
-  service_manager:    { service: ['*'], inventory: ['view', 'edit'], crm: ['view'], reports: ['view'] },
+  accountant:         { finance: ['*'], sales: ['view', 'edit'], purchase: ['view', 'approve'], reports: ['view'], hr: ['view', 'approve'], communication: ['view', 'create', 'edit'], dataImport: ['view', 'create'] },
+  service_manager:    { service: ['*'], inventory: ['view', 'edit'], crm: ['view'], reports: ['view'], communication: ['view', 'create', 'edit'] },
   engineer:           { service: ['view', 'edit'], inventory: ['view'] },
   employee:           { crm: ['view'], tasks: ['view', 'edit'], hr: ['view'] },
   viewer:             { crm: ['view'], sales: ['view'], purchase: ['view'], inventory: ['view'], manufacturing: ['view'], service: ['view'], finance: ['view'], reports: ['view'] }
@@ -155,6 +156,9 @@ const MODULES = [
   { key: 'finance', label: 'Accounts', description: 'Accounts, journals, expenses and P&L' },
   { key: 'hr', label: 'HR', description: 'Employees and leave requests' },
   { key: 'reports', label: 'Reports', description: 'Sales, receivables, stock and service reports' },
+  { key: 'communication', label: 'Communication', description: 'Email, WhatsApp and customer communication history' },
+  { key: 'automation', label: 'Automations', description: 'Business triggers, conditions, actions and execution history' },
+  { key: 'dataImport', label: 'Data Import', description: 'Securely map, validate and import previous business data' },
   { key: 'admin', label: 'Administration', description: 'Users, company settings and audit log' }
 ];
 

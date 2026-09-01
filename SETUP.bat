@@ -1,14 +1,22 @@
 @echo off
-title Tech Defenders OS v3.2.1 - Setup
+title Tech Defenders OS v4.2.0 - Setup
 cd /d "%~dp0"
 
 echo ==================================================
-echo   TECH DEFENDERS OS v3.2.1 - full setup
+echo   TECH DEFENDERS OS v4.2.0 - Mobile Connected - full setup
 echo ==================================================
 
 where node >nul 2>nul
 if errorlevel 1 (
   echo [ERROR] Node.js is not installed. Get it from https://nodejs.org
+  pause
+  exit /b 1
+)
+
+node -e "const v=process.versions.node.split('.').map(Number);process.exit(Math.max(0,22003-(v[0]*1000+v[1])))"
+if errorlevel 1 (
+  echo [ERROR] Node.js 22.3 or newer is required. Current version:
+  node --version
   pause
   exit /b 1
 )
@@ -38,6 +46,8 @@ node smoke-test.js
 if errorlevel 1 ( echo [ERROR] Smoke checks failed - see output above. & pause & exit /b 1 )
 node v3-test.js
 if errorlevel 1 ( echo [ERROR] V3 checks failed - see output above. & pause & exit /b 1 )
+node operations-test.js
+if errorlevel 1 ( echo [ERROR] V4 operations checks failed - see output above. & pause & exit /b 1 )
 
 echo.
 echo [6/7] Running local provider contract tests ^(no paid message or GST submission^)...
@@ -48,7 +58,7 @@ echo.
 echo [7/7] Setup complete.
 echo   Start the app anytime with START.bat
 echo   Reset to clean start:  npm run seed
-echo   Re-run smoke tests:    npm run smoke
+echo   Re-run all tests:      npm test
 echo   Reconfigure Ollama:    node scripts\configure-ollama.js
 echo   Replace Brevo key:     CONFIGURE-BREVO.bat
 echo.

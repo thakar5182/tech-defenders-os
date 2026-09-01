@@ -34,6 +34,26 @@ services:
         value: "true"
       - key: PROVIDER_TIMEOUT_MS
         value: "15000"
+      - key: PUBLIC_APP_URL
+        sync: false
+      - key: INVOICE_LINK_SECRET
+        generateValue: true
+      - key: IMPORT_MAX_UPLOAD_MB
+        value: "25"
+      - key: IMPORT_MAX_ARCHIVE_FILES
+        value: "250"
+      - key: IMPORT_MAX_EXTRACTED_MB
+        value: "100"
+      - key: IMPORT_MAX_FILE_MB
+        value: "25"
+      - key: PACKAGE_MAX_FILES
+        value: "250"
+      - key: PACKAGE_MAX_FILE_MB
+        value: "25"
+      - key: PACKAGE_MAX_TOTAL_MB
+        value: "100"
+      - key: EMAIL_WORKER_BATCH
+        value: "10"
       - key: EMAIL_OTP_TTL_MINUTES
         value: "10"
       - key: BREVO_API_KEY
@@ -42,4 +62,3 @@ services:
         value: techdefenderss@gmail.com
       - key: BREVO_SENDER_NAME
         value: Tech Defenders
-
