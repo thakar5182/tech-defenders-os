@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Tech Defenders OS v4.1</title>
+<link rel="stylesheet" href="/css/styles.css">
+<link rel="icon" type="image/webp" href="/assets/tech-defenders-logo.webp">
+</head>
+<body>
+
+<div class="app-shell" id="app-shell">
+
+  <!-- ================= SIDEBAR ================= -->
+  <aside class="sidebar dark-scroll" id="sidebar"></aside>
+  <button class="nav-overlay" id="nav-overlay" aria-label="Close navigation"></button>
+
+  <!-- ================= MAIN ================= -->
+  <div class="main-col">
+
+    <header class="topbar">
+      <button class="icon-btn" id="btn-collapse" title="Toggle sidebar (Ctrl+B)">&#9776;</button>
+      <div class="global-search">
+        <span class="gs-ico">&#9906;</span>
+        <input id="global-search" placeholder="Search customers, products, invoices, tickets...  (Ctrl+K)" autocomplete="off">
+        <div id="search-pop" class="search-pop hidden"></div>
+      </div>
+      <div class="topbar-right">
+        <button class="org-chip" id="org-chip" type="button">&nbsp;</button>
+        <button class="icon-btn" id="btn-quickcreate" title="Quick create">+</button>
+        <div class="notif-wrap">
+          <button class="icon-btn" id="btn-notif" title="Notifications">&#128276;<span class="notif-dot hidden" id="notif-dot"></span></button>
+          <div class="dropdown hidden" id="notif-dd"></div>
+        </div>
+        <div class="user-wrap">
+          <button class="icon-btn" id="btn-user" title="Account"><span class="avatar" style="width:28px;height:28px;font-size:11px" id="user-avatar">?</span></button>
+          <div class="dropdown hidden" id="user-dd" style="width:230px"></div>
+        </div>
+      </div>
+    </header>
+
+    <main class="content" id="content">
+      <div class="skel" style="width:40%"></div>
+      <div class="skel" style="width:90%"></div>
+      <div class="skel" style="width:75%"></div>
+      <div class="skel" style="width:85%"></div>
+    </main>
+  </div>
+</div>
+
+<div id="toast-host" class="toast-host"></div>
+<div id="modal-host"></div>
+
+<script src="/js/core.js"></script>
+<script src="/js/pages-core.js"></script>
+<script src="/js/pages-commerce.js"></script>
+<script src="/js/pages-ops.js"></script>
+<script src="/js/pages-advanced.js"></script>
+<script src="/js/pages-operations.js"></script>
+<script>Core.boot();</script>
+</body>
+</html>
