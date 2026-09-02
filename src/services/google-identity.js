@@ -7,6 +7,10 @@ function configuredClientId() {
   return String(process.env.GOOGLE_CLIENT_ID || '').trim();
 }
 
+function configuredClientIds() {
+  return [configuredClientId(), String(process.env.GOOGLE_ANDROID_CLIENT_ID || '').trim()].filter(Boolean);
+}
+
 function validatePayload(payload) {
   if (!payload || !payload.sub || !payload.email) throw new Error('Google identity is missing required account information');
   if (payload.email_verified !== true) throw new Error('Google account email is not verified');
@@ -22,15 +26,16 @@ function validatePayload(payload) {
 
 async function verifyCredential(credential) {
   const clientId = configuredClientId();
-  if (!clientId) {
+  const audiences = configuredClientIds();
+  if (!audiences.length) {
     const error = new Error('Google Sign-In is not configured');
     error.code = 'GOOGLE_AUTH_NOT_CONFIGURED';
     throw error;
   }
   if (!credential || String(credential).length > 10000) throw new Error('Google credential is required');
-  if (!client) client = new OAuth2Client(clientId);
-  const ticket = await client.verifyIdToken({ idToken: String(credential), audience: clientId });
+  if (!client) client = new OAuth2Client(clientId || audiences[0]);
+  const ticket = await client.verifyIdToken({ idToken: String(credential), audience: audiences });
   return validatePayload(ticket.getPayload());
 }
 
-module.exports = { configuredClientId, validatePayload, verifyCredential };
+module.exports = { configuredClientId, configuredClientIds, validatePayload, verifyCredential };
