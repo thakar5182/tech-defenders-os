@@ -20,12 +20,6 @@ const Auth = {
     el.type = show ? 'text' : 'password';
     btn.textContent = show ? 'Hide' : 'Show';
   },
-
-  fillDemo() {
-    document.getElementById('si-email').value = 'superadmin@techdefenders.in';
-    document.getElementById('si-password').value = 'Super@123';
-  },
-
   async startLoginOtp() {
     const email = document.getElementById('si-email').value.trim();
     if (!email) return toast('Email required', 'Enter your work email first', 'warning');

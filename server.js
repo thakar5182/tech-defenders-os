@@ -108,7 +108,6 @@ if (require.main === module) {
     console.log('  ================================================');
     console.log('   TECH DEFENDERS OS v4.2.0 · MOBILE CONNECTED');
     console.log(`   Running at  http://localhost:${PORT}`);
-    console.log('   Super Admin superadmin@techdefenders.in / Super@123');
     console.log('  ================================================');
     console.log('');
   });

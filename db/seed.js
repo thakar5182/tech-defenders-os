@@ -17,6 +17,7 @@
 const fs = require('fs');
 const path = require('path');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
 const store = require('./store');
 
 const DATA_DIR = store.DATA_DIR;
@@ -63,16 +64,22 @@ function run(force) {
   });
   const orgId = organization.id;
 
+  const superAdminPassword = String(process.env.INITIAL_SUPERADMIN_PASSWORD || '');
+  if (superAdminPassword.length < 12) {
+    throw new Error('INITIAL_SUPERADMIN_PASSWORD must contain at least 12 characters');
+  }
+  const randomPassword = () => crypto.randomBytes(24).toString('base64url');
+
   const accounts = [
-    ['Tech Defenders Super Admin', 'superadmin@techdefenders.in', 'super_admin', 'Super@123'],
-    ['Tech Defenders Admin', 'admin@techdefenders.in', 'admin', 'Admin@123'],
-    ['Sales Manager', 'sales@techdefenders.in', 'sales_manager', 'Demo@123'],
-    ['Accountant', 'accounts@techdefenders.in', 'accountant', 'Demo@123'],
-    ['Purchase Manager', 'purchase@techdefenders.in', 'purchase_manager', 'Demo@123'],
-    ['Store Manager', 'store@techdefenders.in', 'store_manager', 'Demo@123'],
-    ['Production Manager', 'production@techdefenders.in', 'production_manager', 'Demo@123'],
-    ['Service Manager', 'service@techdefenders.in', 'service_manager', 'Demo@123'],
-    ['Engineer', 'engineer@techdefenders.in', 'engineer', 'Demo@123']
+    ['Tech Defenders Super Admin', 'superadmin@techdefenders.in', 'super_admin', superAdminPassword],
+    ['Tech Defenders Admin', 'admin@techdefenders.in', 'admin', randomPassword()],
+    ['Sales Manager', 'sales@techdefenders.in', 'sales_manager', randomPassword()],
+    ['Accountant', 'accounts@techdefenders.in', 'accountant', randomPassword()],
+    ['Purchase Manager', 'purchase@techdefenders.in', 'purchase_manager', randomPassword()],
+    ['Store Manager', 'store@techdefenders.in', 'store_manager', randomPassword()],
+    ['Production Manager', 'production@techdefenders.in', 'production_manager', randomPassword()],
+    ['Service Manager', 'service@techdefenders.in', 'service_manager', randomPassword()],
+    ['Engineer', 'engineer@techdefenders.in', 'engineer', randomPassword()]
   ];
   for (const [name, email, role, password] of accounts) {
     store.insert('users', {
@@ -121,7 +128,6 @@ function run(force) {
   console.log('[init] Clean Tech Defenders workspace ready.');
   console.log('[init] Retained: 9 login accounts, numbering series and required chart of accounts.');
   console.log('[init] Business/demo records: 0.');
-  console.log('[init] Super Admin: superadmin@techdefenders.in / Super@123');
   return true;
 }
 
