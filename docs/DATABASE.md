@@ -1,12 +1,14 @@
 # Database and Migration Boundary
 
-The bundled store is a zero-dependency document store with one JSON file per
-collection and temporary-file rename on save. It is intentionally easy to run
-on Windows and suitable for a controlled single-instance deployment.
+The store exposes one synchronous document API with two backends. Local
+development and isolated tests use atomic JSON files. When `DATABASE_URL` is
+configured, production hydrates all collections from PostgreSQL before serving
+requests and serializes every changed collection back to `td_collections` JSONB.
+This lets existing APIs run unchanged while accounts and records survive deploys.
 
-It does not provide cross-file ACID transactions, database constraints, row
-locking, replicas or multi-instance coordination. Before high concurrency or
-horizontal scaling, migrate these collection groups to PostgreSQL:
+The compatibility adapter does not yet provide row-level database constraints,
+locking or multi-instance conflict resolution. Before high concurrency or
+horizontal scaling, normalize these collection groups into relational tables:
 
 - identity: organizations, branches, users, permissions
 - CRM: leads, customers, deals, tasks, activities
@@ -19,4 +21,3 @@ Use UUID primary keys, `org_id` foreign keys, unique composite indexes for
 organization/document number, supplier invoice uniqueness, and database
 transactions for every stock/accounting workflow. Preserve existing API shapes
 during migration so the SPA does not require a simultaneous rewrite.
-

@@ -79,6 +79,10 @@
         </div>
 
         <button type="submit" class="btn btn-gold btn-block" id="si-submit">Sign In</button>
+        <section class="google-auth hidden" id="google-auth" aria-label="Google sign in">
+          <div class="google-button-shell" id="google-button"></div>
+          <p class="google-auth-note" id="google-auth-note" role="status" aria-live="polite"></p>
+        </section>
         <div class="auth-divider"><span>or</span></div>
         <button type="button" class="btn btn-outline btn-block" id="si-otp" onclick="Auth.startLoginOtp()">Sign in with Email OTP</button>
         <p class="otp-hint">Brevo free-tier email delivery is used when configured by the administrator.</p>
@@ -135,7 +139,7 @@
       </form>
 
     </div>
-    <div class="auth-foot">&copy; 2026 Tech Defenders OS &middot; v3.2.1 Brevo OTP + App Launcher</div>
+    <div class="auth-foot">&copy; 2026 Tech Defenders OS &middot; v4.3 Durable Cloud + Google Sign-In</div>
   </main>
 </div>
 

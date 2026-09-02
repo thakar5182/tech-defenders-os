@@ -21,7 +21,7 @@ const SECRET = configuredSecret.length >= 32
 
 function safeUser(user) {
   if (!user) return null;
-  const { passwordHash, resetToken, resetTokenHash, resetTokenAt, tempPassword, ...safe } = user;
+  const { passwordHash, resetToken, resetTokenHash, resetTokenAt, tempPassword, googleSub, ...safe } = user;
   return {
     ...safe,
     moduleAccess: { ...(safe.moduleAccess || {}) },

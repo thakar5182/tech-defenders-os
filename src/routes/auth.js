@@ -21,6 +21,7 @@ const {
 } = require('../middleware');
 const { audit, effectiveAccess } = require('../util');
 const { sendSystemEmail, ProviderError } = require('../services/integrations');
+const googleIdentity = require('../services/google-identity');
 
 const router = express.Router();
 
@@ -211,12 +212,13 @@ router.post('/register/request-otp', loginLimiter, async (req, res) => {
   }
 });
 
-router.post('/register/verify-otp', loginLimiter, (req, res) => {
+router.post('/register/verify-otp', loginLimiter, async (req, res) => {
   const result = validateChallenge(req.body && req.body.challengeId, req.body && req.body.otp, 'signup');
   if (result.error) return res.status(400).json({ error: result.error });
   const registration = result.challenge.registration;
   if (!registration || store.findOne('users', user => user.email === registration.email)) return res.status(409).json({ error: 'This email is already registered' });
   const { org, user } = createOrganization(registration);
+  await store.flush();
   const token = signToken(user);
   res.cookie('td_token', token, sessionCookieOptions());
   // Mobile clients store this bearer token in Expo SecureStore; browser sessions still use the cookie.
@@ -240,6 +242,68 @@ router.post('/login', loginLimiter, (req, res) => {
   const token = signToken(user);
   res.cookie('td_token', token, sessionCookieOptions());
   res.json(sessionResponse(req, { user: publicUser(user) }, token));
+});
+
+router.get('/google/config', (_req, res) => {
+  const clientId = googleIdentity.configuredClientId();
+  res.json({ enabled: Boolean(clientId), clientId: clientId || null });
+});
+
+router.post('/google', loginLimiter, async (req, res) => {
+  try {
+    const identity = await googleIdentity.verifyCredential(req.body && req.body.credential);
+    const linkedUser = store.findOne('users', user => user.googleSub === identity.sub);
+    const emailUser = store.findOne('users', user => normEmail(user.email) === identity.email);
+    if (linkedUser && emailUser && linkedUser.id !== emailUser.id) {
+      return res.status(409).json({ error: 'This Google account conflicts with an existing login. Contact your administrator.' });
+    }
+
+    let user = linkedUser || emailUser;
+    let org = null;
+    if (user) {
+      if (!user.active) return res.status(403).json({ error: 'Account deactivated. Contact your administrator.' });
+      if (user.googleSub && user.googleSub !== identity.sub) {
+        return res.status(409).json({ error: 'This email is already linked to a different Google account.' });
+      }
+      user = store.update('users', user.id, {
+        googleSub: identity.sub,
+        authProvider: user.passwordHash ? 'password+google' : 'google',
+        picture: identity.picture || user.picture || '',
+        lastLoginAt: new Date().toISOString()
+      });
+      org = store.byId('organizations', user.orgId);
+      audit(user.orgId, user.id, 'login_google', 'user', user.id);
+    } else {
+      if (process.env.GOOGLE_AUTO_SIGNUP !== 'true') {
+        return res.status(403).json({ error: 'No account exists for this Google email. Create an account with email OTP first.' });
+      }
+      const company = `${identity.name || 'My'} Workspace`.slice(0, 180);
+      const created = createOrganization({
+        name: identity.name,
+        email: identity.email,
+        company,
+        phone: '',
+        stateCode: String(process.env.DEFAULT_STATE_CODE || '24').slice(0, 2),
+        passwordHash: bcrypt.hashSync(crypto.randomBytes(48).toString('base64url'), 10)
+      });
+      org = created.org;
+      user = store.update('users', created.user.id, {
+        googleSub: identity.sub,
+        authProvider: 'google',
+        picture: identity.picture,
+        lastLoginAt: new Date().toISOString()
+      });
+      audit(user.orgId, user.id, 'register_google', 'organization', org.id);
+    }
+
+    await store.flush();
+    const token = signToken(user);
+    res.cookie('td_token', token, sessionCookieOptions());
+    return res.json(sessionResponse(req, { user: publicUser(user), org }, token));
+  } catch (error) {
+    const status = error.code === 'GOOGLE_AUTH_NOT_CONFIGURED' ? 503 : 401;
+    return res.status(status).json({ error: status === 503 ? error.message : 'Google sign-in could not be verified', code: error.code || 'GOOGLE_AUTH_FAILED' });
+  }
 });
 
 router.post('/login/request-otp', loginLimiter, async (req, res) => {

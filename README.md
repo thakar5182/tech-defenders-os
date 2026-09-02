@@ -48,21 +48,19 @@ npm run test:integrations
 npm start
 ```
 
-## Login accounts
+## Secure first login
 
-| Email | Password | Role |
-|---|---|---|
-| superadmin@techdefenders.in | Super@123 | Super Admin |
-| admin@techdefenders.in | Admin@123 | Administrator |
-| sales@techdefenders.in | Demo@123 | Sales Manager |
-| accounts@techdefenders.in | Demo@123 | Accountant |
-| purchase@techdefenders.in | Demo@123 | Purchase Manager |
-| store@techdefenders.in | Demo@123 | Store Manager |
-| production@techdefenders.in | Demo@123 | Production Manager |
-| service@techdefenders.in | Demo@123 | Service Manager |
-| engineer@techdefenders.in | Demo@123 | Engineer |
+Set `INITIAL_SUPERADMIN_PASSWORD` (12+ characters) in the server environment
+before the first boot. The initializer creates the Super Admin without printing
+or embedding its password. Other initial role accounts receive random passwords;
+the Super Admin can manage them from Platform Control.
 
-Change these passwords before production use.
+For recovery, set `SYNC_SUPERADMIN_PASSWORD=true`, deploy once with the desired
+`INITIAL_SUPERADMIN_PASSWORD`, verify login, then turn synchronization off.
+
+Production uses `DATABASE_URL` for PostgreSQL-backed persistence. This keeps
+accounts and business records across Render restarts and deploys. Google Sign-In
+is enabled by `GOOGLE_CLIENT_ID`; Google ID tokens are verified on the server.
 
 ## Main workflows
 

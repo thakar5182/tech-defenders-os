@@ -1,9 +1,5 @@
-## FREE TIER blueprint (no cost). Trade-off vs. the paid/persistent-disk
-## setup: Render's Free web services have an EPHEMERAL filesystem, so this
-## app's JSON data store (data/, backups/) is WIPED on every redeploy,
-## manual restart, or automatic idle spin-down. Use only for demos/testing.
-## For real/production data, restore the `starter` plan + `disk:` block and
-## follow docs/RENDER-INTEGRATIONS.md instead.
+## FREE web service + external PostgreSQL. DATABASE_URL must point to a
+## durable database (for example Neon Free); local Render files are ephemeral.
 services:
   - type: web
     name: tech-defenders-os
@@ -29,11 +25,25 @@ services:
       - key: AUTO_SEED
         value: "true"
       - key: AUTO_BACKUP
-        value: "true"
+        value: "false"
       - key: AUTO_AUTOMATION
         value: "true"
       - key: PROVIDER_TIMEOUT_MS
         value: "15000"
+      - key: DATABASE_URL
+        sync: false
+      - key: DATABASE_SSL
+        value: "true"
+      - key: REQUIRE_PERSISTENT_STORAGE
+        value: "true"
+      - key: INITIAL_SUPERADMIN_PASSWORD
+        sync: false
+      - key: SYNC_SUPERADMIN_PASSWORD
+        value: "false"
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_AUTO_SIGNUP
+        value: "true"
       - key: PUBLIC_APP_URL
         sync: false
       - key: INVOICE_LINK_SECRET

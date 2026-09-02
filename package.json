@@ -1,6 +1,6 @@
 {
   "name": "tech-defenders-business-os",
-  "version": "4.2.0",
+  "version": "4.3.0",
   "private": true,
   "description": "Tech Defenders OS v4 - CRM, ERP, secure imports, communications, automation and AI-ready business platform",
   "main": "server.js",
@@ -14,7 +14,9 @@
     "test:v3": "node v3-test.js",
     "test:integrations": "node integration-test.js",
     "test:operations": "node operations-test.js",
-    "test": "npm run smoke && npm run test:v3 && npm run test:integrations && npm run test:operations"
+    "test:persistence": "node persistence-test.js",
+    "test:google": "node google-auth-test.js",
+    "test": "npm run smoke && npm run test:v3 && npm run test:integrations && npm run test:operations && npm run test:persistence && npm run test:google"
   },
   "dependencies": {
     "@e965/xlsx": "^0.20.3",
@@ -22,15 +24,16 @@
     "cookie-parser": "^1.4.7",
     "express": "^4.19.2",
     "fast-xml-parser": "^5.11.1",
+    "google-auth-library": "^11.0.2",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.3.0",
     "pdf-parse": "^2.4.5",
     "pdfkit": "^0.17.2",
-    "yazl": "^3.3.1",
-    "yauzl": "^3.4.0"
+    "pg": "^8.23.0",
+    "yauzl": "^3.4.0",
+    "yazl": "^3.3.1"
   },
   "engines": {
     "node": ">=22.3.0"
-  },
-  "devDependencies": {}
+  }
 }

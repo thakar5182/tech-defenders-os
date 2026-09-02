@@ -19,6 +19,8 @@ process.env.COOKIE_SECURE = 'false';
 process.env.JWT_SECRET = 'operations-test-secret-that-is-long-enough-123456789';
 process.env.BREVO_API_KEY = 'test-brevo-key';
 process.env.BREVO_SENDER_EMAIL = 'verified@example.test';
+process.env.INITIAL_SUPERADMIN_PASSWORD = 'TestSuperAdmin@123';
+process.env.INITIAL_STAFF_PASSWORD = 'TestStaffAccount@123';
 
 let passed = 0, failed = 0, cookie = '';
 function check(name, condition) { if (condition) { passed++; console.log('  PASS ', name); } else { failed++; console.log('  FAIL ', name); } }
@@ -84,11 +86,11 @@ function pdfBuffer(lines) {
     console.log('\n=== Tech Defenders OS v4 operations regression ===\n');
     let response = await request(port, 'GET', '/api/ops/imports');
     check('operations endpoints require authentication', response.status === 401);
-    response = await request(port, 'POST', '/api/auth/login', { email: 'admin@techdefenders.in', password: 'Admin@123' });
+    response = await request(port, 'POST', '/api/auth/login', { email: 'admin@techdefenders.in', password: 'TestStaffAccount@123' });
     check('administrator login works', response.status === 200 && !!cookie);
 
     const mobileLogin = await request(port, 'POST', '/api/auth/login',
-      { email: 'admin@techdefenders.in', password: 'Admin@123', client: 'mobile' },
+      { email: 'admin@techdefenders.in', password: 'TestStaffAccount@123', client: 'mobile' },
       { 'X-TD-Client': 'mobile' });
     check('official mobile login receives a bearer token',
       mobileLogin.status === 200 && typeof mobileLogin.json.token === 'string' && mobileLogin.json.token.length > 40);

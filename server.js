@@ -19,11 +19,29 @@ const cookieParser = require('cookie-parser');
 const store = require('./db/store');
 const { attachUser } = require('./src/middleware');
 
-/* load data + optional clean initialization */
-store.load();
-if ((process.env.AUTO_SEED || 'true') === 'true' && store.isEmpty()) {
-  console.log('[boot] Empty database detected - initializing a clean Tech Defenders workspace...');
-  require('./db/seed').run(false);
+/* Load durable storage before serving requests. JSON remains available for
+ * local development/tests; production can require PostgreSQL explicitly. */
+async function initializeData() {
+  await store.initialize();
+  if (process.env.NODE_ENV === 'production' && process.env.REQUIRE_PERSISTENT_STORAGE === 'true' && !store.status().durable) {
+    throw new Error('Persistent storage is required. Configure DATABASE_URL before starting production.');
+  }
+  if ((process.env.AUTO_SEED || 'true') === 'true') {
+    if (store.isEmpty()) console.log('[boot] Empty database detected - initializing a clean Tech Defenders workspace...');
+    await require('./db/seed').run(false);
+  }
+  return store.status();
+}
+
+let bootReady;
+if (process.env.DATABASE_URL) {
+  bootReady = initializeData();
+} else {
+  // Keep local/test startup synchronous for the existing test harness.
+  store.load();
+  bootReady = (process.env.AUTO_SEED || 'true') === 'true'
+    ? require('./db/seed').run(false).then(() => store.status())
+    : Promise.resolve(store.status());
 }
 
 const app = express();
@@ -34,6 +52,12 @@ app.use(express.json({
   verify: (req, res, buffer) => { req.rawBody = Buffer.from(buffer); }
 }));
 app.use(cookieParser());
+
+/* No API or static response is served before PostgreSQL hydration completes. */
+app.use(async (_req, res, next) => {
+  try { await bootReady; next(); }
+  catch (error) { res.status(503).json({ error: 'Service initialization failed', code: 'STORAGE_NOT_READY' }); }
+});
 
 /* request identity + same-origin guard for cookie-authenticated writes */
 app.use((req, res, next) => {
@@ -59,7 +83,7 @@ app.use((req, res, next) => {
   res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
   res.setHeader(
     'Content-Security-Policy',
-    "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:"
+    "default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com; style-src 'self' 'unsafe-inline' https://accounts.google.com; img-src 'self' data: https://*.googleusercontent.com; font-src 'self' data:; frame-src https://accounts.google.com; connect-src 'self' https://accounts.google.com"
   );
   next();
 });
@@ -68,7 +92,17 @@ app.use((req, res, next) => {
 app.use(attachUser);
 
 /* ---------------- API routes ---------------- */
-app.get('/api/health', (req, res) => res.json({ ok: true, name: 'Tech Defenders OS', version: '4.2.0', mobileApi: true, storage: store.DATA_DIR, time: new Date().toISOString() }));
+app.get('/api/health', (req, res) => {
+  const storage = store.status();
+  res.status(storage.ready ? 200 : 503).json({
+    ok: storage.ready,
+    name: 'Tech Defenders OS',
+    version: '4.3.0',
+    mobileApi: true,
+    storage: { mode: storage.mode, durable: storage.durable, ready: storage.ready },
+    time: new Date().toISOString()
+  });
+});
 app.use('/api/auth', require('./src/routes/auth'));
 app.use('/api/dashboard', require('./src/routes/dashboard'));
 app.use('/api/crm', require('./src/routes/crm'));
@@ -103,41 +137,50 @@ app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
 /* ---------------- boot ---------------- */
 if (require.main === module) {
   const PORT = Number(process.env.PORT) || 4173;
-  const server = app.listen(PORT, () => {
+  let server;
+  bootReady.then(() => {
+    server = app.listen(PORT, () => {
     console.log('');
     console.log('  ================================================');
-    console.log('   TECH DEFENDERS OS v4.2.0 · MOBILE CONNECTED');
+    console.log('   TECH DEFENDERS OS v4.3.0 · DURABLE + GOOGLE ID');
     console.log(`   Running at  http://localhost:${PORT}`);
+    console.log(`   Storage: ${store.status().mode}`);
     console.log('  ================================================');
     console.log('');
-  });
+    });
+  }).catch(error => { console.error('[boot]', error.message); process.exit(1); });
 
-  const shutdown = signal => {
+  const shutdown = async signal => {
     console.log(`\n[shutdown] ${signal} received - flushing data...`);
-    store.flushSync();
-    server.close(() => process.exit(0));
+    try { await store.flush(); } catch (error) { console.error('[shutdown]', error.message); }
+    if (!server) return process.exit(0);
+    server.close(async () => { await store.close().catch(() => {}); process.exit(0); });
     setTimeout(() => process.exit(1), 5000).unref();
   };
   process.on('SIGINT', () => shutdown('SIGINT'));
   process.on('SIGTERM', () => shutdown('SIGTERM'));
 }
 if ((process.env.AUTO_BACKUP || 'true') === 'true' && process.env.NODE_ENV !== 'test') {
-  console.log('[backup] Startup snapshot:', store.backupSync());
-  setInterval(() => {
-    try { console.log('[backup] Daily snapshot:', store.backupSync()); }
-    catch (error) { console.error('[backup] Snapshot failed:', error.message); }
-  }, 24 * 60 * 60 * 1000).unref();
+  bootReady.then(() => {
+    console.log('[backup] Startup snapshot:', store.backupSync());
+    setInterval(() => {
+      try { console.log('[backup] Daily snapshot:', store.backupSync()); }
+      catch (error) { console.error('[backup] Snapshot failed:', error.message); }
+    }, 24 * 60 * 60 * 1000).unref();
+  }).catch(() => {});
 }
 
 if ((process.env.AUTO_AUTOMATION || 'true') === 'true' && process.env.NODE_ENV !== 'test') {
-  setTimeout(() => {
-    try { advancedRoutes.runScheduledAutomations(); }
-    catch (error) { console.error('[automation] Startup run failed:', error.message); }
-  }, 15_000).unref();
-  setInterval(() => {
-    try { advancedRoutes.runScheduledAutomations(); }
-    catch (error) { console.error('[automation] Scheduled run failed:', error.message); }
-  }, 15 * 60 * 1000).unref();
+  bootReady.then(() => {
+    setTimeout(() => {
+      try { advancedRoutes.runScheduledAutomations(); }
+      catch (error) { console.error('[automation] Startup run failed:', error.message); }
+    }, 15_000).unref();
+    setInterval(() => {
+      try { advancedRoutes.runScheduledAutomations(); }
+      catch (error) { console.error('[automation] Scheduled run failed:', error.message); }
+    }, 15 * 60 * 1000).unref();
+  }).catch(() => {});
 }
 
 if (process.env.NODE_ENV !== 'test') {
@@ -147,8 +190,11 @@ if (process.env.NODE_ENV !== 'test') {
     communications.runEmailWorker().catch(error => console.error('[email-worker]', error.message));
     automations.runAutomationWorker().catch(error => console.error('[automation-worker]', error.message));
   };
-  setTimeout(runWorkers, 5000).unref();
-  setInterval(runWorkers, 60_000).unref();
+  bootReady.then(() => {
+    setTimeout(runWorkers, 5000).unref();
+    setInterval(runWorkers, 60_000).unref();
+  }).catch(() => {});
 }
 
+app.ready = bootReady;
 module.exports = app;

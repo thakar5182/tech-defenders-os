@@ -12,6 +12,8 @@ process.env.JWT_SECRET = 'smoke-test-only-secret-that-is-longer-than-32-characte
 process.env.NODE_ENV = 'test';
 process.env.ALLOW_DEV_RESET_TOKEN = 'false';
 process.env.AUTH_TEST_OTP_DELIVERY = 'capture';
+process.env.INITIAL_SUPERADMIN_PASSWORD = 'TestSuperAdmin@123';
+process.env.INITIAL_STAFF_PASSWORD = 'TestStaffAccount@123';
 
 const app = require('./server');
 const store = require('./db/store');
@@ -77,10 +79,10 @@ async function run() {
       store.find('users').length === 9 && store.find('accounts').length === 20 &&
       store.find('sequences').length === 23);
     response = await req('GET', '/');
-    check('sign-in page renders bundled Tech Defenders logo and Super Admin login',
+    check('sign-in page renders secure login options without exposed credentials',
       response.status === 200 && response.raw.includes('/assets/tech-defenders-logo.webp') &&
-      response.raw.includes('superadmin@techdefenders.in') && response.raw.includes('Sign in with Email OTP') &&
-      response.raw.includes('Email OTP &amp; Create Workspace'));
+      !response.raw.includes('superadmin@techdefenders.in') && response.raw.includes('Sign in with Email OTP') &&
+      response.raw.includes('Email OTP &amp; Create Workspace') && response.raw.includes('google-auth'));
     response = await req('GET', '/app.html');
     check('application shell references bundled logo', response.status === 200 && response.raw.includes('/assets/tech-defenders-logo.webp'));
     response = await req('GET', '/assets/tech-defenders-logo.webp');
@@ -99,10 +101,10 @@ async function run() {
       response.status === 200 && response.raw.includes('Manual quotation mode') &&
       response.raw.includes('Direct manual invoice') && !response.raw.includes('Pages._qProd'));
 
-    response = await req('POST', '/api/auth/login', { email: 'admin@techdefenders.in', password: 'Admin@123' });
+    response = await req('POST', '/api/auth/login', { email: 'admin@techdefenders.in', password: 'TestStaffAccount@123' });
     const adminCookie = response.cookie;
     check('admin login uses HTTP-only cookie', response.status === 200 && !!adminCookie && !response.json.token);
-    const superLogin = await req('POST', '/api/auth/login', { email: 'superadmin@techdefenders.in', password: 'Super@123' });
+    const superLogin = await req('POST', '/api/auth/login', { email: 'superadmin@techdefenders.in', password: 'TestSuperAdmin@123' });
     const superCookie = superLogin.cookie;
     check('Super Admin login works', superLogin.status === 200 && !!superCookie && superLogin.json.user.role === 'super_admin');
     const platformOrgs = await req('GET', '/api/admin/organizations', null, superCookie);
@@ -115,7 +117,7 @@ async function run() {
     check('regular admin cannot open platform control', response.status === 403);
     response = await req('GET', '/api/auth/me', null, adminCookie);
     check('profile does not expose password hash', response.status === 200 && !response.json.user.passwordHash);
-    response = await req('POST', '/api/auth/login', { email: 'admin@techdefenders.in', password: 'Admin@123' });
+    response = await req('POST', '/api/auth/login', { email: 'admin@techdefenders.in', password: 'TestStaffAccount@123' });
     check('second login works after authenticated request', response.status === 200);
 
     response = await req('POST', '/api/auth/forgot', { email: 'admin@techdefenders.in' });
@@ -276,7 +278,7 @@ async function run() {
     check('admin cannot control Super Admin', response.status === 403);
     response = await req('PATCH', `/api/admin/users/${engineer.id}/access`, { moduleAccess: { service: false } }, adminCookie);
     check('admin can disable a user module', response.status === 200 && response.json.effectiveAccess.service === false);
-    const engineerLogin = await req('POST', '/api/auth/login', { email: engineer.email, password: 'Demo@123' });
+    const engineerLogin = await req('POST', '/api/auth/login', { email: engineer.email, password: 'TestStaffAccount@123' });
     response = await req('GET', '/api/service/tickets', null, engineerLogin.cookie);
     check('disabled module is denied by API', response.status === 403);
 

@@ -4,6 +4,8 @@
 'use strict';
 
 const Auth = {
+  googleClientId: '',
+
   showTab(name) {
     const tabs = document.querySelector('.tabs');
     tabs.dataset.active = name;
@@ -49,6 +51,62 @@ const Auth = {
       throw error;
     }
     return data;
+  },
+
+  async initGoogle() {
+    try {
+      const response = await fetch('/api/auth/google/config', { credentials: 'same-origin' });
+      const config = await response.json();
+      if (!response.ok || !config.enabled || !config.clientId) return;
+      Auth.googleClientId = config.clientId;
+      await Auth.loadGoogleScript();
+      const section = document.getElementById('google-auth');
+      const target = document.getElementById('google-button');
+      section.classList.remove('hidden');
+      window.google.accounts.id.initialize({
+        client_id: config.clientId,
+        callback: Auth.handleGoogleCredential,
+        auto_select: false,
+        cancel_on_tap_outside: true
+      });
+      window.google.accounts.id.renderButton(target, {
+        type: 'standard', theme: 'outline', size: 'large', text: 'continue_with',
+        shape: 'rectangular', logo_alignment: 'left', width: Math.min(400, Math.max(240, target.clientWidth))
+      });
+    } catch (_) {
+      // Password and email OTP remain available when Google is unavailable.
+    }
+  },
+
+  loadGoogleScript() {
+    if (window.google?.accounts?.id) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const existing = document.getElementById('google-identity-script');
+      if (existing) {
+        existing.addEventListener('load', resolve, { once: true });
+        existing.addEventListener('error', reject, { once: true });
+        return;
+      }
+      const script = document.createElement('script');
+      script.id = 'google-identity-script';
+      script.src = 'https://accounts.google.com/gsi/client';
+      script.async = true; script.defer = true;
+      script.onload = resolve; script.onerror = reject;
+      document.head.appendChild(script);
+    });
+  },
+
+  async handleGoogleCredential(response) {
+    const note = document.getElementById('google-auth-note');
+    note.textContent = 'Verifying your Google account...';
+    try {
+      await Auth.post('/api/auth/google', { credential: response.credential });
+      note.textContent = 'Verified. Opening your workspace...';
+      location.href = '/app.html';
+    } catch (error) {
+      note.textContent = '';
+      toast('Google sign-in failed', error.message, 'error');
+    }
   },
 
   openOtpVerify(purpose, challengeId, email) {
@@ -135,6 +193,7 @@ const Auth = {
 };
 
 window.Auth = Auth;
+Auth.initGoogle();
 
 /* ---------- toast helper (shared) ---------- */
 function toast(title, msg, kind) {

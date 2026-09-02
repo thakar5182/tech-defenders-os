@@ -1,12 +1,8 @@
 /**
  * Tech Defenders Business OS - Data Layer
  * ---------------------------------------
- * Zero-dependency persistent document store.
- * Each collection is a JSON file inside /data with atomic writes
- * (temp file + rename) so the server never serves corrupted state.
- *
- * All money/quantity math is done in plain numbers rounded to 2 decimals
- * at write time (r2 helper in src/util.js).
+ * Synchronous in-memory document API backed by either PostgreSQL
+ * (DATABASE_URL) for production or atomic JSON files for local use/tests.
  */
 'use strict';
 const fs = require('fs');
@@ -40,104 +36,199 @@ const COLLECTIONS = [
 ];
 
 const db = {};
+const dirty = new Set();
 let loaded = false;
+let mode = 'json';
+let pool = null;
+let timer = null;
+let writeChain = Promise.resolve();
+let lastPersistenceError = null;
+
+function filePath(col) { return path.join(DATA_DIR, col + '.json'); }
+function emptyMemory() { for (const col of COLLECTIONS) db[col] = []; }
+
+function loadJsonIntoMemory() {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  for (const col of COLLECTIONS) {
+    const file = filePath(col);
+    db[col] = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : [];
+  }
+}
 
 function load() {
   if (loaded) return;
-  fs.mkdirSync(DATA_DIR, { recursive: true });
-  for (const c of COLLECTIONS) {
-    const f = filePath(c);
-    db[c] = fs.existsSync(f) ? JSON.parse(fs.readFileSync(f, 'utf8')) : [];
+  if (process.env.DATABASE_URL) {
+    throw new Error('PostgreSQL storage must be initialized with await store.initialize() before use');
   }
+  mode = 'json';
+  loadJsonIntoMemory();
   loaded = true;
 }
 
-function filePath(col) {
-  return path.join(DATA_DIR, col + '.json');
+async function initialize(options = {}) {
+  if (loaded && !options.force) return;
+  const databaseUrl = options.databaseUrl === undefined ? process.env.DATABASE_URL : options.databaseUrl;
+  if (!databaseUrl && !options.pool) {
+    load();
+    return;
+  }
+
+  mode = 'postgres';
+  pool = options.pool;
+  if (!pool) {
+    const { Pool } = require('pg');
+    pool = new Pool({
+      connectionString: databaseUrl,
+      ssl: process.env.DATABASE_SSL === 'false' ? false : { rejectUnauthorized: false },
+      max: Math.max(1, Math.min(Number(process.env.DATABASE_POOL_MAX) || 5, 10)),
+      connectionTimeoutMillis: Number(process.env.DATABASE_CONNECT_TIMEOUT_MS) || 15000
+    });
+  }
+
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS td_collections (
+      name TEXT PRIMARY KEY,
+      records JSONB NOT NULL DEFAULT '[]'::jsonb,
+      updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    )
+  `);
+  const result = await pool.query('SELECT name, records FROM td_collections');
+  emptyMemory();
+  for (const row of result.rows) {
+    if (COLLECTIONS.includes(row.name) && Array.isArray(row.records)) db[row.name] = row.records;
+  }
+  loaded = true;
+  lastPersistenceError = null;
+
+  if (result.rows.length === 0 && process.env.MIGRATE_JSON_TO_DATABASE === 'true') {
+    for (const col of COLLECTIONS) {
+      const file = filePath(col);
+      db[col] = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : [];
+      dirty.add(col);
+    }
+    await flush();
+  }
 }
 
-/* ---------- atomic batched save (debounced ~40ms) ---------- */
-const dirty = new Set();
-let timer = null;
-function save(...cols) {
-  for (const c of cols) dirty.add(c);
+function ensureLoaded() { if (!loaded) load(); }
+
+function scheduleFlush() {
   if (timer) return;
   timer = setTimeout(() => {
     timer = null;
-    const list = [...dirty];
-    dirty.clear();
-    for (const col of list) {
-      const f = filePath(col);
-      const tmp = f + '.tmp';
-      fs.writeFileSync(tmp, JSON.stringify(db[col]));
-      fs.renameSync(tmp, f);
-    }
+    flush().catch(error => console.error('[storage] Persistence failed:', error.message));
   }, 40);
 }
-function flushSync() {
-  if (timer) { clearTimeout(timer); timer = null; }
-  for (const col of new Set([...dirty])) {
-    const f = filePath(col);
-    fs.writeFileSync(f + '.tmp', JSON.stringify(db[col]));
-    fs.renameSync(f + '.tmp', f);
+
+function save(...cols) {
+  ensureLoaded();
+  for (const col of cols) {
+    if (!COLLECTIONS.includes(col)) throw new Error(`Unknown collection: ${col}`);
+    dirty.add(col);
   }
-  dirty.clear();
+  scheduleFlush();
 }
 
-/* ---------- helpers ---------- */
+function writeJsonCollections(list, snapshots) {
+  fs.mkdirSync(DATA_DIR, { recursive: true });
+  for (const col of list) {
+    const file = filePath(col);
+    fs.writeFileSync(file + '.tmp', JSON.stringify(snapshots[col]));
+    fs.renameSync(file + '.tmp', file);
+  }
+}
+
+async function writePostgresCollections(list, snapshots) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    for (const col of list) {
+      await client.query(
+        `INSERT INTO td_collections (name, records, updated_at)
+         VALUES ($1, $2::jsonb, NOW())
+         ON CONFLICT (name) DO UPDATE
+         SET records = EXCLUDED.records, updated_at = NOW()`,
+        [col, JSON.stringify(snapshots[col])]
+      );
+    }
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+}
+
+async function flush() {
+  ensureLoaded();
+  if (timer) { clearTimeout(timer); timer = null; }
+  if (!dirty.size) return writeChain;
+
+  const list = [...dirty];
+  dirty.clear();
+  const snapshots = Object.fromEntries(list.map(col => [col, structuredClone(db[col])]));
+  writeChain = writeChain.catch(() => {}).then(async () => {
+    try {
+      if (mode === 'postgres') await writePostgresCollections(list, snapshots);
+      else writeJsonCollections(list, snapshots);
+      lastPersistenceError = null;
+    } catch (error) {
+      lastPersistenceError = error;
+      for (const col of list) dirty.add(col);
+      throw error;
+    }
+  });
+  await writeChain;
+  if (dirty.size) return flush();
+}
+
+function flushSync() {
+  ensureLoaded();
+  if (mode === 'postgres') {
+    void flush().catch(error => console.error('[storage] Persistence failed:', error.message));
+    return;
+  }
+  if (timer) { clearTimeout(timer); timer = null; }
+  const list = [...dirty];
+  dirty.clear();
+  writeJsonCollections(list, Object.fromEntries(list.map(col => [col, db[col]])));
+}
+
 function id() { return crypto.randomUUID(); }
 function now() { return new Date().toISOString(); }
-
 function insert(col, obj) {
-  load();
+  ensureLoaded();
   const rec = Object.assign({ id: id(), createdAt: now() }, obj);
-  db[col].push(rec);
-  save(col);
-  return rec;
+  db[col].push(rec); save(col); return rec;
 }
 function insertMany(col, arr) {
-  load();
-  for (const o of arr) db[col].push(Object.assign({ id: id(), createdAt: now() }, o));
+  ensureLoaded();
+  for (const obj of arr) db[col].push(Object.assign({ id: id(), createdAt: now() }, obj));
   save(col);
 }
 function update(col, recId, patch) {
-  load();
-  const rec = db[col].find(r => r.id === recId);
+  ensureLoaded();
+  const rec = db[col].find(item => item.id === recId);
   if (!rec) return null;
-  Object.assign(rec, patch, { updatedAt: now() });
-  save(col);
-  return rec;
+  Object.assign(rec, patch, { updatedAt: now() }); save(col); return rec;
 }
 function remove(col, recId) {
-  load();
-  const i = db[col].findIndex(r => r.id === recId);
-  if (i === -1) return false;
-  db[col].splice(i, 1);
-  save(col);
-  return true;
+  ensureLoaded();
+  const index = db[col].findIndex(item => item.id === recId);
+  if (index === -1) return false;
+  db[col].splice(index, 1); save(col); return true;
 }
-function find(col, pred) {
-  load();
-  return pred ? db[col].filter(pred) : db[col].slice();
-}
-function findOne(col, pred) {
-  load();
-  return db[col].find(pred) || null;
-}
-function byId(col, recId) {
-  load();
-  return db[col].find(r => r.id === recId) || null;
-}
-function isEmpty() {
-  load();
-  return db.users.length === 0;
-}
+function find(col, pred) { ensureLoaded(); return pred ? db[col].filter(pred) : db[col].slice(); }
+function findOne(col, pred) { ensureLoaded(); return db[col].find(pred) || null; }
+function byId(col, recId) { ensureLoaded(); return db[col].find(item => item.id === recId) || null; }
+function isEmpty() { ensureLoaded(); return db.users.length === 0; }
 
 function reset() {
   if (timer) { clearTimeout(timer); timer = null; }
-  dirty.clear();
-  for (const c of COLLECTIONS) db[c] = [];
-  loaded = true;
+  dirty.clear(); emptyMemory(); loaded = true;
+  for (const col of COLLECTIONS) dirty.add(col);
+  scheduleFlush();
 }
 
 function backupSync() {
@@ -149,11 +240,32 @@ function backupSync() {
   const target = path.join(root, stamp);
   fs.mkdirSync(target, { recursive: true });
   for (const collection of COLLECTIONS) {
-    const source = filePath(collection);
-    if (fs.existsSync(source)) fs.copyFileSync(source, path.join(target, collection + '.json'));
+    fs.writeFileSync(path.join(target, collection + '.json'), JSON.stringify(db[collection] || []));
   }
-  fs.writeFileSync(path.join(target, 'backup-manifest.json'), JSON.stringify({ createdAt: now(), dataDir: DATA_DIR, collections: COLLECTIONS }, null, 2));
+  fs.writeFileSync(path.join(target, 'backup-manifest.json'), JSON.stringify({ createdAt: now(), mode, collections: COLLECTIONS }, null, 2));
   return target;
 }
 
-module.exports = { db, COLLECTIONS, DATA_DIR, load, save, flushSync, reset, backupSync, id, now, insert, insertMany, update, remove, find, findOne, byId, isEmpty };
+function status() {
+  return { mode, durable: mode === 'postgres', ready: loaded && !lastPersistenceError,
+    pendingCollections: dirty.size, error: lastPersistenceError ? 'persistence_error' : null };
+}
+
+async function close() {
+  await flush();
+  if (pool && typeof pool.end === 'function') await pool.end();
+  pool = null;
+}
+
+function _resetForTests() {
+  if (timer) { clearTimeout(timer); timer = null; }
+  dirty.clear(); loaded = false; mode = 'json'; pool = null;
+  writeChain = Promise.resolve(); lastPersistenceError = null;
+  for (const col of COLLECTIONS) delete db[col];
+}
+
+module.exports = {
+  db, COLLECTIONS, DATA_DIR, initialize, load, save, flush, flushSync, reset,
+  backupSync, status, close, id, now, insert, insertMany, update, remove, find,
+  findOne, byId, isEmpty, _resetForTests
+};

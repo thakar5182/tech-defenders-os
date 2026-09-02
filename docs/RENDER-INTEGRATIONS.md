@@ -1,44 +1,30 @@
 # Render Deployment
 
-The included `render.yaml` is now configured for Render's **Free** web-service
-plan (no cost, no persistent disk).
-
-> ⚠️ **Free tier data-loss warning:** Render's Free web services use an
-> **ephemeral filesystem**. This app stores all business data as JSON files
-> under `data/` (with snapshots under `backups/`) on local disk via
-> `db/store.js`. On the Free plan, that data is **wiped on every redeploy,
-> manual restart, and automatic idle spin-down** (Free services spin down
-> after ~15 minutes of inactivity and restart clean on the next request).
-> Use the Free plan only for demos, evaluation or short-lived testing —
-> **never for real/production data**. To keep data across restarts, upgrade
-> to a paid plan and restore the persistent-disk configuration described in
-> "Upgrading to persistent storage" below.
+The included `render.yaml` uses a Render **Free** web service plus external
+PostgreSQL. Render's local filesystem is ephemeral, so `DATABASE_URL` is a
+required secret. A Neon Free PostgreSQL connection string can be used.
 
 ## Deploy (Free plan)
 
 1. Put this extracted project in a (private or public) GitHub repository.
-2. In Render, choose **New → Blueprint**, connect the repository and approve
-   `render.yaml`. It provisions a single Free web service with no disk.
-3. Add the provider environment variables below in **Environment**. Mark every
+2. Create a PostgreSQL database and copy its pooled connection string.
+3. In Render, choose **New → Blueprint**, connect the repository and approve
+   `render.yaml`. Enter `DATABASE_URL` and a new 12+ character
+   `INITIAL_SUPERADMIN_PASSWORD` when prompted.
+4. Add the provider environment variables below in **Environment**. Mark every
    key/token/password as secret and never put real values in `render.yaml`.
-4. Deploy and confirm `https://<service>.onrender.com/api/health` returns
-   `ok: true`.
-5. Log in, change all starter passwords, complete Company Settings and enable
-   providers under **Administration → Live Integrations**. Remember any data
-   entered here disappears on the next restart/redeploy/spin-down (see
-   warning above).
+5. Deploy and confirm `/api/health` returns `ok: true` plus
+   `storage.mode: "postgres"` and `storage.durable: true`.
+6. Log in as `superadmin@techdefenders.in`, complete Company Settings and
+   manage role accounts from Platform Control.
 
-## Upgrading to persistent storage (paid plan)
+## Google Sign-In
 
-When ready for real data, edit `render.yaml`:
-
-1. Change `plan: free` to a paid plan such as `starter`.
-2. Add back a `disk:` block mounted at `/var/data` (e.g. `sizeGB: 1`).
-3. Add back the `DATA_DIR=/var/data/tdos` and `BACKUP_DIR=/var/data/backups`
-   environment variables so the app writes to the persistent disk instead of
-   the container's local, ephemeral `data/`/`backups/` folders.
-4. Keep exactly one instance — this JSON store is not safe for multiple
-   concurrent instances. Migrate to PostgreSQL before scaling out.
+Create a Google **Web application** OAuth client, add the exact Render HTTPS
+origin under Authorized JavaScript origins, and put its public client ID in
+`GOOGLE_CLIENT_ID`. No Google client secret belongs in this app. Set
+`GOOGLE_AUTO_SIGNUP=true` to let a new verified Google user create a normal
+organization-admin workspace; Google login can never create a Super Admin.
 
 ## Required provider variables
 
@@ -72,10 +58,6 @@ details.
 
 ## Backup and recovery
 
-On the **Free** plan, backups written to the local `backups/` folder are lost
-along with everything else on restart/redeploy/spin-down, so treat the Free
-deployment as disposable. On a **paid** plan with the persistent disk
-restored (see above), download `/var/data/backups` snapshots regularly to
-independent storage — a Render disk protects records across deploys but is
-not an off-site backup. For multiple server instances or high concurrency,
-migrate the store to PostgreSQL before scaling.
+PostgreSQL is the durable source of truth. Enable your database provider's
+point-in-time recovery or scheduled exports. Local JSON snapshots on Render
+Free are diagnostic only and disappear with the container.

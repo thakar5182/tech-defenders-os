@@ -25,6 +25,8 @@ process.env.SANDBOX_API_KEY = 'test-sandbox-key';
 process.env.SANDBOX_API_SECRET = 'test-sandbox-secret';
 process.env.SANDBOX_EINVOICE_USERNAME = 'test-irp-user';
 process.env.SANDBOX_EINVOICE_PASSWORD = 'test-irp-password';
+process.env.INITIAL_SUPERADMIN_PASSWORD = 'TestSuperAdmin@123';
+process.env.INITIAL_STAFF_PASSWORD = 'TestStaffAccount@123';
 
 let appPort;
 let mockPort;
@@ -101,7 +103,7 @@ async function run() {
   appPort = appServer.address().port;
   console.log('\n=== Tech Defenders OS provider integration regression ===\n');
   try {
-    let response = await request(appPort, 'POST', '/api/auth/login', { email: 'admin@techdefenders.in', password: 'Admin@123' });
+    let response = await request(appPort, 'POST', '/api/auth/login', { email: 'admin@techdefenders.in', password: 'TestStaffAccount@123' });
     const cookie = response.cookie;
     check('admin login works', response.status === 200 && !!cookie);
 

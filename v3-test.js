@@ -16,6 +16,8 @@ process.env.BREVO_SENDER_EMAIL = '';
 process.env.MSG91_AUTH_KEY = '';
 process.env.META_WHATSAPP_TOKEN = '';
 process.env.META_PHONE_NUMBER_ID = '';
+process.env.INITIAL_SUPERADMIN_PASSWORD = 'TestSuperAdmin@123';
+process.env.INITIAL_STAFF_PASSWORD = 'TestStaffAccount@123';
 
 const app = require('./server');
 const store = require('./db/store');
@@ -56,7 +58,7 @@ async function run() {
   port = server.address().port;
   console.log('\n=== Tech Defenders OS v3 feature regression ===\n');
   try {
-    const login = await req('POST', '/api/auth/login', { email: 'admin@techdefenders.in', password: 'Admin@123' });
+    const login = await req('POST', '/api/auth/login', { email: 'admin@techdefenders.in', password: 'TestStaffAccount@123' });
     const cookie = login.cookie;
     check('admin login works', login.status === 200 && !!cookie);
 

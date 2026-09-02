@@ -35,9 +35,31 @@ function wipe() {
   }
 }
 
-function run(force) {
-  store.load();
+function syncSuperAdminPassword() {
+  if (process.env.SYNC_SUPERADMIN_PASSWORD !== 'true') return false;
+  const password = String(process.env.INITIAL_SUPERADMIN_PASSWORD || '');
+  if (password.length < 12) {
+    throw new Error('INITIAL_SUPERADMIN_PASSWORD must contain at least 12 characters when recovery is enabled');
+  }
+  const user = store.findOne('users', item => item.email === 'superadmin@techdefenders.in' && item.role === 'super_admin');
+  if (!user) throw new Error('Super Admin recovery requested, but the Super Admin account was not found');
+  if (!bcrypt.compareSync(password, user.passwordHash)) {
+    store.update('users', user.id, {
+      passwordHash: bcrypt.hashSync(password, 10),
+      tokenVersion: Number(user.tokenVersion || 0) + 1,
+      active: true,
+      mustChangePassword: false
+    });
+    console.log('[init] Super Admin password synchronized from secure environment configuration.');
+  }
+  return true;
+}
+
+async function run(force) {
+  if (!process.env.DATABASE_URL) store.load();
   if (!force && !store.isEmpty()) {
+    syncSuperAdminPassword();
+    await store.flush();
     console.log('[init] Workspace already has user accounts - no changes made.');
     return false;
   }
@@ -68,7 +90,11 @@ function run(force) {
   if (superAdminPassword.length < 12) {
     throw new Error('INITIAL_SUPERADMIN_PASSWORD must contain at least 12 characters');
   }
-  const randomPassword = () => crypto.randomBytes(24).toString('base64url');
+  const configuredStaffPassword = String(process.env.INITIAL_STAFF_PASSWORD || '');
+  if (configuredStaffPassword && configuredStaffPassword.length < 12) {
+    throw new Error('INITIAL_STAFF_PASSWORD must contain at least 12 characters when configured');
+  }
+  const randomPassword = () => configuredStaffPassword || crypto.randomBytes(24).toString('base64url');
 
   const accounts = [
     ['Tech Defenders Super Admin', 'superadmin@techdefenders.in', 'super_admin', superAdminPassword],
@@ -124,12 +150,18 @@ function run(force) {
     store.insert('accounts', { orgId, code, name, type });
   }
 
-  store.flushSync();
+  await store.flush();
   console.log('[init] Clean Tech Defenders workspace ready.');
   console.log('[init] Retained: 9 login accounts, numbering series and required chart of accounts.');
   console.log('[init] Business/demo records: 0.');
   return true;
 }
 
-if (require.main === module) run(process.argv.includes('--force'));
-module.exports = { run };
+if (require.main === module) {
+  (async () => {
+    await store.initialize();
+    await run(process.argv.includes('--force'));
+    await store.close();
+  })().catch(error => { console.error('[init]', error.message); process.exit(1); });
+}
+module.exports = { run, syncSuperAdminPassword };
