@@ -209,6 +209,7 @@ Core.route('crm/customers/:id', async p => {
     ${Core.pageHead(c.name, 'Customer 360-degree view',
       `<button class="btn btn-outline" onclick="history.back()">Back</button>
        ${Core.can('crm', 'edit') ? `<button class="btn btn-outline" onclick="Pages.openCustomerForm('${c.id}')">Edit customer</button>` : ''}
+       ${Core.can('crm', 'delete') ? `<button class="btn btn-outline" onclick="Pages.deleteCustomer('${c.id}')">Delete customer</button>` : ''}
        ${Core.can('sales', 'create') ? `<button class="btn btn-gold" onclick="location.hash='#/sales/quotations/new'">New Quotation</button>` : ''}`)}
     <div class="grid-kpi">
       ${Core.kpi('Total Billed', Core.moneyShort(d.summary.billed))}
@@ -222,6 +223,7 @@ Core.route('crm/customers/:id', async p => {
       <div class="meta-item"><span>Phone</span><b>${Core.esc(c.phone || '-')}</b></div>
       <div class="meta-item"><span>GSTIN</span><b>${Core.esc(c.gstin || '-')}</b></div>
       <div class="meta-item"><span>Billing address</span><b>${Core.esc([c.billingAddress?.line1, c.billingAddress?.city, c.billingAddress?.state].filter(Boolean).join(', ') || '-')}</b></div>
+      <div class="meta-item"><span>Godown / delivery address</span><b>${Core.esc([c.shippingAddress?.line1, c.shippingAddress?.city, c.shippingAddress?.state].filter(Boolean).join(', ') || '-')}</b></div>
       <div class="meta-item"><span>Place of supply</span><b>State code ${Core.esc(c.stateCode)}</b></div>
     </div>
     <div class="grid-even">
@@ -254,9 +256,21 @@ Pages.openCustomerForm = async function (id) {
         options: [['27', 'Maharashtra (27)'], ['29', 'Karnataka (29)'], ['24', 'Gujarat (24)'], ['33', 'Tamil Nadu (33)'], ['36', 'Telangana (36)'], ['07', 'Delhi (07)']].map(([v, l]) => ({ value: v, label: l })), value: existing?.stateCode || '24' },
       { name: 'creditLimit', label: 'Credit limit (INR)', type: 'number', half: true, value: existing?.creditLimit },
       { name: 'paymentTermsDays', label: 'Payment terms (days)', type: 'number', half: true, value: existing?.paymentTermsDays ?? 30 }
+      ,{ name: 'billingLine1', label: 'Billing address', type: 'textarea', value: existing?.billingAddress?.line1, placeholder: 'Office / billing address' }
+      ,{ name: 'billingCity', label: 'Billing city', half: true, value: existing?.billingAddress?.city }
+      ,{ name: 'billingState', label: 'Billing state', half: true, value: existing?.billingAddress?.state }
+      ,{ name: 'billingPincode', label: 'Billing PIN code', half: true, value: existing?.billingAddress?.pincode }
+      ,{ name: 'shippingLine1', label: 'Godown / delivery address', type: 'textarea', value: existing?.shippingAddress?.line1, placeholder: 'Optional warehouse or delivery address' }
+      ,{ name: 'shippingCity', label: 'Godown / delivery city', half: true, value: existing?.shippingAddress?.city }
+      ,{ name: 'shippingState', label: 'Godown / delivery state', half: true, value: existing?.shippingAddress?.state }
+      ,{ name: 'shippingPincode', label: 'Godown / delivery PIN code', half: true, value: existing?.shippingAddress?.pincode }
     ],
     submitLabel: existing ? 'Save changes' : 'Create customer',
     onSubmit: async v => {
+      v.billingAddress = { line1: v.billingLine1 || '', city: v.billingCity || '', state: v.billingState || '', pincode: v.billingPincode || '' };
+      v.shippingAddress = { line1: v.shippingLine1 || '', city: v.shippingCity || '', state: v.shippingState || '', pincode: v.shippingPincode || '' };
+      delete v.billingLine1; delete v.billingCity; delete v.billingState; delete v.billingPincode;
+      delete v.shippingLine1; delete v.shippingCity; delete v.shippingState; delete v.shippingPincode;
       if (existing) await Core.patch('/crm/customers/' + existing.id, v); else await Core.post('/crm/customers', v);
       toast('Saved', existing ? 'Customer updated' : 'Customer added', 'success');
       Core.render();
@@ -381,4 +395,11 @@ Pages.openTaskForm = function () {
 Pages.completeTask = async id => {
   try { await Core.patch('/crm/tasks/' + id, { status: 'done' }); toast('Done', 'Task completed', 'success'); Core.render(); }
   catch (e) { toast('Failed', e.message, 'error'); }
+};
+
+Pages.deleteCustomer = async id => {
+  const ok = await Core.confirm('Delete this customer? Customers with invoices, receipts, deals, tickets or AMC records cannot be deleted.', 'Delete customer');
+  if (!ok) return;
+  try { await Core.del('/crm/customers/' + id); toast('Deleted', 'Customer removed', 'success'); location.hash = '#/crm/customers'; }
+  catch (e) { toast('Delete blocked', e.message, 'error'); }
 };

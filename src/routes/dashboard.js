@@ -143,7 +143,7 @@ router.get('/search', (req, res) => {
   }
   if (can(req.user, 'purchase', 'view')) for (const d of store.find('purchaseInvoices', x => x.orgId === orgId)) {
     const supplier = store.byId('suppliers', d.supplierId) || {};
-    if (like(d.number, d.supplierInvoiceNo, supplier.name, d.notes, d.lines?.map(line => line.description))) results.push({ type: 'Purchase bill', label: d.supplierInvoiceNo || d.number, sub: supplier.name || d.status, link: '#/purchase/vendor-billing' });
+    if (like(d.number, d.supplierInvoiceNo, supplier.name, d.notes, d.lines?.map(line => line.description))) results.push({ type: 'Purchase bill', label: d.supplierInvoiceNo || d.number, sub: supplier.name || d.status, link: '#/purchase/billing' });
   }
   if (can(req.user, 'service', 'view')) for (const d of store.find('tickets', x => x.orgId === orgId)) {
     if (like(d.number) || like(d.subject)) results.push({ type: 'Ticket', label: `${d.number} - ${d.subject}`, sub: d.status, link: '#/service/tickets' });

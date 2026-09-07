@@ -143,6 +143,22 @@ router.patch('/customers/:id', requirePerm('crm', 'edit'), (req, res) => {
   res.json({ customer: updated });
 });
 
+router.delete('/customers/:id', requirePerm('crm', 'delete'), (req, res) => {
+  const customer = store.findOne('customers', x => x.id === req.params.id && x.orgId === req.org.id);
+  if (!customer) return res.status(404).json({ error: 'Customer not found' });
+  const linked = [
+    ['invoice', store.find('invoices', x => x.orgId === req.org.id && x.customerId === customer.id)],
+    ['deal', store.find('deals', x => x.orgId === req.org.id && x.customerId === customer.id)],
+    ['receipt', store.find('receipts', x => x.orgId === req.org.id && x.customerId === customer.id)],
+    ['ticket', store.find('tickets', x => x.orgId === req.org.id && x.customerId === customer.id)],
+    ['AMC contract', store.find('amcContracts', x => x.orgId === req.org.id && x.customerId === customer.id)]
+  ].filter(([, rows]) => rows.length);
+  if (linked.length) return res.status(409).json({ error: `Customer cannot be deleted because ${linked.map(([name, rows]) => `${rows.length} ${name}${rows.length > 1 ? 's' : ''}`).join(', ')} is linked. Keep the customer for record history.` });
+  store.remove('customers', customer.id);
+  audit(req.org.id, req.user.id, 'delete', 'customer', customer.id, { name: customer.name });
+  res.json({ message: 'Customer deleted' });
+});
+
 /* ================= DEALS ================= */
 const DEAL_STAGES = ['new', 'qualified', 'proposal', 'negotiation', 'won', 'lost'];
 
