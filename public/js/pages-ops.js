@@ -1,4 +1,4 @@
-/* ============================================================
+﻿/* ============================================================
    Pages: Manufacturing, Service/AMC/Tickets, Finance, HR,
           Reports, Admin, Print documents
    ============================================================ */
@@ -874,7 +874,7 @@ Pages.changeGlobalPassword = id => {
   const user = Pages._globalControl?.users.find(item => item.id === id);
   if (!user) return;
   const modal = Core.openModal({
-    title: 'Change password · ' + user.name,
+    title: 'Change password Â· ' + user.name,
     body: `<p class="muted" style="margin-bottom:14px">This works across organizations. Existing sessions will be revoked.</p>
       <form id="global-password-form" class="grid-2">
         <label class="field"><span>New password</span><input name="newPassword" type="password" minlength="8" autocomplete="new-password" required></label>
@@ -913,12 +913,12 @@ Pages.manageGlobalDashboard = async id => {
     Pages._globalDashboard = { id, preview };
     const user = preview.user;
     const modal = Core.openModal({
-      title: 'Dashboard Control · ' + user.name,
+      title: 'Dashboard Control Â· ' + user.name,
       wide: true,
       className: 'dashboard-control-modal',
       body: `<div class="dashboard-user-strip">
           <div class="avatar">${Core.esc(user.name.split(' ').map(word => word[0]).slice(0, 2).join('').toUpperCase())}</div>
-          <div><b>${Core.esc(user.name)}</b><small>${Core.esc(user.email)} · ${Core.esc(preview.organization?.name || '')}</small></div>
+          <div><b>${Core.esc(user.name)}</b><small>${Core.esc(user.email)} Â· ${Core.esc(preview.organization?.name || '')}</small></div>
           <span class="role-pill ${user.role === 'admin' ? 'role-admin' : ''}">${Core.esc(Core.roleLabel(user.role))}</span>
         </div>
         <div class="dashboard-control-grid">
@@ -949,7 +949,7 @@ Pages.renderGlobalDashboardControl = () => {
   widgetHost.innerHTML = data.dashboardWidgets.map(widget => {
     const checked = user.effectiveDashboardWidgets[widget.key] === true;
     const prerequisite = user.effectiveAccess.dashboard === true && user.effectiveAccess[widget.requiredModule] === true;
-    return `<div class="policy-row ${prerequisite ? '' : 'policy-disabled'}"><div><b>${Core.esc(widget.label)}</b><small>${Core.esc(widget.description)}${prerequisite ? '' : ' · enable ' + Core.roleLabel(widget.requiredModule) + ' first'}</small></div><span class="access-state">${checked ? 'On' : 'Off'}</span><label class="ios-switch"><input type="checkbox" data-global-widget="${widget.key}" ${checked ? 'checked' : ''} ${prerequisite ? '' : 'disabled'} aria-label="${Core.esc(widget.label)} for ${Core.esc(user.name)}"><span class="ios-track"></span></label></div>`;
+    return `<div class="policy-row ${prerequisite ? '' : 'policy-disabled'}"><div><b>${Core.esc(widget.label)}</b><small>${Core.esc(widget.description)}${prerequisite ? '' : ' Â· enable ' + Core.roleLabel(widget.requiredModule) + ' first'}</small></div><span class="access-state">${checked ? 'On' : 'Off'}</span><label class="ios-switch"><input type="checkbox" data-global-widget="${widget.key}" ${checked ? 'checked' : ''} ${prerequisite ? '' : 'disabled'} aria-label="${Core.esc(widget.label)} for ${Core.esc(user.name)}"><span class="ios-track"></span></label></div>`;
   }).join('');
   previewHost.innerHTML = `<div class="preview-shell"><div class="preview-top"><span>Dashboard</span><b>${Core.esc(user.name.split(' ')[0])}</b></div><div class="preview-grid">${state.preview.widgets.map(widget => `<div class="preview-widget ${widget.enabled ? '' : 'preview-off'}"><span>${Core.esc(widget.label)}</span><b>${widget.format === 'money' ? Core.moneyShort(widget.primary) : Core.esc(widget.primary)}</b><small>${Core.esc(widget.enabled ? widget.secondary : 'Hidden by Super Admin')}</small></div>`).join('')}</div></div>`;
   moduleHost.querySelectorAll('[data-global-module]').forEach(input => input.addEventListener('change', () => Pages.setGlobalPolicy(input, 'module')));
@@ -987,7 +987,7 @@ Core.route('admin/users', async () => {
   const canDelete = Core.can('admin', 'delete');
   const actorIsSuperAdmin = Core.state.user.role === 'super_admin';
   document.getElementById('content').innerHTML = `
-    ${Core.pageHead('Users & Roles', `${Core.esc(Core.state.org.name)} · role and password controls are enforced on every API call`,
+    ${Core.pageHead('Users & Roles', `${Core.esc(Core.state.org.name)} Â· role and password controls are enforced on every API call`,
       Core.can('admin', 'create') ? '<button class="btn btn-gold" onclick="Pages.openUserForm()">+ Add User</button>' : '')}
     ${Core.table([
       { label: 'User', render: u => `<b>${Core.esc(u.name)}</b><br><small class="muted">${Core.esc(u.email)}</small>` },
@@ -1080,7 +1080,7 @@ Pages.changeUserPassword = id => {
   const user = Pages._adminUsers?.find(item => item.id === id);
   if (!user) return;
   const modal = Core.openModal({
-    title: `Change password · ${Core.esc(user.name)}`,
+    title: `Change password Â· ${Core.esc(user.name)}`,
     body: `<p class="muted" style="margin-bottom:14px">The new password is never displayed or stored as plain text. All existing sessions will be revoked.</p>
       <form id="admin-password-form" class="grid-2">
         <label class="field"><span>New password</span><input name="newPassword" type="password" minlength="8" autocomplete="new-password" required></label>
@@ -1158,7 +1158,7 @@ Core.route('admin/settings', async () => {
     <div class="access-layout">
       <div class="card access-users" id="access-users">
         ${accessData.users.map(user => `<button class="access-user ${user.id === Pages._accessUserId ? 'active' : ''}" data-user-id="${user.id}">
-          <b>${Core.esc(user.name)}</b><small>${Core.esc(user.email)} · ${Core.esc(user.role.replace(/_/g, ' '))}</small>
+          <b>${Core.esc(user.name)}</b><small>${Core.esc(user.email)} Â· ${Core.esc(user.role.replace(/_/g, ' '))}</small>
         </button>`).join('')}
       </div>
       <div class="card">
@@ -1257,7 +1257,7 @@ Core.route('print/invoice/:id', async p => {
         </tbody>
         <tfoot><tr><th colspan="3">Total</th><th>${inv.lines.reduce((sum, line) => sum + Number(line.qty || 0), 0)} NOS</th><th></th><th class="num">${Core.money(t.taxable)}</th><th></th><th class="num">${Core.money((t.cgst || 0) + (t.sgst || 0) + (t.igst || 0))}</th><th class="num">${Core.money(t.grandTotal)}</th></tr></tfoot>
       </table>
-      <section class="gst-bottom"><div class="gst-left"><div class="gst-words"><b>Total in words:</b> ${Core.esc(Pages.amountInWords(t.grandTotal))} Rupees Only</div><div class="gst-terms"><b>Terms and Conditions</b><br>${Core.esc(inv.notes || org.invoiceTerms || `Subject to ${org.address?.state || 'local'} jurisdiction. Goods once sold will not be taken back.`)}</div><div class="gst-customer-sign"><b>Customer Signature</b></div></div><div class="gst-qr"><div class="qr-placeholder">PAY<br>QR</div><b>${org.upiId ? `UPI: ${Core.esc(org.upiId)}` : 'Scan to pay'}</b><small>${org.upiId ? 'QR can be connected to your UPI gateway' : 'Add UPI ID in Company Settings'}</small></div><div class="gst-summary"><div><span>Taxable Amount</span><b>${Core.money(t.taxable)}</b></div><div><span>Total Tax</span><b>${Core.money((t.cgst || 0) + (t.sgst || 0) + (t.igst || 0))}</b></div><div class="gst-grand"><span>Total Amount After Tax</span><b>${Core.money(t.grandTotal)}</b></div><div class="gst-signatory"><b>For ${Core.esc(org.legalName || org.name)}</b><span>Authorised Signatory</span><small>This is a computer generated invoice.</small></div></div></section>
+      <section class="gst-bottom"><div class="gst-left"><div class="gst-words"><b>Total in words:</b> ${Core.esc(Pages.amountInWords(t.grandTotal))} Rupees Only</div><div class="gst-terms"><b>Terms and Conditions</b><br>${Core.esc(inv.notes || org.invoiceTerms || `Subject to ${org.address?.state || 'local'} jurisdiction. Goods once sold will not be taken back.`)}</div><div class="gst-customer-sign"><b>Customer Signature</b></div></div><div class="gst-qr"><div class="qr-placeholder">PAY<br>QR</div><b>${org.upiId ? `UPI: ${Core.esc(org.upiId)}` : 'Scan to pay'}</b><small>${org.upiId ? 'QR can be connected to your UPI gateway' : 'Add UPI ID in Company Settings'}</small></div><div class="gst-summary"><div><span>Taxable Amount</span><b>${Core.money(t.taxable)}</b></div><div><span>Total Tax</span><b>${Core.money((t.cgst || 0) + (t.sgst || 0) + (t.igst || 0))}</b></div><div class="gst-grand"><span>Total Amount After Tax</span><b>${Core.money(t.grandTotal)}</b></div><div class="gst-signatory"><b>For ${Core.esc(org.legalName || org.name)}</b><span>Authorised Signatory</span></div></div></section>
       <footer class="gst-bank"><b>Bank:</b> ${Core.esc(org.bankName || 'Add bank details in Company Settings')} &nbsp;&nbsp; <b>A/c No.:</b> ${Core.esc(org.bankAccountNo || '-')} &nbsp;&nbsp; <b>IFSC:</b> ${Core.esc(org.bankIfsc || '-')}</footer>
     </div>`;
 });
@@ -1284,8 +1284,8 @@ Pages.renderAccessModules = () => {
   document.getElementById('access-title').textContent = user.name;
   const protectedTarget = user.role === 'super_admin' || (user.role === 'admin' && Core.state.user.role !== 'super_admin');
   document.getElementById('access-role').textContent = protectedTarget
-    ? Core.roleLabel(user.role) + ' · protected by role hierarchy'
-    : Core.roleLabel(user.role) + ' · changes apply at the next request';
+    ? Core.roleLabel(user.role) + ' Â· protected by role hierarchy'
+    : Core.roleLabel(user.role) + ' Â· changes apply at the next request';
   host.innerHTML = data.modules.map(module => {
     const checked = user.effectiveAccess[module.key] === true;
     const protectSelfAdmin = user.id === Core.state.user.id && module.key === 'admin';
@@ -1324,3 +1324,4 @@ Pages.setModuleAccess = async input => {
     toast('Access not changed', error.message, 'error');
   }
 };
+
