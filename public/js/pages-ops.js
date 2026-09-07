@@ -1135,11 +1135,17 @@ Core.route('admin/settings', async () => {
           <label class="field"><span>Phone</span><input name="phone" value="${Core.esc(org.phone || '')}"></label>
           <label class="field"><span>State code (GST)</span><input name="stateCode" value="${Core.esc(org.stateCode)}"></label>
           <label class="field"><span>Financial year start</span><input type="date" name="financialYearStart" value="${Core.esc(org.financialYearStart)}"></label>
+          <label class="field"><span>MSME / UDYAM No.</span><input name="msmeNo" value="${Core.esc(org.msmeNo || '')}"></label>
+          <label class="field"><span>UPI ID (invoice payment)</span><input name="upiId" value="${Core.esc(org.upiId || '')}" placeholder="name@bank"></label>
+          <label class="field"><span>Bank name</span><input name="bankName" value="${Core.esc(org.bankName || '')}"></label>
+          <label class="field"><span>Bank account no.</span><input name="bankAccountNo" value="${Core.esc(org.bankAccountNo || '')}"></label>
+          <label class="field"><span>Bank IFSC</span><input name="bankIfsc" value="${Core.esc(org.bankIfsc || '')}"></label>
           <label class="field"><span>Address line</span><input name="line1" value="${Core.esc(org.address?.line1 || '')}"></label>
           <label class="field"><span>City</span><input name="city" value="${Core.esc(org.address?.city || '')}"></label>
           <label class="field"><span>State</span><input name="state" value="${Core.esc(org.address?.state || '')}"></label>
           <label class="field"><span>PIN code</span><input name="pincode" value="${Core.esc(org.address?.pincode || '')}"></label>
         </div>
+        <label class="field" style="margin-bottom:14px"><span>Default invoice terms and conditions</span><textarea name="invoiceTerms" rows="3" placeholder="Subject to local jurisdiction. Goods once sold will not be taken back.">${Core.esc(org.invoiceTerms || '')}</textarea></label>
         <label class="check" style="margin-bottom:14px"><input type="checkbox" name="allowNegativeStock" ${org.allowNegativeStock ? 'checked' : ''}> Allow negative stock (disable stock blocking)</label>
         <button class="btn btn-gold">Save Settings</button>
       </form>
@@ -1173,6 +1179,8 @@ Core.route('admin/settings', async () => {
         gstin: fd.get('gstin'), pan: fd.get('pan'),
         email: fd.get('email'), phone: fd.get('phone'),
         stateCode: fd.get('stateCode'), financialYearStart: fd.get('financialYearStart'),
+        msmeNo: fd.get('msmeNo'), upiId: fd.get('upiId'), bankName: fd.get('bankName'),
+        bankAccountNo: fd.get('bankAccountNo'), bankIfsc: fd.get('bankIfsc'), invoiceTerms: fd.get('invoiceTerms'),
         allowNegativeStock: fd.get('allowNegativeStock') === 'on',
         address: { line1: fd.get('line1'), city: fd.get('city'), state: fd.get('state'), pincode: fd.get('pincode') }
       });
@@ -1228,62 +1236,29 @@ Core.route('print/invoice/:id', async p => {
   const d = await Core.get('/sales/invoices/' + p.id);
   const inv = d.invoice, cust = d.customer, org = d.org;
   const t = inv.totals;
+  const isInterState = Number(t.igst || 0) > 0;
+  const customerAddress = [cust?.billingAddress?.line1, cust?.billingAddress?.city, cust?.billingAddress?.state, cust?.billingAddress?.pincode].filter(Boolean).join(', ') || '-';
+  const orgAddress = [org.address?.line1, org.address?.city, org.address?.state, org.address?.pincode].filter(Boolean).join(', ') || '-';
+  const eway = inv.gstEwayBill?.ewayBillNo || inv.gstEinvoice?.ewayBillNo || '-';
   document.getElementById('content').innerHTML = `
-    <div class="no-print" style="max-width:820px;margin:0 auto 14px;display:flex;gap:10px;justify-content:flex-end">
+    <div class="no-print" style="max-width:900px;margin:0 auto 14px;display:flex;gap:10px;justify-content:flex-end">
       <button class="btn btn-outline" onclick="location.hash='#/sales/invoices'">Back</button>
       <button class="btn btn-gold" onclick="window.print()">Print / Save PDF</button>
     </div>
-    <div class="print-doc">
-      <div class="pd-top">
-        <div class="pd-org">
-          <b>${Core.esc(org.legalName || org.name)}</b>
-          <div>${Core.esc(org.address?.line1 || '')}, ${Core.esc(org.address?.city || '')}, ${Core.esc(org.address?.state || '')} - ${Core.esc(org.address?.pincode || '')}</div>
-          <div>GSTIN: <b>${Core.esc(org.gstin || '-')}</b> &middot; PAN: ${Core.esc(org.pan || '-')}</div>
-          <div>${Core.esc(org.email || '')} &middot; ${Core.esc(org.phone || '')}</div>
-        </div>
-        <div class="pd-title">
-          <h2>TAX INVOICE</h2>
-          <div><b>${Core.esc(inv.number)}</b></div>
-          <div>Date: ${Core.fmtDate(inv.date)}</div>
-          <div>Due: ${Core.fmtDate(inv.dueDate)}</div>
-          <div>Place of supply: state ${Core.esc(inv.placeOfSupply)}</div>
-        </div>
-      </div>
-      <div class="meta-grid" style="margin:6px 0">
-        <div class="meta-item"><span>Invoice type</span><b>${inv.gstEinvoice?.irn ? 'B2B Tax Invoice (e-Invoice)' : 'Tax Invoice'}</b></div>
-        <div class="meta-item"><span>Reverse charge</span><b>No</b></div>
-        <div class="meta-item"><span>Place of supply</span><b>${Core.esc(inv.placeOfSupply || cust?.stateCode || '-')}</b></div>
-        <div class="meta-item"><span>Supply type</span><b>${t.igst ? 'Inter-state (IGST)' : 'Intra-state (CGST + SGST)'}</b></div>
-      </div>
-      <div class="meta-grid" style="margin-bottom:6px">
-        <div class="meta-item"><span>Bill to</span><b>${Core.esc(cust?.name || '-')}</b></div>
-        <div class="meta-item"><span>Address</span><b>${Core.esc([cust?.billingAddress?.line1, cust?.billingAddress?.city].filter(Boolean).join(', ') || '-')}</b></div>
-        <div class="meta-item"><span>Customer GSTIN</span><b>${Core.esc(cust?.gstin || '-')}</b></div>
-        <div class="meta-item"><span>Status</span><b>${inv.status.toUpperCase()} &middot; paid ${Core.money(inv.paidAmount)}</b></div>
-        ${inv.gstEinvoice?.irn ? `<div class="meta-item"><span>Invoice Reference Number (IRN)</span><b class="break-code">${Core.esc(inv.gstEinvoice.irn)}</b></div>` : ''}
-        ${inv.gstEinvoice?.ackNo ? `<div class="meta-item"><span>IRP acknowledgement</span><b>${Core.esc(inv.gstEinvoice.ackNo)} · ${Core.esc(inv.gstEinvoice.ackDate || '')}</b></div>` : ''}
-        ${inv.gstEwayBill?.ewayBillNo || inv.gstEinvoice?.ewayBillNo ? `<div class="meta-item"><span>E-Way Bill</span><b>${Core.esc(inv.gstEwayBill?.ewayBillNo || inv.gstEinvoice?.ewayBillNo)} · valid till ${Core.esc(inv.gstEwayBill?.ewayBillValidTill || inv.gstEinvoice?.ewayBillValidTill || '-')}</b></div>` : ''}
-      </div>
-      <table class="pd-table">
-        <thead><tr><th>#</th><th>Description</th><th>HSN</th><th>Qty</th><th>Rate</th><th>Disc%</th><th class="num">Taxable</th><th class="num">GST</th><th class="num">Amount</th></tr></thead>
+    <div class="print-doc gst-print">
+      <header class="gst-brand"><img src="/assets/tech-defenders-logo.webp" alt="Tech Defenders"><div><b>${Core.esc(org.legalName || org.name)}</b><p>${Core.esc(orgAddress)}</p><p>GSTIN: <strong>${Core.esc(org.gstin || '-')}</strong> &nbsp; PAN: ${Core.esc(org.pan || '-')} &nbsp; Phone: ${Core.esc(org.phone || '-')}</p><p>${org.msmeNo ? `MSME / UDYAM: <strong>${Core.esc(org.msmeNo)}</strong> &nbsp;` : ''}${Core.esc(org.email || '')}</p></div></header>
+      <div class="gst-titlebar"><strong>GSTIN: ${Core.esc(org.gstin || '-')}</strong><h1>TAX INVOICE</h1><strong>ORIGINAL FOR RECIPIENT</strong></div>
+      <section class="gst-party-grid"><div class="gst-recipient"><b>M/S&nbsp; ${Core.esc(cust?.name || '-')}</b><p><strong>Address</strong> ${Core.esc(customerAddress)}</p><p><strong>Phone</strong> ${Core.esc(cust?.phone || '-')}</p><p><strong>GSTIN</strong> ${Core.esc(cust?.gstin || '-')}</p><p><strong>Place of Supply</strong> ${Core.esc(cust?.billingAddress?.state || cust?.stateCode || '-')}</p></div><div class="gst-document"><div><b>Invoice No.</b><span>${Core.esc(inv.number)}</span><b>Invoice Date</b><span>${Core.fmtDate(inv.date)}</span></div><div><b>Challan No.</b><span>${Core.esc(inv.challanNo || '-')}</span><b>Challan Date</b><span>${inv.challanDate ? Core.fmtDate(inv.challanDate) : '-'}</span></div><div><b>E-Way Bill No.</b><span>${Core.esc(eway)}</span><b>Due Date</b><span>${Core.fmtDate(inv.dueDate)}</span></div><div><b>Transport</b><span>${Core.esc(inv.transporter || '-')}</span><b>Transport ID</b><span>${Core.esc(inv.transporterId || '-')}</span></div></div></section>
+      <table class="gst-lines">
+        <thead><tr><th rowspan="2">Sr.<br>No.</th><th rowspan="2">Name of Product / Service</th><th rowspan="2">HSN / SAC</th><th rowspan="2">Qty</th><th rowspan="2">Rate</th><th rowspan="2">Taxable Value</th><th colspan="2">${isInterState ? 'IGST' : 'CGST + SGST'}</th><th rowspan="2">Total</th></tr><tr><th>%</th><th>Amount</th></tr></thead>
         <tbody>
           ${inv.lines.map((l, i) => `<tr>
-            <td>${i + 1}</td><td>${Core.esc(l.name)}</td><td>${Core.esc(l.hsn || '-')}</td>
-            <td>${l.qty} ${Core.esc(l.uom || '')}</td><td>${Core.money(l.rate)}</td><td>${l.discountPct || 0}%</td>
-            <td class="num">${Core.money(l.taxableValue)}</td>
-            <td class="num">${l.cgst ? `C+S ${Core.money(l.cgst + l.sgst)}` : `IGST ${Core.money(l.igst)}`}</td>
-            <td class="num">${Core.money(l.lineTotal)}</td></tr>`).join('')}
+            <td>${i + 1}</td><td>${Core.esc(l.name)}</td><td>${Core.esc(l.hsn || '-')}</td><td>${l.qty} ${Core.esc(l.uom || '')}</td><td class="num">${Core.money(l.rate)}</td><td class="num">${Core.money(l.taxableValue)}</td><td>${l.gstRate || 0}%</td><td class="num">${Core.money(isInterState ? l.igst : (l.cgst + l.sgst))}</td><td class="num">${Core.money(l.lineTotal)}</td></tr>`).join('')}
         </tbody>
+        <tfoot><tr><th colspan="3">Total</th><th>${inv.lines.reduce((sum, line) => sum + Number(line.qty || 0), 0)} NOS</th><th></th><th class="num">${Core.money(t.taxable)}</th><th></th><th class="num">${Core.money((t.cgst || 0) + (t.sgst || 0) + (t.igst || 0))}</th><th class="num">${Core.money(t.grandTotal)}</th></tr></tfoot>
       </table>
-      <div class="totals-box">
-        <div class="tr"><span>Taxable value</span><span>${Core.money(t.taxable)}</span></div>
-        ${t.cgst ? `<div class="tr"><span>CGST</span><span>${Core.money(t.cgst)}</span></div><div class="tr"><span>SGST</span><span>${Core.money(t.sgst)}</span></div>` : ''}
-        ${t.igst ? `<div class="tr"><span>IGST</span><span>${Core.money(t.igst)}</span></div>` : ''}
-        <div class="tr grand"><span>Grand Total</span><span>${Core.money(t.grandTotal)}</span></div>
-      </div>
-      <div class="meta-grid" style="margin:10px 0"><div class="meta-item" style="grid-column:1/-1"><span>Total invoice value (in words)</span><b>${Core.esc(Pages.amountInWords(t.grandTotal))} Rupees only</b></div></div>
-      <div class="pd-sign"><div>For ${Core.esc(org.name)}<br><br><br>Authorised Signatory</div><div>Customer acceptance<br><br><br>&nbsp;</div></div>
-      <p class="fine muted" style="margin-top:18px">This is a computer-generated invoice. Subject to ${Core.esc(org.address?.state || '')} jurisdiction.</p>
+      <section class="gst-bottom"><div class="gst-left"><div class="gst-words"><b>Total in words:</b> ${Core.esc(Pages.amountInWords(t.grandTotal))} Rupees Only</div><div class="gst-terms"><b>Terms and Conditions</b><br>${Core.esc(inv.notes || org.invoiceTerms || `Subject to ${org.address?.state || 'local'} jurisdiction. Goods once sold will not be taken back.`)}</div><div class="gst-customer-sign"><b>Customer Signature</b></div></div><div class="gst-qr"><div class="qr-placeholder">PAY<br>QR</div><b>${org.upiId ? `UPI: ${Core.esc(org.upiId)}` : 'Scan to pay'}</b><small>${org.upiId ? 'QR can be connected to your UPI gateway' : 'Add UPI ID in Company Settings'}</small></div><div class="gst-summary"><div><span>Taxable Amount</span><b>${Core.money(t.taxable)}</b></div><div><span>Total Tax</span><b>${Core.money((t.cgst || 0) + (t.sgst || 0) + (t.igst || 0))}</b></div><div class="gst-grand"><span>Total Amount After Tax</span><b>${Core.money(t.grandTotal)}</b></div><div class="gst-signatory"><b>For ${Core.esc(org.legalName || org.name)}</b><span>Authorised Signatory</span><small>This is a computer generated invoice.</small></div></div></section>
+      <footer class="gst-bank"><b>Bank:</b> ${Core.esc(org.bankName || 'Add bank details in Company Settings')} &nbsp;&nbsp; <b>A/c No.:</b> ${Core.esc(org.bankAccountNo || '-')} &nbsp;&nbsp; <b>IFSC:</b> ${Core.esc(org.bankIfsc || '-')}</footer>
     </div>`;
 });
 
