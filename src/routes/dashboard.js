@@ -111,30 +111,44 @@ router.get('/summary', requireModule('dashboard'), (req, res) => {
 /* ---------------- global search ---------------- */
 router.get('/search', (req, res) => {
   const q = String(req.query.q || '').trim().toLowerCase();
-  if (!q) return res.json({ results: [] });
+  /* Three typed characters gives fast, useful results without running an
+     expensive broad lookup on every accidental key press.  Each word must
+     match somewhere in the record, so "acme inv 12" works as expected. */
+  if (q.length < 3) return res.json({ results: [], minChars: 3 });
   const orgId = req.org.id;
-  const like = s => String(s || '').toLowerCase().includes(q);
+  const words = q.split(/\s+/).filter(Boolean);
+  const like = (...values) => {
+    const text = values.flat(Infinity).filter(v => v != null).join(' ').toLowerCase();
+    return words.every(word => text.includes(word));
+  };
   const results = [];
 
   if (can(req.user, 'crm', 'view')) for (const c of store.find('customers', x => x.orgId === orgId)) {
-    if (like(c.name) || like(c.email) || like(c.phone)) results.push({ type: 'Customer', label: c.name, sub: c.company ? '' : c.email, link: '#/crm/customers/' + c.id });
+    if (like(c.name, c.contactPerson, c.email, c.phone, c.gstin, c.billingAddress)) results.push({ type: 'Customer', label: c.name, sub: c.email || c.phone, link: '#/crm/customers/' + c.id });
   }
   if (can(req.user, 'crm', 'view')) for (const l of store.find('leads', x => x.orgId === orgId)) {
-    if (like(l.name) || like(l.company) || like(l.email)) results.push({ type: 'Lead', label: l.name, sub: l.company, link: '#/crm/leads' });
+    if (like(l.name, l.company, l.email, l.phone)) results.push({ type: 'Lead', label: l.name, sub: l.company, link: '#/crm/leads' });
   }
   if (can(req.user, 'inventory', 'view')) for (const p of store.find('products', x => x.orgId === orgId)) {
-    if (like(p.name) || like(p.sku)) results.push({ type: 'Product', label: `${p.name} (${p.sku})`, sub: p.category, link: '#/inventory/products' });
+    if (like(p.name, p.sku, p.category, p.hsn)) results.push({ type: 'Product', label: `${p.name} (${p.sku})`, sub: p.category, link: '#/inventory/products' });
   }
   if (can(req.user, 'sales', 'view')) for (const d of store.find('quotations', x => x.orgId === orgId)) {
-    if (like(d.number)) results.push({ type: 'Quotation', label: d.number, sub: d.status, link: '#/sales/quotations' });
+    if (like(d.number, d.customerName, d.notes)) results.push({ type: 'Quotation', label: d.number, sub: d.status, link: '#/sales/quotations' });
   }
   if (can(req.user, 'sales', 'view')) for (const d of store.find('invoices', x => x.orgId === orgId)) {
-    if (like(d.number)) results.push({ type: 'Invoice', label: d.number, sub: d.status, link: '#/print/invoice/' + d.id });
+    if (like(d.number, d.customerName, d.notes, d.lines?.map(line => line.name))) results.push({ type: 'Sales invoice', label: d.number, sub: d.status, link: '#/print/invoice/' + d.id });
+  }
+  if (can(req.user, 'purchase', 'view')) for (const s of store.find('suppliers', x => x.orgId === orgId)) {
+    if (like(s.name, s.contactPerson, s.email, s.phone, s.gstin, s.address)) results.push({ type: 'Vendor', label: s.name, sub: s.gstin || s.phone, link: '#/purchase/suppliers' });
+  }
+  if (can(req.user, 'purchase', 'view')) for (const d of store.find('purchaseInvoices', x => x.orgId === orgId)) {
+    const supplier = store.byId('suppliers', d.supplierId) || {};
+    if (like(d.number, d.supplierInvoiceNo, supplier.name, d.notes, d.lines?.map(line => line.description))) results.push({ type: 'Purchase bill', label: d.supplierInvoiceNo || d.number, sub: supplier.name || d.status, link: '#/purchase/vendor-billing' });
   }
   if (can(req.user, 'service', 'view')) for (const d of store.find('tickets', x => x.orgId === orgId)) {
     if (like(d.number) || like(d.subject)) results.push({ type: 'Ticket', label: `${d.number} - ${d.subject}`, sub: d.status, link: '#/service/tickets' });
   }
-  res.json({ results: results.slice(0, 12) });
+  res.json({ results: results.slice(0, 20) });
 });
 
 /* ---------------- notifications ---------------- */

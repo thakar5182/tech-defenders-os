@@ -416,6 +416,31 @@ router.get('/invoices/:id', requirePerm('sales', 'view'), (req, res) => {
   });
 });
 
+/* A GST invoice may be corrected only before payment, IRN generation or any
+   stock-linked workflow.  After that, a credit note is the compliant path. */
+router.patch('/invoices/:id', requirePerm('sales', 'edit'), (req, res) => {
+  const inv = store.findOne('invoices', i => i.id === req.params.id && i.orgId === req.org.id);
+  if (!inv) return res.status(404).json({ error: 'Invoice not found' });
+  if (inv.sourceType !== 'manual' || inv.paidAmount || inv.gstEinvoice?.irn || ['cancelled', 'credited'].includes(inv.status)) {
+    return res.status(409).json({ error: 'This invoice cannot be edited. Use a credit note for paid, IRN-generated, cancelled or order-linked invoices.' });
+  }
+  const customer = store.findOne('customers', c => c.id === req.body.customerId && c.orgId === req.org.id);
+  if (!customer) return res.status(400).json({ error: 'Valid customerId is required' });
+  const date = req.body.date || inv.date, dueDate = req.body.dueDate || inv.dueDate;
+  if (!validDate(date) || !validDate(dueDate) || dueDate < date) return res.status(400).json({ error: 'Check invoice and due dates' });
+  const enriched = enrichLines(req.body.lines, req.org.id);
+  if (enriched.error || !enriched.lines.length) return res.status(400).json({ error: enriched.error || 'At least one line item is required' });
+  if (enriched.lines.some(line => line.productId)) return res.status(409).json({ error: 'Product-linked invoices cannot be edited because stock has already been posted.' });
+  const placeOfSupply = String(req.body.placeOfSupply || customer.stateCode || '').trim().slice(0, 4);
+  const doc = computeDoc(enriched.lines, req.org.stateCode, placeOfSupply);
+  const updated = store.update('invoices', inv.id, { customerId: customer.id, date, dueDate, placeOfSupply, lines: doc.lines, totals: doc.totals, notes: String(req.body.notes || '').trim().slice(0, 2000) });
+  const journal = store.findOne('journals', j => j.orgId === req.org.id && j.refType === 'invoice' && j.refId === inv.id);
+  if (journal) store.remove('journals', journal.id);
+  postInvoiceJournal(updated, req.user);
+  audit(req.org.id, req.user.id, 'update', 'invoice', inv.id, { number: inv.number, corrected: true });
+  res.json({ invoice: updated });
+});
+
 router.post('/invoices/cancel/:id', requirePerm('sales', 'delete'), (req, res) => {
   const inv = store.findOne('invoices', i => i.id === req.params.id && i.orgId === req.org.id);
   if (!inv) return res.status(404).json({ error: 'Invoice not found' });

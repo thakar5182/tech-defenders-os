@@ -1249,6 +1249,12 @@ Core.route('print/invoice/:id', async p => {
           <div>Place of supply: state ${Core.esc(inv.placeOfSupply)}</div>
         </div>
       </div>
+      <div class="meta-grid" style="margin:6px 0">
+        <div class="meta-item"><span>Invoice type</span><b>${inv.gstEinvoice?.irn ? 'B2B Tax Invoice (e-Invoice)' : 'Tax Invoice'}</b></div>
+        <div class="meta-item"><span>Reverse charge</span><b>No</b></div>
+        <div class="meta-item"><span>Place of supply</span><b>${Core.esc(inv.placeOfSupply || cust?.stateCode || '-')}</b></div>
+        <div class="meta-item"><span>Supply type</span><b>${t.igst ? 'Inter-state (IGST)' : 'Intra-state (CGST + SGST)'}</b></div>
+      </div>
       <div class="meta-grid" style="margin-bottom:6px">
         <div class="meta-item"><span>Bill to</span><b>${Core.esc(cust?.name || '-')}</b></div>
         <div class="meta-item"><span>Address</span><b>${Core.esc([cust?.billingAddress?.line1, cust?.billingAddress?.city].filter(Boolean).join(', ') || '-')}</b></div>
@@ -1275,10 +1281,19 @@ Core.route('print/invoice/:id', async p => {
         ${t.igst ? `<div class="tr"><span>IGST</span><span>${Core.money(t.igst)}</span></div>` : ''}
         <div class="tr grand"><span>Grand Total</span><span>${Core.money(t.grandTotal)}</span></div>
       </div>
+      <div class="meta-grid" style="margin:10px 0"><div class="meta-item" style="grid-column:1/-1"><span>Total invoice value (in words)</span><b>${Core.esc(Pages.amountInWords(t.grandTotal))} Rupees only</b></div></div>
       <div class="pd-sign"><div>For ${Core.esc(org.name)}<br><br><br>Authorised Signatory</div><div>Customer acceptance<br><br><br>&nbsp;</div></div>
       <p class="fine muted" style="margin-top:18px">This is a computer-generated invoice. Subject to ${Core.esc(org.address?.state || '')} jurisdiction.</p>
     </div>`;
 });
+
+Pages.amountInWords = value => {
+  const n = Math.floor(Number(value) || 0); if (!n) return 'Zero';
+  const one = ['','One','Two','Three','Four','Five','Six','Seven','Eight','Nine','Ten','Eleven','Twelve','Thirteen','Fourteen','Fifteen','Sixteen','Seventeen','Eighteen','Nineteen'];
+  const ten = ['','','Twenty','Thirty','Forty','Fifty','Sixty','Seventy','Eighty','Ninety'];
+  const words = x => x < 20 ? one[x] : x < 100 ? ten[Math.floor(x/10)] + (x%10 ? ' ' + one[x%10] : '') : x < 1000 ? one[Math.floor(x/100)] + ' Hundred' + (x%100 ? ' ' + words(x%100) : '') : x < 100000 ? words(Math.floor(x/1000)) + ' Thousand' + (x%1000 ? ' ' + words(x%1000) : '') : x < 10000000 ? words(Math.floor(x/100000)) + ' Lakh' + (x%100000 ? ' ' + words(x%100000) : '') : words(Math.floor(x/10000000)) + ' Crore' + (x%10000000 ? ' ' + words(x%10000000) : '');
+  return words(n);
+};
 
 Pages.selectAccessUser = id => {
   Pages._accessUserId = id;

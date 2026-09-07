@@ -208,6 +208,7 @@ Core.route('crm/customers/:id', async p => {
   document.getElementById('content').innerHTML = `
     ${Core.pageHead(c.name, 'Customer 360-degree view',
       `<button class="btn btn-outline" onclick="history.back()">Back</button>
+       ${Core.can('crm', 'edit') ? `<button class="btn btn-outline" onclick="Pages.openCustomerForm('${c.id}')">Edit customer</button>` : ''}
        ${Core.can('sales', 'create') ? `<button class="btn btn-gold" onclick="location.hash='#/sales/quotations/new'">New Quotation</button>` : ''}`)}
     <div class="grid-kpi">
       ${Core.kpi('Total Billed', Core.moneyShort(d.summary.billed))}
@@ -239,24 +240,25 @@ Core.route('crm/customers/:id', async p => {
     ${Core.can('communication', 'view') ? `<div class="card" style="margin-top:16px"><div class="card-head"><h3>Communication Timeline</h3><a class="link" href="#/communication/history">View all</a></div>${comm.communications.length ? `<ul class="timeline" style="padding:16px 20px">${comm.communications.slice(0,20).map(item => `<li><b>${Core.esc(String(item.messageType || 'message').replace(/_/g,' '))} · ${Core.esc(item.channel)}</b><small>${Core.fmtDate(item.createdAt)} · ${Core.badge(item.status)}</small></li>`).join('')}</ul>` : '<div class="empty-state">No communication history for this customer.</div>'}</div>` : ''}`;
 });
 
-Pages.openCustomerForm = function () {
+Pages.openCustomerForm = async function (id) {
+  const existing = id ? (await Core.get('/crm/customers/' + id)).customer : null;
   Core.formModal({
-    title: 'New customer',
+    title: existing ? 'Edit customer' : 'New customer',
     fields: [
-      { name: 'name', label: 'Company / customer name *', required: true },
-      { name: 'contactPerson', label: 'Contact person', half: true },
-      { name: 'phone', label: 'Phone', half: true },
-      { name: 'email', label: 'Email', type: 'email' },
-      { name: 'gstin', label: 'GSTIN', half: true },
+      { name: 'name', label: 'Company / customer name *', required: true, value: existing?.name },
+      { name: 'contactPerson', label: 'Contact person', half: true, value: existing?.contactPerson },
+      { name: 'phone', label: 'Phone', half: true, value: existing?.phone },
+      { name: 'email', label: 'Email', type: 'email', value: existing?.email },
+      { name: 'gstin', label: 'GSTIN', half: true, value: existing?.gstin },
       { name: 'stateCode', label: 'State code (place of supply)', type: 'select', half: true,
-        options: [['27', 'Maharashtra (27)'], ['29', 'Karnataka (29)'], ['24', 'Gujarat (24)'], ['33', 'Tamil Nadu (33)'], ['36', 'Telangana (36)'], ['07', 'Delhi (07)']].map(([v, l]) => ({ value: v, label: l })) },
-      { name: 'creditLimit', label: 'Credit limit (INR)', type: 'number', half: true },
-      { name: 'paymentTermsDays', label: 'Payment terms (days)', type: 'number', half: true, value: 30 }
+        options: [['27', 'Maharashtra (27)'], ['29', 'Karnataka (29)'], ['24', 'Gujarat (24)'], ['33', 'Tamil Nadu (33)'], ['36', 'Telangana (36)'], ['07', 'Delhi (07)']].map(([v, l]) => ({ value: v, label: l })), value: existing?.stateCode || '24' },
+      { name: 'creditLimit', label: 'Credit limit (INR)', type: 'number', half: true, value: existing?.creditLimit },
+      { name: 'paymentTermsDays', label: 'Payment terms (days)', type: 'number', half: true, value: existing?.paymentTermsDays ?? 30 }
     ],
-    submitLabel: 'Create customer',
+    submitLabel: existing ? 'Save changes' : 'Create customer',
     onSubmit: async v => {
-      await Core.post('/crm/customers', v);
-      toast('Created', 'Customer added', 'success');
+      if (existing) await Core.patch('/crm/customers/' + existing.id, v); else await Core.post('/crm/customers', v);
+      toast('Saved', existing ? 'Customer updated' : 'Customer added', 'success');
       Core.render();
     }
   });

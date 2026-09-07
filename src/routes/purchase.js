@@ -235,6 +235,17 @@ router.post('/suppliers', requirePerm('purchase', 'create'), (req, res) => {
   audit(req.org.id, req.user.id, 'create', 'supplier', sup.id, { name: sup.name });
   res.json({ supplier: sup });
 });
+router.patch('/suppliers/:id', requirePerm('purchase', 'edit'), (req, res) => {
+  const supplier = store.findOne('suppliers', s => s.id === req.params.id && s.orgId === req.org.id);
+  if (!supplier) return res.status(404).json({ error: 'Supplier not found' });
+  const allowed = ['name', 'contactPerson', 'email', 'phone', 'gstin', 'stateCode', 'address'];
+  const patch = {};
+  for (const key of allowed) if (key in (req.body || {})) patch[key] = String(req.body[key] || '').trim();
+  if ('name' in patch && !patch.name) return res.status(400).json({ error: 'Supplier name is required' });
+  const updated = store.update('suppliers', supplier.id, patch);
+  audit(req.org.id, req.user.id, 'update', 'supplier', supplier.id, patch);
+  res.json({ supplier: updated });
+});
 
 /* ================= GRN (Goods Receipt Note) ================= */
 router.get('/grns', requirePerm('purchase', 'view'), (req, res) => {

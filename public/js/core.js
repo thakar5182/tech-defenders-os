@@ -309,11 +309,12 @@ const Core = {
       clearTimeout(searchTimer);
       const q = gs.value.trim();
       if (!q) { pop.classList.add('hidden'); return; }
+      if (q.length < 3) { pop.innerHTML = '<div class="dd-empty">Type at least 3 characters to search every record</div>'; pop.classList.remove('hidden'); return; }
       searchTimer = setTimeout(async () => {
         try {
           const d = await this.get('/dashboard/search?q=' + encodeURIComponent(q));
           pop.innerHTML = d.results.length
-            ? d.results.map(r => `<a href="${r.link}"><span>${this.esc(r.label)}</span><span class="st">${r.type}</span></a>`).join('')
+            ? d.results.map(r => `<a href="${r.link}"><span><b>${this.esc(r.label)}</b>${r.sub ? `<small>${this.esc(r.sub)}</small>` : ''}</span><span class="st">${r.type}</span></a>`).join('')
             : '<div class="dd-empty">No matches found</div>';
           pop.classList.remove('hidden');
         } catch (_) {}

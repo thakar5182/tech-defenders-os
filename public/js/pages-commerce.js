@@ -319,6 +319,7 @@ Core.route('sales/invoices', async () => {
         ? `<span class="badge b-success">EWB ${Core.esc(i.gstEwayBill?.ewayBillNo || i.gstEinvoice?.ewayBillNo)}</span>`
         : (i.gstEinvoice?.irn ? '<span class="badge b-info">IRN generated</span>' : '<span class="badge b-neutral">Not submitted</span>') },
       { label: '', render: i => `<div class="actions-cell"><a class="btn btn-outline btn-sm" href="#/print/invoice/${i.id}">View / Print</a>
+        ${Core.can('sales', 'edit') && i.sourceType === 'manual' && !i.paidAmount && !i.gstEinvoice?.irn && !['cancelled', 'credited'].includes(i.status) ? `<button class="btn btn-ghost btn-sm" onclick="Pages.editInvoice('${i.id}')">Edit</button>` : ''}
         ${Core.can('sales', 'edit') && !['cancelled', 'credited'].includes(i.status) && !i.gstEinvoice?.irn ? `<button class="btn btn-dark btn-sm" onclick="Pages.generateEinvoice('${i.id}')">Generate IRN</button>` : ''}
         ${Core.can('sales', 'edit') && i.gstEinvoice?.irn && !i.gstEwayBill?.ewayBillNo && !i.gstEinvoice?.ewayBillNo ? `<button class="btn btn-dark btn-sm" onclick="Pages.generateEwayBill('${i.id}')">E-Way Bill</button>` : ''}
         ${Core.can('sales', 'edit') && i.customerEmail ? `<button class="btn btn-ghost btn-sm" onclick="Pages.emailInvoiceById('${Core.esc(i.id)}')">Email</button>` : ''}
@@ -327,6 +328,17 @@ Core.route('sales/invoices', async () => {
         ${Core.can('sales', 'delete') && !['cancelled', 'credited'].includes(i.status) && !i.paidAmount ? `<button class="btn btn-ghost btn-sm" onclick="Pages.cancelInvoice('${i.id}')">Cancel</button>` : ''}</div>` }
     ], d.invoices, { emptyTitle: 'No invoices yet', emptyText: 'Create a direct manual invoice or raise one from a Sales Order.' })}`;
 });
+
+Pages.editInvoice = async id => {
+  const d = await Core.get('/sales/invoices/' + id);
+  const customers = (await Core.get('/crm/customers')).customers;
+  const inv = d.invoice;
+  const modal = Core.openModal({ title: `Edit ${inv.number}`, wide: true,
+    body: `<form id="edit-invoice-form"><div class="manual-entry-callout"><b>GST correction mode</b><span>Allowed only before payment and IRN generation. After an IRN, use a credit note.</span></div><div class="grid-2 document-meta"><label class="field"><span>Customer</span><select name="customerId" required>${customers.map(c => `<option value="${Core.esc(c.id)}" ${c.id === inv.customerId ? 'selected' : ''}>${Core.esc(c.name)}</option>`).join('')}</select></label><label class="field"><span>Invoice date</span><input type="date" name="date" value="${Core.esc(inv.date)}" required></label><label class="field"><span>Due date</span><input type="date" name="dueDate" value="${Core.esc(inv.dueDate)}" required></label><label class="field"><span>Place of supply</span><input name="placeOfSupply" value="${Core.esc(inv.placeOfSupply || '')}" required></label></div>${Adv.editor(inv.lines)}<label class="field" style="margin-top:14px"><span>Notes</span><textarea name="notes" rows="3">${Core.esc(inv.notes || '')}</textarea></label></form>`,
+    footer: '<button class="btn btn-outline" data-cancel>Cancel</button><button class="btn btn-gold" type="submit" form="edit-invoice-form">Save corrected invoice</button>' });
+  modal.el.querySelector('[data-cancel]').onclick = modal.close; Adv.bindEditor(modal);
+  modal.el.querySelector('#edit-invoice-form').onsubmit = async event => { event.preventDefault(); const fd = new FormData(event.target); try { await Core.patch('/sales/invoices/' + inv.id, { customerId: fd.get('customerId'), date: fd.get('date'), dueDate: fd.get('dueDate'), placeOfSupply: fd.get('placeOfSupply'), notes: fd.get('notes'), lines: Adv.collectLines(modal, false) }); modal.close(); toast('Invoice updated', 'GST totals and journal were recalculated', 'success'); Core.render(); } catch (error) { toast('Invoice not updated', error.message, 'error'); } };
+};
 
 Pages.generateEinvoice = async invoiceId => {
   const confirmed = await Core.confirm('Submit this invoice to the GST Invoice Registration Portal? Customer/company GSTIN, address, pincode and every HSN/SAC must be complete.', 'Generate GST IRN');
@@ -845,22 +857,24 @@ Core.route('purchase/suppliers', async () => {
       { label: 'GSTIN', key: 'gstin' },
       { label: 'State code', key: 'stateCode' },
       { label: 'Address', key: 'address' }
+      ,{ label: '', render: s => Core.can('purchase', 'edit') ? `<button class="btn btn-ghost btn-sm" onclick="Pages.openSupplierForm('${s.id}')">Edit</button>` : '' }
     ], d.suppliers, { emptyTitle: 'No suppliers', emptyText: 'Add vendors to send RFQs.' })}`;
 });
 
-Pages.openSupplierForm = function () {
+Pages.openSupplierForm = async function (id) {
+  const d = await Core.get('/purchase/suppliers'); const existing = id ? d.suppliers.find(s => s.id === id) : null;
   Core.formModal({
-    title: 'New supplier',
+    title: existing ? 'Edit supplier' : 'New supplier',
     fields: [
-      { name: 'name', label: 'Supplier name *', required: true },
-      { name: 'contactPerson', label: 'Contact person', half: true },
-      { name: 'phone', label: 'Phone', half: true },
-      { name: 'email', label: 'Email', type: 'email' },
-      { name: 'gstin', label: 'GSTIN', half: true },
-      { name: 'address', label: 'Address', half: true }
+      { name: 'name', label: 'Supplier name *', required: true, value: existing?.name },
+      { name: 'contactPerson', label: 'Contact person', half: true, value: existing?.contactPerson },
+      { name: 'phone', label: 'Phone', half: true, value: existing?.phone },
+      { name: 'email', label: 'Email', type: 'email', value: existing?.email },
+      { name: 'gstin', label: 'GSTIN', half: true, value: existing?.gstin },
+      { name: 'address', label: 'Address', half: true, value: existing?.address }
     ],
-    submitLabel: 'Create supplier',
-    onSubmit: async v => { await Core.post('/purchase/suppliers', v); toast('Created', 'Supplier added', 'success'); Core.render(); }
+    submitLabel: existing ? 'Save changes' : 'Create supplier',
+    onSubmit: async v => { if (existing) await Core.patch('/purchase/suppliers/' + existing.id, v); else await Core.post('/purchase/suppliers', v); toast('Saved', existing ? 'Supplier updated' : 'Supplier added', 'success'); Core.render(); }
   });
 };
 
