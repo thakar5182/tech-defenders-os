@@ -267,13 +267,13 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
 .modal {
   background: #fff; border-radius: 14px; width: min(92vw, 440px);
   box-shadow: var(--shadow-2); animation: popIn 170ms cubic-bezier(.2,.6,.3,1);
-  overflow: hidden;
+  overflow: hidden; max-height: calc(100dvh - 32px); display: flex; flex-direction: column;
 }
-.modal-head { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--line); }
+.modal-head { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; border-bottom: 1px solid var(--line); flex: 0 0 auto; }
 .modal-head h3 { font-size: 16px; }
 .modal-x { background: none; border: none; font-size: 19px; color: var(--muted); line-height: 1; }
-.modal-body { padding: 20px; }
-.modal-foot { display: flex; justify-content: flex-end; gap: 10px; padding: 14px 20px; border-top: 1px solid var(--line); background: #fbfaf6; }
+.modal-body { padding: 20px; overflow-y: auto; overscroll-behavior: contain; }
+.modal-foot { display: flex; justify-content: flex-end; gap: 10px; padding: 14px 20px; border-top: 1px solid var(--line); background: #fbfaf6; flex: 0 0 auto; }
 
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 @keyframes popIn { from { opacity: 0; transform: translateY(8px) scale(.98); } to { opacity: 1; transform: none; } }
