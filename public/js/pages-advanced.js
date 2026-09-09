@@ -263,8 +263,7 @@ Core.route('purchase/billing', async () => {
       { label: 'Date', render: item => Core.fmtDate(item.date) },
       { label: 'Reference', render: item => Core.esc(item.supplierInvoiceNo || item.reference || '-') },
       { label: 'Amount', num: true, render: item => Core.money(item.amount) },
-      { label: 'Status', render: item => Core.badge(item.status || 'posted') },
-      { label: '', render: item => item.kind === 'Purchase Invoice' ? `<a class="btn btn-outline btn-sm" href="#/print/vendor-bill/${item.id}">View Bill</a>` : '-' }
+      { label: 'Status', render: item => Core.badge(item.status || 'posted') }
     ], rows, { emptyTitle: 'No vendor billing records', emptyText: 'Post the first purchase invoice.' })}`;
   const invoiceButton = document.getElementById('new-purchase-invoice');
   if (invoiceButton) invoiceButton.onclick = () => Adv.openPurchaseInvoice();
@@ -297,16 +296,6 @@ Core.route('purchase/billing', async () => {
       }
     });
   };
-});
-
-Core.route('print/vendor-bill/:id', async p => {
-  const [data, suppliers] = await Promise.all([Core.get('/v3/purchase/invoices?limit=500'), Core.get('/purchase/suppliers')]);
-  const bill = data.purchaseInvoices.find(item => item.id === p.id);
-  if (!bill) { document.getElementById('content').innerHTML = '<div class="empty-state"><h3>Vendor bill not found</h3></div>'; return; }
-  const supplier = suppliers.suppliers.find(item => item.id === bill.supplierId) || {};
-  const org = Core.state.org;
-  const tax = Number(bill.totals?.cgst || 0) + Number(bill.totals?.sgst || 0) + Number(bill.totals?.igst || 0);
-  document.getElementById('content').innerHTML = `<div class="print-toolbar"><button class="btn btn-outline" onclick="history.back()">Back</button><button class="btn btn-gold" onclick="window.print()">Print / Save PDF</button></div><div class="print-doc gst-print"><header class="gst-brand"><img src="/assets/tech-defenders-logo.webp" alt="Tech Defenders"><div><b>${Core.esc(org.legalName || org.name)}</b><p>${Core.esc([org.address?.line1,org.address?.city,org.address?.state,org.address?.pincode].filter(Boolean).join(', ') || '-')}</p><p>GSTIN: <strong>${Core.esc(org.gstin || '-')}</strong> &nbsp; Phone: ${Core.esc(org.phone || '-')}</p></div></header><div class="gst-titlebar"><strong>GSTIN: ${Core.esc(org.gstin || '-')}</strong><h1>PURCHASE TAX INVOICE</h1><strong>ORIGINAL BILL</strong></div><section class="gst-party-grid"><div class="gst-recipient"><b>M/S&nbsp; ${Core.esc(supplier.name || bill.supplierName || '-')}</b><p><strong>Address</strong> ${Core.esc(supplier.address || '-')}</p><p><strong>Phone</strong> ${Core.esc(supplier.phone || '-')}</p><p><strong>GSTIN</strong> ${Core.esc(supplier.gstin || '-')}</p></div><div class="gst-document"><div><b>Purchase Bill No.</b><span>${Core.esc(bill.number || '-')}</span><b>Bill Date</b><span>${Core.fmtDate(bill.date)}</span></div><div><b>Supplier Invoice No.</b><span>${Core.esc(bill.supplierInvoiceNo || '-')}</span><b>Due Date</b><span>${bill.dueDate ? Core.fmtDate(bill.dueDate) : '-'}</span></div></div></section><table class="gst-lines"><thead><tr><th>Sr.<br>No.</th><th>Name of Product / Service</th><th>HSN / SAC</th><th>Qty</th><th>Rate</th><th>Taxable Value</th><th>GST</th><th>Total</th></tr></thead><tbody>${(bill.lines || []).map((line,i)=>{const value=Number(line.qty||0)*Number(line.rate||0); const gst=value*Number(line.taxPct||0)/100; return `<tr><td>${i+1}</td><td>${Core.esc(line.description || '-')}</td><td>${Core.esc(line.hsn || '-')}</td><td>${line.qty || 0}</td><td class="num">${Core.money(line.rate)}</td><td class="num">${Core.money(value)}</td><td class="num">${Core.money(gst)}</td><td class="num">${Core.money(value+gst)}</td></tr>`}).join('')}</tbody><tfoot><tr><th colspan="5">Total</th><th class="num">${Core.money(bill.totals?.taxable)}</th><th class="num">${Core.money(tax)}</th><th class="num">${Core.money(bill.totals?.grandTotal)}</th></tr></tfoot></table><section class="gst-bottom"><div class="gst-left"><div class="gst-words"><b>Total in words:</b> ${Core.esc(Pages.amountInWords(bill.totals?.grandTotal || 0))} Rupees Only</div><div class="gst-terms"><b>Notes</b><br>${Core.esc(bill.notes || '-')}</div></div><div class="gst-summary"><div><span>Taxable Amount</span><b>${Core.money(bill.totals?.taxable)}</b></div><div><span>Total Tax</span><b>${Core.money(tax)}</b></div><div class="gst-grand"><span>Total Amount</span><b>${Core.money(bill.totals?.grandTotal)}</b></div></div></section></div>`;
 });
 
 /* ================= INVENTORY RESERVATIONS ================= */
@@ -372,16 +361,33 @@ Core.route('finance/ledgers', async () => {
         <label class="field"><span>General ledger</span><select id="ledger-account"><option value="">All accounts</option>${accounts.accounts.map(item => `<option value="${Core.esc(item.id)}">${Core.esc(item.code + ' · ' + item.name)}</option>`).join('')}</select></label>
         <label class="field"><span>Customer statement</span><select id="ledger-customer"><option value="">Select customer</option>${customers.customers.map(item => `<option value="${Core.esc(item.id)}">${Core.esc(item.name)}</option>`).join('')}</select></label>
         <label class="field"><span>Vendor statement</span><select id="ledger-supplier"><option value="">Select supplier</option>${suppliers.suppliers.map(item => `<option value="${Core.esc(item.id)}">${Core.esc(item.name)}</option>`).join('')}</select></label>
-      </div><div id="ledger-results"></div></div>`;
+      </div><div class="ledger-search"><input id="ledger-search" placeholder="Search customer, vendor, account or narration"><button class="btn btn-outline btn-sm" id="show-receivables">Customers to collect</button><button class="btn btn-outline btn-sm" id="show-payables">Vendors to pay</button><button class="btn btn-outline btn-sm" id="show-general">General ledger</button></div><div id="ledger-summary"></div><div id="ledger-results"></div></div>`;
   const resultHost = document.getElementById('ledger-results');
+  const summaryHost = document.getElementById('ledger-summary');
+  const renderTotals = (title, rows, amountLabel) => {
+    const total = rows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+    summaryHost.innerHTML = `<div class="ledger-total-strip"><b>${Core.esc(title)}</b><span>${rows.length} record(s)</span><strong>${Core.esc(amountLabel)}: ${Core.money(total)}</strong></div>`;
+  };
+  const receivables = (await Promise.all(customers.customers.map(async customer => { const data = await Core.get('/v3/finance/customer-ledger/' + encodeURIComponent(customer.id)); return { id: customer.id, name: customer.name, phone: customer.phone || '', amount: Math.max(0, Number(data.closingBalance || 0)) }; }))).filter(row => row.amount > 0);
+  const payables = (await Promise.all(suppliers.suppliers.map(async supplier => { const data = await Core.get('/v3/purchase/vendor-ledger/' + encodeURIComponent(supplier.id)); return { id: supplier.id, name: supplier.name, phone: supplier.phone || '', amount: Math.max(0, Number(data.closingBalance || 0)) }; }))).filter(row => row.amount > 0);
+  const search = document.getElementById('ledger-search');
+  const filtered = rows => { const term = search.value.trim().toLowerCase(); return term ? rows.filter(row => (row.name + ' ' + row.phone).toLowerCase().includes(term)) : rows; };
+  const showList = (title, rows, label) => { resultHost.dataset.view = label === 'Total payable' ? 'payables' : 'receivables'; const list = filtered(rows); renderTotals(title, list, label); resultHost.innerHTML = Core.table([{ label: label === 'Total payable' ? 'Vendor' : 'Customer', render: row => `<b>${Core.esc(row.name)}</b><br><small>${Core.esc(row.phone)}</small>` }, { label, num: true, render: row => Core.money(row.amount) }], list, { emptyTitle: 'No matching outstanding records' }); };
+  document.getElementById('show-receivables').onclick = () => showList('Customer receivables', receivables, 'Total receivable');
+  document.getElementById('show-payables').onclick = () => showList('Vendor payables', payables, 'Total payable');
+  document.getElementById('show-general').onclick = () => document.getElementById('ledger-account').dispatchEvent(new Event('change'));
+  search.oninput = () => { if (resultHost.dataset.view === 'payables') showList('Vendor payables', payables, 'Total payable'); else showList('Customer receivables', receivables, 'Total receivable'); };
   document.getElementById('ledger-account').onchange = async event => {
     const data = await Core.get('/v3/finance/general-ledger?limit=200' + (event.target.value ? '&accountId=' + encodeURIComponent(event.target.value) : ''));
+    const term = search.value.trim().toLowerCase(); const rows = term ? data.rows.filter(row => JSON.stringify(row).toLowerCase().includes(term)) : data.rows;
+    const debit = rows.reduce((sum,row) => sum + Number(row.debit || 0), 0), credit = rows.reduce((sum,row) => sum + Number(row.credit || 0), 0);
+    summaryHost.innerHTML = `<div class="ledger-total-strip"><b>General ledger results</b><span>${rows.length} entry(s)</span><strong>Debit: ${Core.money(debit)} &nbsp; Credit: ${Core.money(credit)} &nbsp; Balance: ${Core.money(debit - credit)}</strong></div>`;
     resultHost.innerHTML = Core.table([
       { label: 'Date', render: item => Core.fmtDate(item.date) }, { label: 'Journal', key: 'journalNumber' },
       { label: 'Account', render: item => `${Core.esc(item.accountCode)} · ${Core.esc(item.accountName)}` },
       { label: 'Narration', key: 'narration' }, { label: 'Debit', num: true, render: item => Core.money(item.debit) },
       { label: 'Credit', num: true, render: item => Core.money(item.credit) }, { label: 'Balance', num: true, render: item => Core.money(item.runningBalance) }
-    ], data.rows, { emptyTitle: 'No ledger entries' });
+    ], rows, { emptyTitle: 'No ledger entries' });
   };
   document.getElementById('ledger-customer').onchange = async event => {
     if (!event.target.value) return;
