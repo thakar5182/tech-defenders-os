@@ -437,7 +437,7 @@ router.patch('/sequences/:id', requirePerm('admin', 'edit'), (req, res) => {
 
 /* ================= COMPANY SETTINGS ================= */
 router.patch('/settings', requirePerm('admin', 'edit'), (req, res) => {
-  const allowed = ['name', 'legalName', 'gstin', 'pan', 'email', 'phone', 'stateCode', 'financialYearStart', 'timezone', 'taxMode', 'allowNegativeStock', 'msmeNo', 'bankName', 'bankAccountNo', 'bankIfsc', 'upiId', 'invoiceTerms'];
+  const allowed = ['name', 'legalName', 'gstin', 'pan', 'email', 'phone', 'stateCode', 'financialYearStart', 'timezone', 'taxMode', 'allowNegativeStock', 'msmeNo', 'bankName', 'bankAccountNo', 'bankIfsc', 'upiId', 'invoiceTerms', 'logoData', 'upiQrData'];
   const org = store.byId('organizations', req.org.id);
   const patch = {};
   for (const k of allowed) if (k in req.body) patch[k] = req.body[k];

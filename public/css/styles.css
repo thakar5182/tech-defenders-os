@@ -837,6 +837,15 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13.2px; }
 .integration-history code { font-size: 9px; overflow-wrap: anywhere; }
 .break-code { overflow-wrap: anywhere; word-break: break-all; }
 
+/* Branded GST invoice: polished on-screen, dependable on paper. */
+.gst-print { border-color: #b99125; box-shadow: 0 16px 40px rgba(92,67,10,.16); animation: invoiceEnter .38s ease-out both; }
+.gst-print .gst-titlebar { background: linear-gradient(90deg, #16120a, #9b741b, #16120a); color: #fff; border-color: #6b4b08; }
+.gst-print .gst-titlebar strong { color: #fff4cc; }
+.gst-print .gst-brand { background: linear-gradient(135deg,#fffdf6,#f7edd2); }
+.gst-print .gst-qr img { width: 132px; height: 132px; object-fit: contain; padding: 5px; background: #fff; border: 1px solid #d6b451; }
+@keyframes invoiceEnter { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+@media print { .gst-print { box-shadow:none; animation:none; } .gst-print .gst-titlebar { -webkit-print-color-adjust:exact; print-color-adjust:exact; } }
+
 @media (max-width: 1080px) {
   .ai-layout, .statement-grid, .automation-grid { grid-template-columns: 1fr; }
   .ai-layout > section, .ai-layout > aside { min-height: 0; }

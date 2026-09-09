@@ -1140,6 +1140,8 @@ Core.route('admin/settings', async () => {
           <label class="field"><span>Bank name</span><input name="bankName" value="${Core.esc(org.bankName || '')}"></label>
           <label class="field"><span>Bank account no.</span><input name="bankAccountNo" value="${Core.esc(org.bankAccountNo || '')}"></label>
           <label class="field"><span>Bank IFSC</span><input name="bankIfsc" value="${Core.esc(org.bankIfsc || '')}"></label>
+          <label class="field"><span>Company logo (PNG/JPG/WebP)</span><input name="logoFile" type="file" accept="image/png,image/jpeg,image/webp"></label>
+          <label class="field"><span>UPI QR code (PNG/JPG/WebP)</span><input name="upiQrFile" type="file" accept="image/png,image/jpeg,image/webp"></label>
           <label class="field"><span>Address line</span><input name="line1" value="${Core.esc(org.address?.line1 || '')}"></label>
           <label class="field"><span>City</span><input name="city" value="${Core.esc(org.address?.city || '')}"></label>
           <label class="field"><span>State</span><input name="state" value="${Core.esc(org.address?.state || '')}"></label>
@@ -1174,6 +1176,9 @@ Core.route('admin/settings', async () => {
     e.preventDefault();
     const fd = new FormData(e.target);
     try {
+      const toDataUrl = file => new Promise((resolve, reject) => { if (!file) return resolve(null); if (file.size > 900000) return reject(new Error('Image must be below 900 KB')); const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file); });
+      const logoData = await toDataUrl(fd.get('logoFile'));
+      const upiQrData = await toDataUrl(fd.get('upiQrFile'));
       await Core.patch('/admin/settings', {
         name: fd.get('name'), legalName: fd.get('legalName'),
         gstin: fd.get('gstin'), pan: fd.get('pan'),
@@ -1181,6 +1186,7 @@ Core.route('admin/settings', async () => {
         stateCode: fd.get('stateCode'), financialYearStart: fd.get('financialYearStart'),
         msmeNo: fd.get('msmeNo'), upiId: fd.get('upiId'), bankName: fd.get('bankName'),
         bankAccountNo: fd.get('bankAccountNo'), bankIfsc: fd.get('bankIfsc'), invoiceTerms: fd.get('invoiceTerms'),
+        logoData: logoData || org.logoData || '', upiQrData: upiQrData || org.upiQrData || '',
         allowNegativeStock: fd.get('allowNegativeStock') === 'on',
         address: { line1: fd.get('line1'), city: fd.get('city'), state: fd.get('state'), pincode: fd.get('pincode') }
       });
@@ -1246,7 +1252,7 @@ Core.route('print/invoice/:id', async p => {
       <button class="btn btn-gold" onclick="window.print()">Print / Save PDF</button>
     </div>
     <div class="print-doc gst-print">
-      <header class="gst-brand"><img src="/assets/tech-defenders-logo.webp" alt="Tech Defenders"><div><b>${Core.esc(org.legalName || org.name)}</b><p>${Core.esc(orgAddress)}</p><p>GSTIN: <strong>${Core.esc(org.gstin || '-')}</strong> &nbsp; PAN: ${Core.esc(org.pan || '-')} &nbsp; Phone: ${Core.esc(org.phone || '-')}</p><p>${org.msmeNo ? `MSME / UDYAM: <strong>${Core.esc(org.msmeNo)}</strong> &nbsp;` : ''}${Core.esc(org.email || '')}</p></div></header>
+      <header class="gst-brand"><img src="${Core.esc(org.logoData || '/assets/tech-defenders-logo.webp')}" alt="${Core.esc(org.name)} logo"><div><b>${Core.esc(org.legalName || org.name)}</b><p>${Core.esc(orgAddress)}</p><p>GSTIN: <strong>${Core.esc(org.gstin || '-')}</strong> &nbsp; PAN: ${Core.esc(org.pan || '-')} &nbsp; Phone: ${Core.esc(org.phone || '-')}</p><p>${org.msmeNo ? `MSME / UDYAM: <strong>${Core.esc(org.msmeNo)}</strong> &nbsp;` : ''}${Core.esc(org.email || '')}</p></div></header>
       <div class="gst-titlebar"><strong>GSTIN: ${Core.esc(org.gstin || '-')}</strong><h1>TAX INVOICE</h1><strong>ORIGINAL FOR RECIPIENT</strong></div>
       <section class="gst-party-grid"><div class="gst-recipient"><b>M/S&nbsp; ${Core.esc(cust?.name || '-')}</b><p><strong>Address</strong> ${Core.esc(customerAddress)}</p><p><strong>Phone</strong> ${Core.esc(cust?.phone || '-')}</p><p><strong>GSTIN</strong> ${Core.esc(cust?.gstin || '-')}</p><p><strong>Place of Supply</strong> ${Core.esc(cust?.billingAddress?.state || cust?.stateCode || '-')}</p></div><div class="gst-document"><div><b>Invoice No.</b><span>${Core.esc(inv.number)}</span><b>Invoice Date</b><span>${Core.fmtDate(inv.date)}</span></div><div><b>Challan No.</b><span>${Core.esc(inv.challanNo || '-')}</span><b>Challan Date</b><span>${inv.challanDate ? Core.fmtDate(inv.challanDate) : '-'}</span></div><div><b>E-Way Bill No.</b><span>${Core.esc(eway)}</span><b>Due Date</b><span>${Core.fmtDate(inv.dueDate)}</span></div><div><b>Transport</b><span>${Core.esc(inv.transporter || '-')}</span><b>Transport ID</b><span>${Core.esc(inv.transporterId || '-')}</span></div></div></section>
       <table class="gst-lines">
@@ -1257,7 +1263,7 @@ Core.route('print/invoice/:id', async p => {
         </tbody>
         <tfoot><tr><th colspan="3">Total</th><th>${inv.lines.reduce((sum, line) => sum + Number(line.qty || 0), 0)} NOS</th><th></th><th class="num">${Core.money(t.taxable)}</th><th></th><th class="num">${Core.money((t.cgst || 0) + (t.sgst || 0) + (t.igst || 0))}</th><th class="num">${Core.money(t.grandTotal)}</th></tr></tfoot>
       </table>
-      <section class="gst-bottom"><div class="gst-left"><div class="gst-words"><b>Total in words:</b> ${Core.esc(Pages.amountInWords(t.grandTotal))} Rupees Only</div><div class="gst-terms"><b>Terms and Conditions</b><br>${Core.esc(inv.notes || org.invoiceTerms || `Subject to ${org.address?.state || 'local'} jurisdiction. Goods once sold will not be taken back.`)}</div><div class="gst-customer-sign"><b>Customer Signature</b></div></div><div class="gst-qr"><div class="qr-placeholder">PAY<br>QR</div><b>${org.upiId ? `UPI: ${Core.esc(org.upiId)}` : 'Scan to pay'}</b><small>${org.upiId ? 'QR can be connected to your UPI gateway' : 'Add UPI ID in Company Settings'}</small></div><div class="gst-summary"><div><span>Taxable Amount</span><b>${Core.money(t.taxable)}</b></div><div><span>Total Tax</span><b>${Core.money((t.cgst || 0) + (t.sgst || 0) + (t.igst || 0))}</b></div><div class="gst-grand"><span>Total Amount After Tax</span><b>${Core.money(t.grandTotal)}</b></div><div class="gst-signatory"><b>For ${Core.esc(org.legalName || org.name)}</b><span>Authorised Signatory</span></div></div></section>
+      <section class="gst-bottom"><div class="gst-left"><div class="gst-words"><b>Total in words:</b> ${Core.esc(Pages.amountInWords(t.grandTotal))} Rupees Only</div><div class="gst-terms"><b>Terms and Conditions</b><br>${Core.esc(inv.notes || org.invoiceTerms || `Subject to ${org.address?.state || 'local'} jurisdiction. Goods once sold will not be taken back.`)}</div><div class="gst-customer-sign"><b>Customer Signature</b></div></div><div class="gst-qr">${org.upiQrData ? `<img src="${Core.esc(org.upiQrData)}" alt="UPI payment QR">` : '<div class="qr-placeholder">PAY<br>QR</div>'}<b>${org.upiId ? `UPI: ${Core.esc(org.upiId)}` : 'Scan to pay'}</b><small>${org.upiQrData ? 'Scan using any UPI app' : 'Upload QR in Company Settings'}</small></div><div class="gst-summary"><div><span>Taxable Amount</span><b>${Core.money(t.taxable)}</b></div><div><span>Total Tax</span><b>${Core.money((t.cgst || 0) + (t.sgst || 0) + (t.igst || 0))}</b></div><div class="gst-grand"><span>Total Amount After Tax</span><b>${Core.money(t.grandTotal)}</b></div><div class="gst-signatory"><b>For ${Core.esc(org.legalName || org.name)}</b><span>Authorised Signatory</span></div></div></section>
       <footer class="gst-bank"><b>Bank:</b> ${Core.esc(org.bankName || 'Add bank details in Company Settings')} &nbsp;&nbsp; <b>A/c No.:</b> ${Core.esc(org.bankAccountNo || '-')} &nbsp;&nbsp; <b>IFSC:</b> ${Core.esc(org.bankIfsc || '-')}</footer>
     </div>`;
 });
