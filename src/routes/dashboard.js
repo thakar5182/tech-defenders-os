@@ -124,13 +124,13 @@ router.get('/search', (req, res) => {
   const results = [];
 
   if (can(req.user, 'crm', 'view')) for (const c of store.find('customers', x => x.orgId === orgId)) {
-    if (like(c.name, c.contactPerson, c.email, c.phone, c.gstin, c.billingAddress)) results.push({ type: 'Customer', label: c.name, sub: c.email || c.phone, link: '#/crm/customers/' + c.id });
+    if (like(c.serialNo, c.name, c.contactPerson, c.email, c.phone, c.gstin, c.billingAddress)) results.push({ type: 'Customer', label: c.name, sub: `${c.serialNo || 'CUS-legacy'} · ${c.email || c.phone || ''}`, link: '#/crm/customers/' + c.id });
   }
   if (can(req.user, 'crm', 'view')) for (const l of store.find('leads', x => x.orgId === orgId)) {
-    if (like(l.name, l.company, l.email, l.phone)) results.push({ type: 'Lead', label: l.name, sub: l.company, link: '#/crm/leads' });
+    if (like(l.serialNo, l.name, l.company, l.email, l.phone)) results.push({ type: 'Lead', label: l.name, sub: `${l.serialNo || 'LEAD-legacy'} · ${l.company || ''}`, link: '#/crm/leads' });
   }
   if (can(req.user, 'inventory', 'view')) for (const p of store.find('products', x => x.orgId === orgId)) {
-    if (like(p.name, p.sku, p.category, p.hsn)) results.push({ type: 'Product', label: `${p.name} (${p.sku})`, sub: p.category, link: '#/inventory/products' });
+    if (like(p.serialNo, p.name, p.sku, p.category, p.hsn)) results.push({ type: 'Product', label: `${p.name} (${p.sku})`, sub: `${p.serialNo || 'PRD-legacy'} · ${p.category}`, link: '#/inventory/products' });
   }
   if (can(req.user, 'sales', 'view')) for (const d of store.find('quotations', x => x.orgId === orgId)) {
     if (like(d.number, d.customerName, d.notes)) results.push({ type: 'Quotation', label: d.number, sub: d.status, link: '#/sales/quotations' });

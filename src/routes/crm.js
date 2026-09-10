@@ -11,6 +11,10 @@ const { audit, notify, r2 } = require('../util');
 const router = express.Router();
 router.use(requireAuth);
 const LEAD_STATUSES = ['new', 'contacted', 'qualified', 'converted', 'lost'];
+function nextSerial(orgId, collection, prefix) {
+  const max = store.find(collection, item => item.orgId === orgId).reduce((value, item) => Math.max(value, Number(String(item.serialNo || '').replace(/\D/g, '')) || 0), 0);
+  return `${prefix}-${String(max + 1).padStart(5, '0')}`;
+}
 
 /* ================= LEADS ================= */
 router.get('/leads', requirePerm('crm', 'view'), (req, res) => {
@@ -24,6 +28,7 @@ router.post('/leads', requirePerm('crm', 'create'), (req, res) => {
   if (!b.name) return res.status(400).json({ error: 'Lead name is required' });
   const lead = store.insert('leads', {
     orgId: req.org.id,
+    serialNo: nextSerial(req.org.id, 'leads', 'LEAD'),
     name: b.name, company: b.company || '', email: b.email || '', phone: b.phone || '',
     source: b.source || 'manual', productInterest: b.productInterest || '',
     value: Number(b.value) || 0, priority: b.priority || 'medium',
@@ -67,6 +72,7 @@ router.post('/leads/:id/convert', requirePerm('crm', 'edit'), (req, res) => {
 
   const customer = store.insert('customers', {
     orgId: req.org.id,
+    serialNo: nextSerial(req.org.id, 'customers', 'CUS'),
     name: lead.company || lead.name,
     contactPerson: lead.name,
     email: lead.email || '', phone: lead.phone || '',
@@ -99,6 +105,7 @@ router.post('/customers', requirePerm('crm', 'create'), (req, res) => {
   if (!b.name) return res.status(400).json({ error: 'Customer name is required' });
   const customer = store.insert('customers', {
     orgId: req.org.id,
+    serialNo: nextSerial(req.org.id, 'customers', 'CUS'),
     name: b.name, contactPerson: b.contactPerson || '',
     email: b.email || '', phone: b.phone || '',
     gstin: b.gstin || '', stateCode: String(b.stateCode || req.org.stateCode || '27'),

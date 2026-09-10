@@ -11,6 +11,10 @@ const { r2, audit, notify, postStock } = require('../util');
 
 const router = express.Router();
 router.use(requireAuth);
+function nextProductSerial(orgId) {
+  const max = store.find('products', item => item.orgId === orgId).reduce((value, item) => Math.max(value, Number(String(item.serialNo || '').replace(/\D/g, '')) || 0), 0);
+  return `PRD-${String(max + 1).padStart(5, '0')}`;
+}
 
 function balance(orgId, productId, warehouseId) {
   return r2(store.find('stockLedger', e =>
@@ -39,6 +43,7 @@ router.post('/products', requirePerm('inventory', 'create'), (req, res) => {
   if (b.warehouseId && !selectedWarehouse) return res.status(400).json({ error: 'Invalid warehouse' });
   const product = store.insert('products', {
     orgId: req.org.id,
+    serialNo: nextProductSerial(req.org.id),
     sku: b.sku, name: b.name,
     category: b.category || 'General',
     type: ['goods', 'raw', 'finished', 'service'].includes(b.type) ? b.type : 'goods',
