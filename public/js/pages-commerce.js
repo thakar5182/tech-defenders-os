@@ -481,13 +481,13 @@ Core.route('sales/receipts', async () => {
     ], d.receipts, { emptyTitle: 'No receipts yet', emptyText: 'Record payments against outstanding invoices.' })}`;
 });
 
-Pages.openReceiptForm = async () => {
+Pages.openReceiptForm = async (selectedCustomerId) => {
   const custD = await Core.get('/crm/customers');
   Core.formModal({
     title: 'Record receipt',
     fields: [
       { name: 'customerId', label: 'Customer *', type: 'select', required: true,
-        options: custD.customers.map(c => ({ value: c.id, label: c.name })) },
+        options: custD.customers.map(c => ({ value: c.id, label: c.name })), value: selectedCustomerId || '' },
       { name: 'amount', label: 'Amount received (INR) *', type: 'number', step: '0.01', required: true, half: true },
       { name: 'mode', label: 'Mode', type: 'select', half: true,
         options: ['bank', 'cash', 'upi', 'cheque', 'card'].map(v => ({ value: v, label: v.toUpperCase() })) },

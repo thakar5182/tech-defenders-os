@@ -205,18 +205,29 @@ Core.route('crm/customers/:id', async p => {
     Core.can('communication', 'view') ? Core.get('/ops/communications?customerId=' + encodeURIComponent(p.id)) : Promise.resolve({ communications: [] })
   ]);
   const c = d.customer;
+  const phoneDigits = String(c.phone || '').replace(/\D/g, '');
+  const reminderText = `Hello ${c.contactPerson || c.name}, this is a friendly reminder from ${Core.state.org.name}. Your pending amount is ${Core.money(d.summary.outstanding)}. Please share the expected payment date. Thank you.`;
+  const healthLabel = { healthy: 'Healthy', watch: 'Needs follow-up', attention: 'Action needed' }[d.summary.health] || 'Healthy';
   document.getElementById('content').innerHTML = `
     ${Core.pageHead(c.name, 'Customer 360-degree view',
       `<button class="btn btn-outline" onclick="history.back()">Back</button>
        ${Core.can('crm', 'edit') ? `<button class="btn btn-outline" onclick="Pages.openCustomerForm('${c.id}')">Edit customer</button>` : ''}
        ${Core.can('crm', 'delete') ? `<button class="btn btn-outline" onclick="Pages.deleteCustomer('${c.id}')">Delete customer</button>` : ''}
        ${Core.can('sales', 'create') ? `<button class="btn btn-gold" onclick="location.hash='#/sales/quotations/new'">New Quotation</button>` : ''}`)}
+    <div class="customer-actionbar" aria-label="Customer quick actions">
+      ${phoneDigits ? `<a class="btn btn-outline btn-sm" href="tel:${phoneDigits}">Call</a><a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="https://wa.me/91${phoneDigits.replace(/^91/, '')}">WhatsApp</a>` : ''}
+      ${c.email ? `<a class="btn btn-outline btn-sm" href="mailto:${encodeURIComponent(c.email)}">Email</a>` : ''}
+      ${Core.can('sales', 'edit') ? `<button class="btn btn-gold btn-sm" onclick="Pages.openReceiptForm('${c.id}')">Receive Payment</button>` : ''}
+      ${Core.can('service', 'create') ? `<button class="btn btn-outline btn-sm" onclick="Pages.openTicketForm('${c.id}')">New Ticket</button>` : ''}
+      ${d.summary.outstanding > 0 && phoneDigits ? `<a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="https://wa.me/91${phoneDigits.replace(/^91/, '')}?text=${encodeURIComponent(reminderText)}">Send Reminder</a>` : ''}
+    </div>
     <div class="grid-kpi">
       ${Core.kpi('Total Billed', Core.moneyShort(d.summary.billed))}
       ${Core.kpi('Total Received', Core.moneyShort(d.summary.paid), '', 'k-success')}
       ${Core.kpi('Outstanding', Core.moneyShort(d.summary.outstanding), '', d.summary.outstanding > 0 ? 'k-danger' : '')}
       ${Core.kpi('Payment Terms', c.paymentTermsDays + ' days', 'credit limit ' + Core.moneyShort(c.creditLimit))}
     </div>
+    <div class="customer-health customer-health-${Core.esc(d.summary.health)}"><b>${healthLabel}</b><span>${d.summary.overdueInvoices ? `${d.summary.overdueInvoices} overdue invoice(s): ${Core.money(d.summary.overdueAmount)}` : 'No overdue invoice'} &middot; ${d.summary.openTickets} open ticket(s)${d.summary.amcDaysRemaining != null ? ` &middot; AMC ${d.summary.amcDaysRemaining < 0 ? 'expired' : `expires in ${d.summary.amcDaysRemaining} day(s)`}` : ''}</span></div>
     <div class="meta-grid" style="margin-bottom:16px">
       <div class="meta-item"><span>Contact person</span><b>${Core.esc(c.contactPerson || '-')}</b></div>
       <div class="meta-item"><span>Email</span><b>${Core.esc(c.email || '-')}</b></div>
@@ -239,8 +250,36 @@ Core.route('crm/customers/:id', async p => {
         </ul>` : '<div class="empty-state">No service history.</div>'}
       </div>
     </div>
+    <div class="card customer-documents" style="margin-top:16px"><div class="card-head"><div><h3>Customer Documents</h3><small class="muted">PO, agreement, GST certificate or approved quotation</small></div>${Core.can('crm', 'edit') ? `<button class="btn btn-outline btn-sm" onclick="Pages.openCustomerDocumentForm('${c.id}')">Upload document</button>` : ''}</div>
+      ${d.documents.length ? `<div class="document-list">${d.documents.map(doc => `<div class="document-item"><span><b>${Core.esc(doc.title)}</b><small>${Core.esc((doc.mimeType || '').replace('application/', '').replace('image/', '').toUpperCase())} &middot; ${Core.fmtDate(doc.createdAt)}</small></span><span><a class="btn btn-outline btn-sm" href="/api/crm/customers/${c.id}/documents/${doc.id}/download">Download</a>${Core.can('crm', 'edit') ? `<button class="btn btn-ghost btn-sm" onclick="Pages.deleteCustomerDocument('${c.id}','${doc.id}')">Remove</button>` : ''}</span></div>`).join('')}</div>` : '<div class="empty-state">No documents uploaded yet.</div>'}
+    </div>
     ${Core.can('communication', 'view') ? `<div class="card" style="margin-top:16px"><div class="card-head"><h3>Communication Timeline</h3><a class="link" href="#/communication/history">View all</a></div>${comm.communications.length ? `<ul class="timeline" style="padding:16px 20px">${comm.communications.slice(0,20).map(item => `<li><b>${Core.esc(String(item.messageType || 'message').replace(/_/g,' '))} · ${Core.esc(item.channel)}</b><small>${Core.fmtDate(item.createdAt)} · ${Core.badge(item.status)}</small></li>`).join('')}</ul>` : '<div class="empty-state">No communication history for this customer.</div>'}</div>` : ''}`;
 });
+
+Pages.openCustomerDocumentForm = function (customerId) {
+  const modal = Core.openModal({ title: 'Upload customer document', wide: false,
+    body: `<form id="customer-document-form"><label class="field"><span>Document title *</span><input name="title" required maxlength="120" placeholder="e.g. Purchase Order - Sep 2026"></label><label class="field"><span>File * (PDF, PNG, JPG or WEBP; max 1.5 MB)</span><input name="file" type="file" accept="application/pdf,image/png,image/jpeg,image/webp" required></label></form>`,
+    footer: '<button class="btn btn-outline" data-cancel>Cancel</button><button class="btn btn-gold" type="submit" form="customer-document-form">Upload</button>' });
+  modal.el.querySelector('[data-cancel]').onclick = modal.close;
+  modal.el.querySelector('#customer-document-form').addEventListener('submit', async event => {
+    event.preventDefault();
+    const form = event.currentTarget, file = form.file.files[0];
+    if (!file) return;
+    if (file.size > 1536 * 1024) { toast('File too large', 'Choose a file smaller than 1.5 MB', 'error'); return; }
+    const button = modal.el.querySelector('[type="submit"]'); button.disabled = true;
+    try {
+      const contentData = await new Promise((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.onerror = reject; reader.readAsDataURL(file); });
+      await Core.post('/crm/customers/' + customerId + '/documents', { title: form.title.value, contentData });
+      toast('Document uploaded', 'Customer document is available to your team', 'success'); modal.close(); Core.render();
+    } catch (error) { toast('Upload failed', error.message || 'Please try again', 'error'); button.disabled = false; }
+  });
+};
+
+Pages.deleteCustomerDocument = async function (customerId, documentId) {
+  if (!await Core.confirm('Remove this document? This cannot be undone.', 'Remove document')) return;
+  try { await Core.del('/crm/customers/' + customerId + '/documents/' + documentId); toast('Removed', 'Customer document removed', 'success'); Core.render(); }
+  catch (error) { toast('Remove failed', error.message, 'error'); }
+};
 
 Pages.openCustomerForm = async function (id) {
   const existing = id ? (await Core.get('/crm/customers/' + id)).customer : null;

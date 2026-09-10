@@ -278,12 +278,12 @@ Core.route('service/tickets', async () => {
     ], d.tickets, { emptyTitle: 'No tickets', emptyText: 'Log customer issues here.' })}`;
 });
 
-Pages.openTicketForm = function () {
+Pages.openTicketForm = function (selectedCustomerId) {
   Promise.all([Core.get('/crm/customers')]).then(([custD]) => {
     Core.formModal({
       title: 'New service ticket',
       fields: [
-        { name: 'customerId', label: 'Customer *', type: 'select', required: true, options: custD.customers.map(c => ({ value: c.id, label: c.name })) },
+        { name: 'customerId', label: 'Customer *', type: 'select', required: true, options: custD.customers.map(c => ({ value: c.id, label: c.name })), value: selectedCustomerId || '' },
         { name: 'subject', label: 'Subject *', required: true },
         { name: 'category', label: 'Category', type: 'select', half: true, options: ['general', 'mechanical', 'electrical', 'installation', 'warranty'].map(v => ({ value: v, label: v })) },
         { name: 'priority', label: 'Priority', type: 'select', half: true, options: ['low', 'medium', 'high', 'urgent'].map(v => ({ value: v, label: v })) },

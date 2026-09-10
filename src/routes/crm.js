@@ -128,6 +128,17 @@ router.get('/customers/:id', requirePerm('crm', 'view'), (req, res) => {
     if (!['cancelled', 'credited'].includes(inv.status)) billed += Number(inv.totals?.grandTotal) || 0;
     paid += Number(inv.paidAmount) || 0;
   }
+  const today = new Date().toISOString().slice(0, 10);
+  const overdueInvoices = invoices.filter(inv => !['cancelled', 'credited', 'paid'].includes(inv.status) && inv.dueDate && inv.dueDate < today);
+  const openTickets = store.find('tickets', t => t.orgId === orgId && t.customerId === c.id && !['closed', 'resolved'].includes(t.status));
+  const activeAmcs = store.find('amcContracts', a => a.orgId === orgId && a.customerId === c.id && !['cancelled', 'expired'].includes(a.status));
+  const documents = store.find('customerDocuments', doc => doc.orgId === orgId && doc.customerId === c.id)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+    .map(({ contentData, ...doc }) => doc);
+  const daysToExpiry = activeAmcs.map(a => a.endDate ? Math.ceil((new Date(a.endDate + 'T00:00:00') - new Date(today + 'T00:00:00')) / 86400000) : null).filter(Number.isFinite);
+  const health = overdueInvoices.length || openTickets.length > 2 || daysToExpiry.some(days => days <= 14)
+    ? (overdueInvoices.length || daysToExpiry.some(days => days < 0) ? 'attention' : 'watch')
+    : 'healthy';
   res.json({
     customer: c,
     deals: store.find('deals', d => d.orgId === orgId && d.customerId === c.id),
@@ -135,8 +146,43 @@ router.get('/customers/:id', requirePerm('crm', 'view'), (req, res) => {
     receipts: store.find('receipts', r => r.orgId === orgId && r.customerId === c.id),
     tickets: store.find('tickets', t => t.orgId === orgId && t.customerId === c.id),
     amcContracts: store.find('amcContracts', a => a.orgId === orgId && a.customerId === c.id),
-    summary: { billed: r2(billed), paid: r2(paid), outstanding: r2(billed - paid) }
+    documents,
+    summary: { billed: r2(billed), paid: r2(paid), outstanding: r2(billed - paid), overdueAmount: r2(overdueInvoices.reduce((sum, inv) => sum + ((Number(inv.totals?.grandTotal) || 0) - (Number(inv.paidAmount) || 0)), 0)), overdueInvoices: overdueInvoices.length, openTickets: openTickets.length, health, amcDaysRemaining: daysToExpiry.length ? Math.min(...daysToExpiry) : null }
   });
+});
+
+/* Customer documents: compact, tenant-scoped attachments for quotations, POs and agreements. */
+router.post('/customers/:id/documents', requirePerm('crm', 'edit'), (req, res) => {
+  const customer = store.findOne('customers', c => c.id === req.params.id && c.orgId === req.org.id);
+  if (!customer) return res.status(404).json({ error: 'Customer not found' });
+  const b = req.body || {};
+  const title = String(b.title || '').trim().slice(0, 120);
+  const contentData = String(b.contentData || '');
+  const match = /^data:(application\/pdf|image\/(?:png|jpeg|webp));base64,([A-Za-z0-9+/=]+)$/.exec(contentData);
+  if (!title) return res.status(400).json({ error: 'Document title is required' });
+  if (!match) return res.status(400).json({ error: 'Only PDF, PNG, JPG or WEBP files are allowed' });
+  if (Buffer.byteLength(contentData, 'utf8') > 2 * 1024 * 1024) return res.status(400).json({ error: 'File must be smaller than 1.5 MB' });
+  const document = store.insert('customerDocuments', { orgId: req.org.id, customerId: customer.id, title, mimeType: match[1], contentData, uploadedBy: req.user.id });
+  audit(req.org.id, req.user.id, 'upload', 'customer_document', document.id, { customerId: customer.id, title });
+  const { contentData: _contentData, ...safeDocument } = document;
+  res.json({ document: safeDocument });
+});
+
+router.get('/customers/:id/documents/:documentId/download', requirePerm('crm', 'view'), (req, res) => {
+  const document = store.findOne('customerDocuments', doc => doc.id === req.params.documentId && doc.customerId === req.params.id && doc.orgId === req.org.id);
+  if (!document) return res.status(404).json({ error: 'Document not found' });
+  const extension = { 'application/pdf': 'pdf', 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' }[document.mimeType] || 'file';
+  res.setHeader('Content-Type', document.mimeType);
+  res.setHeader('Content-Disposition', `attachment; filename="${String(document.title).replace(/[^a-z0-9._ -]/gi, '_')}.${extension}"`);
+  res.send(Buffer.from(String(document.contentData).split(',')[1] || '', 'base64'));
+});
+
+router.delete('/customers/:id/documents/:documentId', requirePerm('crm', 'edit'), (req, res) => {
+  const document = store.findOne('customerDocuments', doc => doc.id === req.params.documentId && doc.customerId === req.params.id && doc.orgId === req.org.id);
+  if (!document) return res.status(404).json({ error: 'Document not found' });
+  store.remove('customerDocuments', document.id);
+  audit(req.org.id, req.user.id, 'delete', 'customer_document', document.id, { customerId: req.params.id, title: document.title });
+  res.json({ message: 'Document deleted' });
 });
 
 router.patch('/customers/:id', requirePerm('crm', 'edit'), (req, res) => {
