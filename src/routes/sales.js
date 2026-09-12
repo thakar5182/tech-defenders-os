@@ -134,8 +134,6 @@ router.post('/quotations', requirePerm('sales', 'create'), (req, res) => {
   const b = req.body || {};
   const customer = b.customerId ? store.findOne('customers', c => c.id === b.customerId && c.orgId === req.org.id) : null;
   if (!customer) return res.status(400).json({ error: 'Valid customerId is required' });
-  const selectedAddress = b.addressBookId ? (customer.addressBook || []).find(item => item.id === b.addressBookId) : null;
-  if (b.addressBookId && !selectedAddress) return res.status(400).json({ error: 'Selected customer address was not found' });
   const enriched = enrichLines(b.lines, req.org.id);
   if (enriched.error) return res.status(400).json({ error: enriched.error });
   const lines = enriched.lines;
@@ -143,9 +141,7 @@ router.post('/quotations', requirePerm('sales', 'create'), (req, res) => {
   const doc = computeDoc(lines, req.org.stateCode, customer.stateCode);
   const quotation = store.insert('quotations', {
     orgId: req.org.id, number: nextNumber(req.org.id, 'quotation'),
-    customerId: customer.id,
-    addressBookId: selectedAddress ? selectedAddress.id : null,
-    invoiceAddress: selectedAddress ? { ...selectedAddress } : null, date: b.date || new Date().toISOString().slice(0, 10),
+    customerId: customer.id, date: b.date || new Date().toISOString().slice(0, 10),
     validUntil: b.validUntil || null, placeOfSupply: customer.stateCode,
     status: 'draft', lines: doc.lines, totals: doc.totals,
     notes: b.notes || '', convertedToId: null
@@ -200,8 +196,6 @@ router.post('/sales-orders', requirePerm('sales', 'create'), (req, res) => {
   const b = req.body || {};
   const customer = b.customerId ? store.findOne('customers', c => c.id === b.customerId && c.orgId === req.org.id) : null;
   if (!customer) return res.status(400).json({ error: 'Valid customerId is required' });
-  const selectedAddress = b.addressBookId ? (customer.addressBook || []).find(item => item.id === b.addressBookId) : null;
-  if (b.addressBookId && !selectedAddress) return res.status(400).json({ error: 'Selected customer address was not found' });
   const enriched = enrichLines(b.lines, req.org.id);
   if (enriched.error) return res.status(400).json({ error: enriched.error });
   const lines = enriched.lines;
@@ -209,9 +203,7 @@ router.post('/sales-orders', requirePerm('sales', 'create'), (req, res) => {
   const doc = computeDoc(lines, req.org.stateCode, customer.stateCode);
   const so = store.insert('salesOrders', {
     orgId: req.org.id, number: nextNumber(req.org.id, 'salesOrder'),
-    customerId: customer.id,
-    addressBookId: selectedAddress ? selectedAddress.id : null,
-    invoiceAddress: selectedAddress ? { ...selectedAddress } : null, date: b.date || new Date().toISOString().slice(0, 10),
+    customerId: customer.id, date: b.date || new Date().toISOString().slice(0, 10),
     expectedDate: b.expectedDate || null, placeOfSupply: customer.stateCode,
     status: 'confirmed',
     lines: doc.lines.map(l => ({ ...l, fulfilledQty: 0, invoicedQty: 0 })),
@@ -317,8 +309,6 @@ router.post('/invoices', requirePerm('sales', 'create'), (req, res) => {
     ? store.findOne('customers', c => c.id === b.customerId && c.orgId === req.org.id)
     : null;
   if (!customer) return res.status(400).json({ error: 'Valid customerId is required' });
-  const selectedAddress = b.addressBookId ? (customer.addressBook || []).find(item => item.id === b.addressBookId) : null;
-  if (b.addressBookId && !selectedAddress) return res.status(400).json({ error: 'Selected customer address was not found' });
 
   const enriched = enrichLines(b.lines, req.org.id);
   if (enriched.error) return res.status(400).json({ error: enriched.error });
@@ -364,8 +354,6 @@ router.post('/invoices', requirePerm('sales', 'create'), (req, res) => {
     orgId: req.org.id,
     number: nextNumber(req.org.id, 'invoice'),
     customerId: customer.id,
-    addressBookId: selectedAddress ? selectedAddress.id : null,
-    invoiceAddress: selectedAddress ? { ...selectedAddress } : null,
     date: invoiceDate,
     dueDate,
     placeOfSupply,
@@ -438,8 +426,6 @@ router.patch('/invoices/:id', requirePerm('sales', 'edit'), (req, res) => {
   }
   const customer = store.findOne('customers', c => c.id === req.body.customerId && c.orgId === req.org.id);
   if (!customer) return res.status(400).json({ error: 'Valid customerId is required' });
-  const selectedAddress = b.addressBookId ? (customer.addressBook || []).find(item => item.id === b.addressBookId) : null;
-  if (b.addressBookId && !selectedAddress) return res.status(400).json({ error: 'Selected customer address was not found' });
   const date = req.body.date || inv.date, dueDate = req.body.dueDate || inv.dueDate;
   if (!validDate(date) || !validDate(dueDate) || dueDate < date) return res.status(400).json({ error: 'Check invoice and due dates' });
   const enriched = enrichLines(req.body.lines, req.org.id);
@@ -590,8 +576,6 @@ router.post('/receipts', requirePerm('sales', 'edit'), (req, res) => {
   const b = req.body || {};
   const customer = b.customerId ? store.findOne('customers', c => c.id === b.customerId && c.orgId === req.org.id) : null;
   if (!customer) return res.status(400).json({ error: 'Valid customerId is required' });
-  const selectedAddress = b.addressBookId ? (customer.addressBook || []).find(item => item.id === b.addressBookId) : null;
-  if (b.addressBookId && !selectedAddress) return res.status(400).json({ error: 'Selected customer address was not found' });
   const amount = r2(Number(b.amount) || 0);
   if (amount <= 0) return res.status(400).json({ error: 'Amount must be greater than zero' });
 
@@ -627,9 +611,7 @@ router.post('/receipts', requirePerm('sales', 'edit'), (req, res) => {
 
   const rcp = store.insert('receipts', {
     orgId: req.org.id, number: nextNumber(req.org.id, 'receipt'),
-    customerId: customer.id,
-    addressBookId: selectedAddress ? selectedAddress.id : null,
-    invoiceAddress: selectedAddress ? { ...selectedAddress } : null, date: b.date || new Date().toISOString().slice(0, 10),
+    customerId: customer.id, date: b.date || new Date().toISOString().slice(0, 10),
     amount: allocated, mode: b.mode || 'bank',
     reference: b.reference || '',
     allocations: allocations.map(({ invoiceId, amount: allocationAmount }) => ({ invoiceId, amount: allocationAmount })),
