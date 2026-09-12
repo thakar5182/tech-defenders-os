@@ -116,6 +116,7 @@ app.use('/api/reports', require('./src/routes/reports'));
 app.use('/api/admin', require('./src/routes/admin'));
 app.use('/api/integrations', require('./src/routes/integrations'));
 app.use('/api/ops', require('./src/routes/operations'));
+app.use('/api/customer-tools', require('./src/routes/customer-enhancements'));
 app.use('/api/portal', require('./src/routes/portal'));
 const advancedRoutes = require('./src/routes/advanced');
 app.use('/api/v3', advancedRoutes);
