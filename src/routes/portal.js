@@ -14,8 +14,11 @@ router.use((req, res, next) => {
   const portalOrigin = String(process.env.PORTAL_WEB_URL || '').replace(/\/$/, '');
   if (portalOrigin && req.get('origin') === portalOrigin) {
     res.setHeader('Access-Control-Allow-Origin', portalOrigin);
+    res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
     res.setHeader('Vary', 'Origin');
   }
+  if (req.method === 'OPTIONS') return res.sendStatus(204);
   next();
 });
 
