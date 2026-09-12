@@ -4,6 +4,7 @@
  */
 'use strict';
 const express = require('express');
+const crypto = require('crypto');
 const store = require('../../db/store');
 const { requireAuth, requirePerm } = require('../middleware');
 const { audit, notify, r2 } = require('../util');
@@ -185,6 +186,20 @@ router.delete('/customers/:id/documents/:documentId', requirePerm('crm', 'edit')
   res.json({ message: 'Document deleted' });
 });
 
+/* Customer portal invitation: only a token hash is stored. */
+router.post('/customers/:id/portal-invite', requirePerm('crm', 'edit'), (req, res) => {
+  const customer = store.findOne('customers', c => c.id === req.params.id && c.orgId === req.org.id);
+  if (!customer) return res.status(404).json({ error: 'Customer not found' });
+  if (!customer.email) return res.status(400).json({ error: 'Add the customer email before creating a portal invite' });
+  const token = crypto.randomBytes(32).toString('base64url');
+  const expiresAt = new Date(Date.now() + 7 * 86400000).toISOString();
+  store.find('portalAccess', row => row.orgId === req.org.id && row.customerId === customer.id && !row.revokedAt)
+    .forEach(row => store.update('portalAccess', row.id, { revokedAt: new Date().toISOString() }));
+  store.insert('portalAccess', { orgId: req.org.id, customerId: customer.id, email: customer.email, tokenHash: crypto.createHash('sha256').update(token).digest('hex'), expiresAt, createdBy: req.user.id });
+  audit(req.org.id, req.user.id, 'create', 'portal_invite', customer.id, { email: customer.email });
+  const base = String(process.env.PORTAL_WEB_URL || '').replace(/\/$/, '');
+  res.json({ token, expiresAt, inviteUrl: base ? base + '/?access=' + encodeURIComponent(token) : null });
+});
 router.patch('/customers/:id', requirePerm('crm', 'edit'), (req, res) => {
   const c = store.findOne('customers', x => x.id === req.params.id && x.orgId === req.org.id);
   if (!c) return res.status(404).json({ error: 'Customer not found' });

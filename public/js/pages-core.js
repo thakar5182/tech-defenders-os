@@ -213,7 +213,8 @@ Core.route('crm/customers/:id', async p => {
       `<button class="btn btn-outline" onclick="history.back()">Back</button>
        ${Core.can('crm', 'edit') ? `<button class="btn btn-outline" onclick="Pages.openCustomerForm('${c.id}')">Edit customer</button>` : ''}
        ${Core.can('crm', 'delete') ? `<button class="btn btn-outline" onclick="Pages.deleteCustomer('${c.id}')">Delete customer</button>` : ''}
-       ${Core.can('sales', 'create') ? `<button class="btn btn-gold" onclick="location.hash='#/sales/quotations/new'">New Quotation</button>` : ''}`)}
+       ${Core.can('sales', 'create') ? `<button class="btn btn-gold" onclick="location.hash='#/sales/quotations/new'">New Quotation</button>` : ''}
+       ${Core.can('crm', 'edit') ? `<button class="btn btn-outline" onclick="Pages.createPortalInvite('${c.id}')">Invite to Portal</button>` : ''}`)}
     <div class="customer-actionbar" aria-label="Customer quick actions">
       ${phoneDigits ? `<a class="btn btn-outline btn-sm" href="tel:${phoneDigits}">Call</a><a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="https://wa.me/91${phoneDigits.replace(/^91/, '')}">WhatsApp</a>` : ''}
       ${c.email ? `<a class="btn btn-outline btn-sm" href="mailto:${encodeURIComponent(c.email)}">Email</a>` : ''}
@@ -281,6 +282,7 @@ Pages.deleteCustomerDocument = async function (customerId, documentId) {
   catch (error) { toast('Remove failed', error.message, 'error'); }
 };
 
+Pages.createPortalInvite = async id => { try { const r = await Core.post('/crm/customers/' + id + '/portal-invite', {}); const value = r.inviteUrl || r.token; await navigator.clipboard.writeText(value); toast('Portal invite created', r.inviteUrl ? 'Secure portal link copied.' : 'Access code copied. Set PORTAL_WEB_URL in Render first.', 'success'); } catch (e) { toast('Invite failed', e.message, 'error'); } };
 Pages.openCustomerForm = async function (id) {
   const existing = id ? (await Core.get('/crm/customers/' + id)).customer : null;
   Core.formModal({
