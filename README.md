@@ -298,3 +298,4 @@ from the ZIP and is not uploaded by the Blueprint.
 - JavaScript syntax: all project source files pass
 - Dependency audit: run `npm audit --omit=dev` on the deployment machine
 - Clean reset: 1 organization, 9 users, 23 sequences, 20 accounts, 0 business records
+All Rights Reserve By Tech Defenderss
