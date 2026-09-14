@@ -866,3 +866,21 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13.2px; }
 .customer-actionbar{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px;align-items:center}
 .customer-health{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:11px 14px;margin:0 0 16px;border-left:3px solid var(--gold,#b58b19);background:#fbfaf7;font-size:13px}.customer-health b{text-transform:uppercase;font-size:11px;letter-spacing:.06em}.customer-health-watch{border-color:#c48119}.customer-health-attention{border-color:#bf3c31;background:#fff8f7}.customer-health-healthy{border-color:#2f8f63;background:#f7fbf8}
 .document-list{border-top:1px solid var(--line,#e7e1d6)}.document-item{display:flex;justify-content:space-between;gap:12px;align-items:center;padding:11px 0;border-bottom:1px solid var(--line,#e7e1d6)}.document-item span{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.document-item small{color:var(--muted,#777);font-size:12px}@media(max-width:640px){.customer-actionbar .btn{flex:1 1 calc(50% - 4px)}.customer-health{align-items:flex-start}.document-item{align-items:flex-start;flex-direction:column}.document-item>span:last-child{width:100%}}
+
+
+/***** Customer 360 enhancement cards *****/
+.customer-insight-strip {
+  display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px;
+  padding: 12px 0 4px; margin-bottom: 16px;
+}
+.customer-insight-strip > span {
+  min-width: 0; padding: 12px 14px; border: 1px solid var(--line, #e7e2d9);
+  border-radius: 10px; background: var(--card, #fff); display: grid; gap: 4px;
+}
+.customer-insight-strip b { font-size: 15px; color: var(--ink, #151515); overflow-wrap: anywhere; }
+.customer-insight-strip small { color: var(--muted, #68717d); font-size: 11px; }
+@media (max-width: 720px) {
+  .customer-insight-strip { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .customer-actionbar { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; }
+  .customer-actionbar .btn { white-space: nowrap; flex: 0 0 auto; }
+}
