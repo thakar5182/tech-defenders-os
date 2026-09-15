@@ -14,7 +14,7 @@ const DATA_DIR = process.env.DATA_DIR
   : path.join(__dirname, '..', 'data');
 
 const COLLECTIONS = [
-  'organizations', 'branches', 'users', 'sequences',
+  'organizations', 'subscriptions', 'branches', 'users', 'sequences',
   'leads', 'customers', 'customerContacts', 'meetings', 'suppliers', 'deals', 'tasks', 'activities',
   'products', 'productCategories', 'warehouses', 'stockReservations', 'priceLists', 'assetRegister', 'stockIncidents',
   'quotations', 'proformas', 'salesOrders', 'deliveryChallans', 'salesVisits', 'dispatchRecords', 'gatePasses',

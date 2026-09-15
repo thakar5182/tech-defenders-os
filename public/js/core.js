@@ -179,6 +179,7 @@ const Core = {
       { path: '#/client-documents', label: 'Client Documents', icon: '&#9636;', mod: 'dataImport' }
     ]},
     { group: 'Administration', items: [
+      { path: '#/admin/subscription', label: 'Plan & Subscription', icon: '&#128179;', mod: 'admin' },
       { path: '#/admin/platform', label: 'Platform Control', icon: '&#9733;', mod: 'admin', superOnly: true },
       { path: '#/admin/users', label: 'Users & Roles', icon: '&#9820;', mod: 'admin' },
       { path: '#/admin/approvals', label: 'Approval Center', icon: '&#10003;', mod: 'admin' },
