@@ -132,8 +132,8 @@ app.use('/api', (req, res) => res.status(404).json({ error: 'API endpoint not fo
 
 /* ---------------- static frontend ---------------- */
 const PUBLIC_DIR = path.join(__dirname, 'public');
-app.use(express.static(PUBLIC_DIR, { index: false }));
-app.get('/', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'landing.html')));
+app.use(express.static(PUBLIC_DIR));
+app.get('/', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'landing-v2.html')));
 app.get('/login', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'index.html')));
 app.get('/app', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'app.html')));
 
