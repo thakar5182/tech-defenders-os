@@ -138,6 +138,10 @@ const Core = {
       { path: '#/finance/accounts', label: 'Chart of Accounts', icon: '&#8721;', mod: 'finance' },
       { path: '#/finance/journals', label: 'Journal Entries', icon: '&#8776;', mod: 'finance' },
       { path: '#/finance/expenses', label: 'Expenses', icon: '&#8364;', mod: 'finance' },
+      { path: '#/finance/petty-cash', label: 'Petty Cash', icon: '&#128181;', mod: 'finance' },
+      { path: '#/finance/cost-centers', label: 'Cost Centres', icon: '&#9678;', mod: 'finance' },
+      { path: '#/finance/cheques', label: 'Cheque Status', icon: '&#9745;', mod: 'finance' },
+      { path: '#/finance/gst-dashboard', label: 'GST Dashboard', icon: '&#8377;', mod: 'finance' },
       { path: '#/finance/pnl', label: 'Profit & Loss', icon: '&#8593;', mod: 'finance' },
       { path: '#/finance/ledgers', label: 'Ledgers & Statements', icon: '&#9776;', mod: 'finance' }
     ]},
