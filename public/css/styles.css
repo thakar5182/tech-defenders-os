@@ -760,6 +760,36 @@ table.tbl { width: 100%; border-collapse: collapse; font-size: 13.2px; }
   .preview-grid { grid-template-columns: 1fr; }
 }
 
+/* V4.6f: compact ERP workspace — touch-first without changing desktop flows. */
+@media (max-width: 640px) {
+  .topbar { min-height: 58px; padding: 8px 12px; gap: 8px; }
+  .topbar .global-search { min-width: 0; flex: 1; }
+  .topbar .global-search input { min-height: 42px; font-size: 16px; }
+  .topbar-right { gap: 2px; }
+  .topbar-right .icon-btn { min-width: 44px; min-height: 44px; }
+  .content { padding: 14px 12px calc(24px + env(safe-area-inset-bottom)); }
+  .page-head { gap: 10px; margin-bottom: 14px; }
+  .page-head h1 { font-size: 20px; line-height: 1.15; }
+  .page-head p { font-size: 12px; line-height: 1.45; }
+  .page-head > div:last-child, .page-head .actions { display: flex; width: 100%; gap: 8px; overflow-x: auto; padding-bottom: 2px; }
+  .page-head .btn { flex: 0 0 auto; min-height: 44px; }
+  .stats-grid, .grid-4, .grid-3 { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+  .kpi, .stat-card { min-height: 96px; padding: 12px; }
+  .kpi b, .stat-card b { font-size: 18px; overflow-wrap: anywhere; }
+  .card, .card-pad { border-radius: 10px; }
+  .card-pad { padding: 14px; }
+  .table-wrap { margin: 0 -2px; border-radius: 8px; -webkit-overflow-scrolling: touch; }
+  .tbl { min-width: 620px; font-size: 12px; }
+  .tbl th, .tbl td { padding: 10px 9px; }
+  .modal { width: calc(100vw - 20px); max-height: calc(100dvh - 20px); border-radius: 13px; }
+  .modal .modal-body { max-height: calc(100dvh - 160px); overflow-y: auto; }
+  .field input, .field select, .field textarea { min-height: 44px; font-size: 16px; }
+  .field textarea { min-height: 96px; }
+  .grid-2, .grid-even, .meta-grid { grid-template-columns: 1fr; }
+  .customer-actionbar { position: sticky; top: 0; z-index: 5; margin-left: -2px; padding: 8px 2px; background: var(--bg); }
+}
+@media (max-width: 380px) { .stats-grid, .grid-4, .grid-3 { grid-template-columns: 1fr; } }
+
 /* ============================================================
    v3 operational surfaces
    Dense, black/gold/white, keyboard and touch friendly.
