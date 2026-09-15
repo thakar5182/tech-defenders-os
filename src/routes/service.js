@@ -77,6 +77,13 @@ router.post('/amc/:id/renew', requirePerm('service', 'edit'), (req, res) => {
 
 /* ================= SERVICE TICKETS ================= */
 const TICKET_STATUSES = ['open', 'assigned', 'in_progress', 'waiting_customer', 'waiting_parts', 'resolved', 'closed'];
+const DEFAULT_SLA = { low: { responseHours: 24, resolutionHours: 72 }, medium: { responseHours: 8, resolutionHours: 48 }, high: { responseHours: 4, resolutionHours: 24 }, urgent: { responseHours: 1, resolutionHours: 8 } };
+function policyFor(orgId, priority) { return store.findOne('serviceSlaPolicies', row => row.orgId === orgId && row.priority === priority && row.active !== false) || { priority, ...DEFAULT_SLA[priority] }; }
+function ticketTiming(ticket) {
+  const createdAt = new Date(ticket.createdAt); const responseHours = Number(ticket.responseSlaHours) || Number(ticket.slaHours) || 24; const resolutionHours = Number(ticket.resolutionSlaHours) || Number(ticket.slaHours) || 24;
+  const responseDueAt = new Date(createdAt.getTime() + responseHours * 3600000); const resolutionDueAt = new Date(createdAt.getTime() + resolutionHours * 3600000); const complete = ['resolved', 'closed'].includes(ticket.status);
+  return { responseDueAt: responseDueAt.toISOString(), resolutionDueAt: resolutionDueAt.toISOString(), responseBreached: !ticket.assignedAt && !complete && responseDueAt < new Date(), resolutionBreached: !complete && resolutionDueAt < new Date(), slaBreached: !complete && resolutionDueAt < new Date() };
+}
 
 router.get('/assignees', requirePerm('service', 'view'), (req, res) => {
   const users = store.find('users', user => user.orgId === req.org.id && user.active && !user.deletedAt && ['engineer', 'service_manager', 'admin'].includes(user.role))
@@ -88,13 +95,11 @@ router.get('/tickets', requirePerm('service', 'view'), (req, res) => {
   const list = store.find('tickets', t => t.orgId === req.org.id)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
     .map(t => {
-      const slaDue = new Date(new Date(t.createdAt).getTime() + (Number(t.slaHours) || 24) * 3600000);
-      const breached = !['resolved', 'closed'].includes(t.status) && slaDue < new Date();
       return {
         ...t,
         customerName: (store.byId('customers', t.customerId) || {}).name || '-',
         assignedName: (store.byId('users', t.assignedTo) || {}).name || 'Unassigned',
-        slaDueAt: slaDue.toISOString(), slaBreached: breached
+        ...ticketTiming(t)
       };
     });
   res.json({ tickets: list });
@@ -111,13 +116,15 @@ router.post('/tickets', requirePerm('service', 'create'), (req, res) => {
     const amc = store.findOne('amcContracts', a => a.id === amcId && a.orgId === req.org.id && a.customerId === customer.id && !['expired', 'cancelled', 'renewed'].includes(amcStatus(a)));
     if (!amc) amcId = null;
   }
+  const priority = ['low', 'medium', 'high', 'urgent'].includes(b.priority) ? b.priority : 'medium';
+  const policy = policyFor(req.org.id, priority);
   const ticket = store.insert('tickets', {
     orgId: req.org.id, number: nextNumber(req.org.id, 'ticket'),
     customerId: customer.id, subject: b.subject,
     category: b.category || 'general',
-    priority: ['low', 'medium', 'high', 'urgent'].includes(b.priority) ? b.priority : 'medium',
+    priority,
     status: 'open', assignedTo: null,
-    slaHours: Number(b.slaHours) || 24,
+    slaHours: Number(policy.resolutionHours) || 24, responseSlaHours: Number(policy.responseHours) || 8, resolutionSlaHours: Number(policy.resolutionHours) || 24,
     assetDesc: b.assetDesc || '', amcId,
     workLog: [], partsUsed: [], channel: b.channel || 'internal'
   });
@@ -130,11 +137,25 @@ router.post('/tickets/:id/assign', requirePerm('service', 'edit'), (req, res) =>
   if (!t) return res.status(404).json({ error: 'Ticket not found' });
   const engineer = store.findOne('users', u => u.id === req.body.userId && u.orgId === req.org.id && u.active && !u.deletedAt);
   if (!engineer) return res.status(400).json({ error: 'Invalid assignee' });
-  const updated = store.update('tickets', t.id, { assignedTo: engineer.id, status: 'assigned' });
+  const updated = store.update('tickets', t.id, { assignedTo: engineer.id, status: 'assigned', assignedAt: t.assignedAt || new Date().toISOString() });
   t.workLog.push({ at: new Date().toISOString(), by: req.user.name, text: `Assigned to ${engineer.name}` });
   store.update('tickets', t.id, { workLog: t.workLog });
   audit(req.org.id, req.user.id, 'assign', 'ticket', t.id, { to: engineer.name });
   res.json({ ticket: updated });
+});
+
+router.get('/sla/policies', requirePerm('service', 'view'), (req, res) => res.json({ policies: ['low', 'medium', 'high', 'urgent'].map(priority => ({ ...DEFAULT_SLA[priority], ...policyFor(req.org.id, priority), priority })) }));
+router.put('/sla/policies/:priority', requirePerm('service', 'edit'), (req, res) => {
+  const priority = req.params.priority; if (!DEFAULT_SLA[priority]) return res.status(400).json({ error: 'Invalid priority' });
+  const responseHours = Number(req.body?.responseHours), resolutionHours = Number(req.body?.resolutionHours);
+  if (!Number.isFinite(responseHours) || responseHours <= 0 || responseHours > 720 || !Number.isFinite(resolutionHours) || resolutionHours <= 0 || resolutionHours > 2160 || resolutionHours < responseHours) return res.status(400).json({ error: 'Use positive response and resolution hours; resolution cannot be shorter than response.' });
+  const existing = store.findOne('serviceSlaPolicies', row => row.orgId === req.org.id && row.priority === priority); const value = { orgId: req.org.id, priority, responseHours, resolutionHours, active: true, updatedBy: req.user.id };
+  const policy = existing ? store.update('serviceSlaPolicies', existing.id, value) : store.insert('serviceSlaPolicies', value); audit(req.org.id, req.user.id, 'update_sla_policy', 'service_sla_policy', policy.id, { priority, responseHours, resolutionHours }); res.json({ policy });
+});
+router.get('/sla/workload', requirePerm('service', 'view'), (req, res) => {
+  const rows = store.find('tickets', ticket => ticket.orgId === req.org.id && !['resolved', 'closed'].includes(ticket.status));
+  const workload = store.find('users', user => user.orgId === req.org.id && user.active && !user.deletedAt && ['engineer', 'service_manager', 'admin'].includes(user.role)).map(user => { const assigned = rows.filter(ticket => ticket.assignedTo === user.id); return { userId: user.id, name: user.name, role: user.role, activeTickets: assigned.length, breachedTickets: assigned.filter(ticket => ticketTiming(ticket).resolutionBreached).length, urgentTickets: assigned.filter(ticket => ticket.priority === 'urgent').length }; }).sort((a, b) => b.breachedTickets - a.breachedTickets || b.activeTickets - a.activeTickets);
+  res.json({ workload, unassigned: rows.filter(ticket => !ticket.assignedTo).length, breached: rows.filter(ticket => ticketTiming(ticket).resolutionBreached).length });
 });
 
 router.patch('/tickets/:id/status', requirePerm('service', 'edit'), (req, res) => {

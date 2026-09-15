@@ -22,7 +22,7 @@ const COLLECTIONS = [
   'requisitions', 'rfqs', 'purchaseOrders', 'grns',
   'purchaseInvoices', 'purchaseReturns', 'supplierPayments',
   'stockLedger', 'boms', 'jobOrders',
-  'amcContracts', 'tickets', 'ticketMessages',
+  'amcContracts', 'tickets', 'ticketMessages', 'serviceSlaPolicies',
   'accounts', 'journals', 'expenses', 'bankTransactions', 'costCenters', 'pettyCashTransactions', 'chequeRegisters',
   'employees', 'leaveRequests',
   'approvalWorkflows', 'approvalRequests',

@@ -142,7 +142,8 @@ const Core = {
     ]},
     { group: 'Service', items: [
       { path: '#/service/amc', label: 'AMC Contracts', icon: '&#9742;', mod: 'service' },
-      { path: '#/service/tickets', label: 'Service Tickets', icon: '&#9873;', mod: 'service' }
+      { path: '#/service/tickets', label: 'Service Tickets', icon: '&#9873;', mod: 'service' },
+      { path: '#/service/sla-control', label: 'SLA & Technician Control', icon: '&#9201;', mod: 'service' }
     ]},
     { group: 'Accounts', items: [
       { path: '#/finance/accounts', label: 'Chart of Accounts', icon: '&#8721;', mod: 'finance' },

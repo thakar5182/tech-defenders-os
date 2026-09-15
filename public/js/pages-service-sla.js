@@ -1,0 +1,12 @@
+'use strict';
+window.Pages = window.Pages || {};
+Core.route('service/sla-control', async () => {
+  const [policyData, load] = await Promise.all([Core.get('/service/sla/policies'), Core.get('/service/sla/workload')]);
+  Pages._slaPolicies = policyData.policies;
+  const editable = Core.can('service', 'edit');
+  document.getElementById('content').innerHTML = `${Core.pageHead('SLA & Technician Control', 'Set response commitments and balance the live service workload')}
+    <div class="stats-grid" style="margin-bottom:18px">${Core.kpi('Unassigned tickets', load.unassigned, 'assign an engineer')}${Core.kpi('SLA breaches', load.breached, 'open ticket resolution')}${Core.kpi('Technicians', load.workload.length, 'active service users')}</div>
+    <div class="card card-pad"><div class="card-head"><h3>SLA rules by priority</h3><span class="muted">Applied to every new service ticket</span></div>${Core.table([{label:'Priority',render:r=>Core.badge(r.priority)},{label:'First response',render:r=>r.responseHours+' hours'},{label:'Resolution',render:r=>r.resolutionHours+' hours'},{label:'',render:r=>editable?`<button class="btn btn-outline btn-sm" onclick="Pages.editSla('${r.priority}')">Edit rule</button>`:'-'}],policyData.policies,{emptyTitle:'No SLA rules'})}</div>
+    <div class="card card-pad" style="margin-top:18px"><div class="card-head"><h3>Technician workload</h3><span class="muted">Reassign before an SLA breach</span></div>${Core.table([{label:'Technician',render:r=>`<b>${Core.esc(r.name)}</b><br><small class="muted">${Core.esc(r.role)}</small>`},{label:'Active',key:'activeTickets'},{label:'Urgent',key:'urgentTickets'},{label:'Breached',render:r=>r.breachedTickets?'<span class="badge b-danger">'+r.breachedTickets+'</span>':'0'}],load.workload,{emptyTitle:'No active technicians',emptyText:'Create an Engineer or Service Manager user in Administration.'})}</div>`;
+});
+Pages.editSla = priority => { const p=(Pages._slaPolicies||[]).find(row=>row.priority===priority); if(!p) return; Core.formModal({title:'Edit '+priority+' SLA',fields:[{name:'responseHours',label:'First response hours *',type:'number',value:p.responseHours,required:true,half:true},{name:'resolutionHours',label:'Resolution hours *',type:'number',value:p.resolutionHours,required:true,half:true}],submitLabel:'Save SLA rule',onSubmit:async values=>{await Core.put('/service/sla/policies/'+priority,values);toast('SLA saved','New tickets will use this rule','success');Core.render();}}); };
