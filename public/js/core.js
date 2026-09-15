@@ -90,7 +90,9 @@ const Core = {
   /* ---------------- navigation model ---------------- */
   NAV: [
     { group: 'Overview', items: [
-      { path: '#/dashboard', label: 'Dashboard', icon: '&#9636;', mod: 'dashboard' }
+      { path: '#/dashboard', label: 'Dashboard', icon: '&#9636;', mod: 'dashboard' },
+      { path: '#/apps', label: 'All Apps', icon: '&#9638;', mod: 'dashboard' },
+      { path: '#/onboarding', label: 'Get Started', icon: '&#10024;', mod: 'dashboard' }
     ]},
     { group: 'CRM', items: [
       { path: '#/crm/leads', label: 'Leads', icon: '&#9737;', mod: 'crm' },
