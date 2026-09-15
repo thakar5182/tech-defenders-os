@@ -181,6 +181,7 @@ const Core = {
     ]},
     { group: 'Administration', items: [
       { path: '#/admin/subscription', label: 'Plan & Subscription', icon: '&#128179;', mod: 'admin' },
+      { path: '#/admin/subscription-manager', label: 'Subscription Manager', icon: '&#128179;', mod: 'admin' },
       { path: '#/admin/platform', label: 'Platform Control', icon: '&#9733;', mod: 'admin', superOnly: true },
       { path: '#/admin/users', label: 'Users & Roles', icon: '&#9820;', mod: 'admin' },
       { path: '#/admin/approvals', label: 'Approval Center', icon: '&#10003;', mod: 'admin' },
