@@ -444,3 +444,34 @@ Pages.deleteCustomer = async id => {
   try { await Core.del('/crm/customers/' + id); toast('Deleted', 'Customer removed', 'success'); location.hash = '#/crm/customers'; }
   catch (e) { toast('Delete blocked', e.message, 'error'); }
 };
+
+/* ================= CONTACTS + MEETINGS ================= */
+Core.route('crm/contacts', async () => {
+  const [d, customers] = await Promise.all([Core.get('/crm/contacts'), Core.get('/crm/customers')]);
+  document.getElementById('content').innerHTML = `${Core.pageHead('Contacts', 'Customer decision makers and operational contacts', Core.can('crm','edit') ? '<button class="btn btn-gold" onclick="Pages.openContactForm()">+ New Contact</button>' : '')}
+    ${Core.table([{label:'Contact',render:r=>`<b>${Core.esc(r.name)}</b><br><small class="muted">${Core.esc(r.designation||'')}</small>`},{label:'Customer',key:'customerName'},{label:'Phone',key:'phone'},{label:'Email',key:'email'},{label:'',render:r=>r.primary?'<span class="badge b-gold">Primary</span>':''}],d.contacts,{emptyTitle:'No contacts yet',emptyText:'Add a contact person against a customer.'})}`;
+  Pages._contactCustomers = customers.customers;
+});
+Pages.openContactForm = () => Core.formModal({title:'New customer contact',fields:[{name:'customerId',label:'Customer *',type:'select',required:true,options:(Pages._contactCustomers||[]).map(c=>({value:c.id,label:c.name}))},{name:'name',label:'Contact name *',required:true},{name:'designation',label:'Designation',half:true},{name:'phone',label:'Phone',half:true},{name:'email',label:'Email',type:'email'},{name:'primary',label:'Primary contact',type:'select',options:[{value:'false',label:'No'},{value:'true',label:'Yes'}]}],submitLabel:'Save contact',onSubmit:async v=>{v.primary=v.primary==='true';await Core.post('/crm/contacts',v);toast('Saved','Contact added','success');Core.render();}});
+
+Core.route('crm/meetings', async () => {
+  const [d, customers] = await Promise.all([Core.get('/crm/meetings'), Core.get('/crm/customers')]);
+  document.getElementById('content').innerHTML = `${Core.pageHead('Meetings', 'Planned client calls, visits and online meetings', Core.can('crm','edit') ? '<button class="btn btn-gold" onclick="Pages.openMeetingForm()">+ Schedule Meeting</button>' : '')}
+    ${Core.table([{label:'Meeting',render:r=>`<b>${Core.esc(r.title)}</b><br><small class="muted">${Core.esc(r.mode)}</small>`},{label:'Customer',key:'customerName'},{label:'When',render:r=>Core.fmtDate(r.scheduledAt)},{label:'Owner',key:'ownerName'},{label:'Status',render:r=>Core.badge(r.status)}],d.meetings,{emptyTitle:'No meetings planned',emptyText:'Schedule a client discussion or field visit.'})}`;
+  Pages._meetingCustomers=customers.customers;
+});
+Pages.openMeetingForm=()=>Core.formModal({title:'Schedule meeting',fields:[{name:'customerId',label:'Customer *',type:'select',required:true,options:(Pages._meetingCustomers||[]).map(c=>({value:c.id,label:c.name}))},{name:'title',label:'Meeting title *',required:true},{name:'scheduledAt',label:'Date and time *',type:'datetime-local',required:true,half:true},{name:'durationMinutes',label:'Duration (minutes)',type:'number',half:true,value:30},{name:'mode',label:'Mode',type:'select',options:['office','online','visit'].map(v=>({value:v,label:v}))},{name:'notes',label:'Notes',type:'textarea'}],submitLabel:'Schedule',onSubmit:async v=>{await Core.post('/crm/meetings',v);toast('Scheduled','Meeting added to your plan','success');Core.render();}});
+
+Core.route('crm/daily-work', async () => {
+  const d = await Core.get('/crm/daily-work');
+  document.getElementById('content').innerHTML = `${Core.pageHead('Daily Follow-up Command Centre', 'Today\'s calls, meetings and overdue collections in one view')}
+    <div class="kpi-grid">${Core.kpi('Follow-ups due',d.totals.followUps,'Open tasks due today','#/crm/tasks')}${Core.kpi('Meetings today',d.totals.meetings,'Planned customer discussions','#/crm/meetings')}${Core.kpi('Late payments',d.totals.latePayments,Core.money(d.totals.overdueAmount)+' outstanding','#/crm/late-payments')}</div>
+    <section class="section-block"><h3>Follow-ups due</h3>${Core.table([{label:'Task',key:'title'},{label:'Due',render:r=>Core.fmtDate(r.dueDate)},{label:'Priority',render:r=>Core.badge(r.priority)},{label:'Assignee',key:'assigneeName'}],d.tasks,{emptyTitle:'No follow-ups due',emptyText:'Your due follow-ups are clear for today.'})}</section>
+    <section class="section-block"><h3>Meetings today</h3>${Core.table([{label:'Meeting',key:'title'},{label:'Customer',key:'customerName'},{label:'Time',render:r=>new Date(r.scheduledAt).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'})},{label:'Mode',render:r=>Core.badge(r.mode)}],d.meetings,{emptyTitle:'No meetings today',emptyText:'Schedule a customer meeting when needed.'})}</section>`;
+});
+
+Core.route('crm/late-payments', async () => {
+  const d = await Core.get('/crm/late-payments');
+  document.getElementById('content').innerHTML = `${Core.pageHead('Late Payments',Core.money(d.totalOutstanding)+' pending beyond the due date')}
+    ${Core.table([{label:'Invoice',key:'number'},{label:'Customer',key:'customerName'},{label:'Due date',render:r=>Core.fmtDate(r.dueDate)},{label:'Overdue',render:r=>r.overdueDays+' days'},{label:'Outstanding',render:r=>Core.money(r.outstanding)},{label:'Status',render:r=>Core.badge(r.status)}],d.invoices,{emptyTitle:'No late payments',emptyText:'All open invoices are within their payment terms.'})}`;
+});

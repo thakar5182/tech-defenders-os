@@ -227,6 +227,78 @@ router.delete('/customers/:id', requirePerm('crm', 'delete'), (req, res) => {
   res.json({ message: 'Customer deleted' });
 });
 
+/* ================= CONTACTS + MEETINGS =================
+ * Kept in dedicated collections so existing customer fields and invoices are
+ * not changed. Every record remains organization-scoped.
+ */
+router.get('/contacts', requirePerm('crm', 'view'), (req, res) => {
+  const contacts = store.find('customerContacts', row => row.orgId === req.org.id)
+    .map(row => ({ ...row, customerName: (store.byId('customers', row.customerId) || {}).name || '-' }))
+    .sort((a, b) => String(a.customerName).localeCompare(String(b.customerName)));
+  res.json({ contacts });
+});
+
+router.post('/contacts', requirePerm('crm', 'edit'), (req, res) => {
+  const b = req.body || {};
+  const customer = store.findOne('customers', c => c.id === b.customerId && c.orgId === req.org.id);
+  if (!customer) return res.status(400).json({ error: 'Valid customer is required' });
+  const name = String(b.name || '').trim().slice(0, 120);
+  if (!name) return res.status(400).json({ error: 'Contact name is required' });
+  const contact = store.insert('customerContacts', { orgId: req.org.id, customerId: customer.id, name,
+    designation: String(b.designation || '').trim().slice(0, 100), phone: String(b.phone || '').trim().slice(0, 30),
+    email: String(b.email || '').trim().slice(0, 150), primary: Boolean(b.primary) });
+  audit(req.org.id, req.user.id, 'create', 'customer_contact', contact.id, { customerId: customer.id, name });
+  res.status(201).json({ contact });
+});
+
+router.get('/meetings', requirePerm('crm', 'view'), (req, res) => {
+  const meetings = store.find('meetings', row => row.orgId === req.org.id)
+    .sort((a, b) => String(a.scheduledAt).localeCompare(String(b.scheduledAt)))
+    .map(row => ({ ...row, customerName: (store.byId('customers', row.customerId) || {}).name || '-', ownerName: (store.byId('users', row.ownerId) || {}).name || '-' }));
+  res.json({ meetings });
+});
+
+router.post('/meetings', requirePerm('crm', 'edit'), (req, res) => {
+  const b = req.body || {};
+  const customer = store.findOne('customers', c => c.id === b.customerId && c.orgId === req.org.id);
+  if (!customer) return res.status(400).json({ error: 'Valid customer is required' });
+  const title = String(b.title || '').trim().slice(0, 160);
+  if (!title || !/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(String(b.scheduledAt || ''))) return res.status(400).json({ error: 'Meeting title and scheduled time are required' });
+  const meeting = store.insert('meetings', { orgId: req.org.id, customerId: customer.id, title, scheduledAt: b.scheduledAt,
+    durationMinutes: Math.max(15, Math.min(480, Number(b.durationMinutes) || 30)), mode: ['office', 'online', 'visit'].includes(b.mode) ? b.mode : 'office',
+    notes: String(b.notes || '').trim().slice(0, 1000), status: 'scheduled', ownerId: req.user.id });
+  audit(req.org.id, req.user.id, 'create', 'meeting', meeting.id, { customerId: customer.id, title });
+  res.status(201).json({ meeting });
+});
+
+/* Daily work is intentionally read-only: it gives the team one trustworthy
+ * command centre without changing the existing CRM, invoicing or task data. */
+router.get('/daily-work', requirePerm('crm', 'view'), (req, res) => {
+  const today = new Date().toISOString().slice(0, 10);
+  const tasks = store.find('tasks', row => row.orgId === req.org.id && row.status === 'open')
+    .filter(row => row.dueDate && row.dueDate <= today)
+    .sort((a, b) => String(a.dueDate).localeCompare(String(b.dueDate)))
+    .map(row => ({ ...row, assigneeName: (store.byId('users', row.assignee) || {}).name || 'Unassigned' }));
+  const meetings = store.find('meetings', row => row.orgId === req.org.id && row.status === 'scheduled')
+    .filter(row => String(row.scheduledAt || '').slice(0, 10) === today)
+    .sort((a, b) => String(a.scheduledAt).localeCompare(String(b.scheduledAt)))
+    .map(row => ({ ...row, customerName: (store.byId('customers', row.customerId) || {}).name || '-' }));
+  const latePayments = store.find('invoices', row => row.orgId === req.org.id && !['paid', 'cancelled', 'credited'].includes(row.status))
+    .filter(row => row.dueDate && row.dueDate < today)
+    .sort((a, b) => String(a.dueDate).localeCompare(String(b.dueDate)))
+    .map(row => ({ ...row, customerName: (store.byId('customers', row.customerId) || {}).name || '-', outstanding: Math.max(0, (Number(row.totals?.grandTotal) || 0) - (Number(row.paidAmount) || 0)) }));
+  res.json({ today, tasks, meetings, latePayments, totals: { followUps: tasks.length, meetings: meetings.length, latePayments: latePayments.length, overdueAmount: r2(latePayments.reduce((sum, row) => sum + row.outstanding, 0)) } });
+});
+
+router.get('/late-payments', requirePerm('crm', 'view'), (req, res) => {
+  const today = new Date().toISOString().slice(0, 10);
+  const invoices = store.find('invoices', row => row.orgId === req.org.id && !['paid', 'cancelled', 'credited'].includes(row.status))
+    .filter(row => row.dueDate && row.dueDate < today)
+    .sort((a, b) => String(a.dueDate).localeCompare(String(b.dueDate)))
+    .map(row => ({ ...row, customerName: (store.byId('customers', row.customerId) || {}).name || '-', outstanding: Math.max(0, (Number(row.totals?.grandTotal) || 0) - (Number(row.paidAmount) || 0)), overdueDays: Math.max(0, Math.floor((Date.now() - new Date(row.dueDate + 'T00:00:00').getTime()) / 86400000)) }));
+  res.json({ invoices, totalOutstanding: r2(invoices.reduce((sum, row) => sum + row.outstanding, 0)) });
+});
+
 /* ================= DEALS ================= */
 const DEAL_STAGES = ['new', 'qualified', 'proposal', 'negotiation', 'won', 'lost'];
 

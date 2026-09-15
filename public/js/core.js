@@ -96,8 +96,12 @@ const Core = {
       { path: '#/crm/leads', label: 'Leads', icon: '&#9737;', mod: 'crm' },
       { path: '#/crm/intelligence', label: 'Lead Intelligence', icon: '&#10024;', mod: 'crm' },
       { path: '#/crm/customers', label: 'Customers', icon: '&#9823;', mod: 'crm' },
+      { path: '#/crm/contacts', label: 'Contacts', icon: '&#9787;', mod: 'crm' },
       { path: '#/crm/deals', label: 'Deals Pipeline', icon: '&#9670;', mod: 'crm' },
-      { path: '#/crm/tasks', label: 'Tasks & Follow-ups', icon: '&#10003;', mod: 'crm' }
+      { path: '#/crm/tasks', label: 'Tasks & Follow-ups', icon: '&#10003;', mod: 'crm' },
+      { path: '#/crm/meetings', label: 'Meetings', icon: '&#128197;', mod: 'crm' },
+      { path: '#/crm/daily-work', label: 'Daily Work Centre', icon: '&#9889;', mod: 'crm' },
+      { path: '#/crm/late-payments', label: 'Late Payments', icon: '&#9888;', mod: 'crm' }
     ]},
     { group: 'Sales', items: [
       { path: '#/sales/quotations', label: 'Quotations', icon: '&#9998;', mod: 'sales' },
