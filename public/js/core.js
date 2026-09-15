@@ -156,6 +156,7 @@ const Core = {
       { path: '#/hr/leaves', label: 'Leave Requests', icon: '&#9203;', mod: 'hr' }
     ]},
     { group: 'Reports', items: [
+      { path: '#/reports/command', label: 'Report Centre', icon: '&#128202;', mod: 'reports' },
       { path: '#/reports/sales', label: 'Sales Report', icon: '&#8613;', mod: 'reports' },
       { path: '#/reports/receivables', label: 'Receivable Aging', icon: '&#8987;', mod: 'reports' },
       { path: '#/reports/stock', label: 'Stock Valuation', icon: '&#9639;', mod: 'reports' },

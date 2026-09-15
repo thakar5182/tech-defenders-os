@@ -117,6 +117,7 @@ app.use('/api/service', require('./src/routes/service'));
 app.use('/api/finance', require('./src/routes/finance'));
 app.use('/api/finance-controls', require('./src/routes/finance-controls'));
 app.use('/api/reports', require('./src/routes/reports'));
+app.use('/api/report-controls', require('./src/routes/report-controls'));
 app.use('/api/admin', require('./src/routes/admin'));
 app.use('/api/integrations', require('./src/routes/integrations'));
 app.use('/api/ops', require('./src/routes/operations'));
