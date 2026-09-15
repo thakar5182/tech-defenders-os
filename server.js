@@ -110,6 +110,7 @@ app.use('/api/customer-tools', require('./src/routes/customer-tools'));
 app.use('/api/sales', require('./src/routes/sales'));
 app.use('/api/purchase', require('./src/routes/purchase'));
 app.use('/api/inventory', require('./src/routes/inventory'));
+app.use('/api/inventory-controls', require('./src/routes/inventory-controls'));
 app.use('/api/manufacturing', require('./src/routes/manufacturing'));
 app.use('/api/service', require('./src/routes/service'));
 app.use('/api/finance', require('./src/routes/finance'));

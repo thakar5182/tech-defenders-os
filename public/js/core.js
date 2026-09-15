@@ -125,6 +125,9 @@ const Core = {
       { path: '#/inventory/summary', label: 'Stock Summary', icon: '&#9638;', mod: 'inventory' },
       { path: '#/inventory/ledger', label: 'Stock Ledger', icon: '&#8801;', mod: 'inventory' },
       { path: '#/inventory/reservations', label: 'Reservations', icon: '&#9673;', mod: 'inventory' }
+      ,{ path: '#/inventory/price-lists', label: 'Price Lists', icon: '&#127991;', mod: 'inventory' }
+      ,{ path: '#/inventory/assets', label: 'Assets', icon: '&#127970;', mod: 'inventory' }
+      ,{ path: '#/inventory/damage-loss', label: 'Damage / Loss', icon: '&#9888;', mod: 'inventory' }
     ]},
     { group: 'Manufacturing', items: [
       { path: '#/manufacturing/boms', label: 'BOMs', icon: '&#8981;', mod: 'manufacturing' },
