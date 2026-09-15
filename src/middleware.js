@@ -61,6 +61,13 @@ function attachUser(req, res, next) {
 function requireAuth(req, res, next) {
   if (!req.user) return res.status(401).json({ error: 'Authentication required' });
   if (!req.org) return res.status(401).json({ error: 'Organization not found' });
+  const subscription = store.findOne('subscriptions', row => row.orgId === req.org.id);
+  const trialExpired = subscription && subscription.status === 'trial' && subscription.trialEndsAt && new Date(subscription.trialEndsAt) < new Date();
+  const blocked = subscription && ['suspended', 'cancelled'].includes(subscription.status);
+  const path = req.originalUrl.split('?')[0];
+  if (req.user.role !== 'super_admin' && (trialExpired || blocked) && !['/api/auth/me', '/api/auth/logout', '/api/subscription/current'].includes(path)) {
+    return res.status(402).json({ error: trialExpired ? 'Trial expired. Contact Tech Defenders to renew access.' : 'Workspace access is suspended. Contact Tech Defenders to renew.', code: trialExpired ? 'TRIAL_EXPIRED' : 'SUBSCRIPTION_SUSPENDED' });
+  }
   if (req.user.mustChangePassword && ![
     '/api/auth/me', '/api/auth/change-password', '/api/auth/logout'
   ].includes(req.originalUrl.split('?')[0])) {
