@@ -111,6 +111,9 @@ const Core = {
       { path: '#/sales/invoices', label: 'GST Invoices', icon: '&#8377;', mod: 'sales' },
       { path: '#/sales/receipts', label: 'Receipts', icon: '&#9986;', mod: 'sales' },
       { path: '#/sales/credit-notes', label: 'Credit Notes', icon: '&#8634;', mod: 'sales' }
+      ,{ path: '#/sales/visits', label: 'Sales Visits', icon: '&#128205;', mod: 'sales' }
+      ,{ path: '#/sales/dispatches', label: 'Dispatch', icon: '&#128666;', mod: 'sales' }
+      ,{ path: '#/sales/gate-passes', label: 'Gate Passes', icon: '&#127915;', mod: 'sales' }
     ]},
     { group: 'Purchase', items: [
       { path: '#/purchase/requisitions', label: 'Requisitions', icon: '&#9997;', mod: 'purchase' },
