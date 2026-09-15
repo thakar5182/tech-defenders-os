@@ -291,7 +291,16 @@ Pages.saveDirectInvoice = async () => {
   const saveButton = document.getElementById('inv-save');
   saveButton.disabled = true;
   try {
-    const result = await Core.post('/sales/invoices', { customerId, date, dueDate, notes, lines });
+    let result;
+    try {
+      result = await Core.post('/sales/invoices', { customerId, date, dueDate, notes, lines });
+    } catch (error) {
+      if (error.code !== 'CREDIT_WARNING') throw error;
+      const w = error.details || {};
+      const message = `Outstanding: ${Core.money(w.outstanding || 0)}\\nNew invoice: ${Core.money(w.proposedInvoice || 0)}\\nProjected outstanding: ${Core.money(w.projectedOutstanding || 0)}${w.creditLimit ? `\\nCredit limit: ${Core.money(w.creditLimit)}` : ''}${w.overdueCount ? `\\nOverdue invoices: ${w.overdueCount}` : ''}\\n\\nCreate this invoice anyway?`;
+      if (!window.confirm(message)) { saveButton.disabled = false; return; }
+      result = await Core.post('/sales/invoices', { customerId, date, dueDate, notes, lines, overrideCreditWarning: true });
+    }
     toast('Invoice created', result.invoice.number + ' is ready to view or print', 'success');
     location.hash = '#/print/invoice/' + result.invoice.id;
   } catch (error) {

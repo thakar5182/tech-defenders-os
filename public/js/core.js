@@ -117,6 +117,7 @@ const Core = {
       ,{ path: '#/sales/visits', label: 'Sales Visits', icon: '&#128205;', mod: 'sales' }
       ,{ path: '#/sales/dispatches', label: 'Dispatch', icon: '&#128666;', mod: 'sales' }
       ,{ path: '#/sales/gate-passes', label: 'Gate Passes', icon: '&#127915;', mod: 'sales' }
+      ,{ path: '#/sales/collections', label: 'Collections Centre', icon: '&#128176;', mod: 'sales' }
     ]},
     { group: 'Purchase', items: [
       { path: '#/purchase/requisitions', label: 'Requisitions', icon: '&#9997;', mod: 'purchase' },

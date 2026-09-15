@@ -350,6 +350,21 @@ router.post('/invoices', requirePerm('sales', 'create'), (req, res) => {
 
   const placeOfSupply = String(b.placeOfSupply || customer.stateCode || '').trim().slice(0, 4);
   const doc = computeDoc(enriched.lines, req.org.stateCode, placeOfSupply);
+  /* Do not silently extend credit.  The UI must show the warning and send an
+     explicit acknowledgement before the document is created. */
+  const existingInvoices = store.find('invoices', inv => inv.orgId === req.org.id && inv.customerId === customer.id && !['cancelled', 'credited'].includes(inv.status));
+  const outstanding = r2(existingInvoices.reduce((sum, inv) => sum + Math.max(0, (Number(inv.totals?.grandTotal) || 0) - (Number(inv.paidAmount) || 0)), 0));
+  const todayForCredit = new Date().toISOString().slice(0, 10);
+  const overdueCount = existingInvoices.filter(inv => inv.status !== 'paid' && inv.dueDate && inv.dueDate < todayForCredit).length;
+  const creditLimit = Number(customer.creditLimit) || 0;
+  const exceedsLimit = creditLimit > 0 && outstanding + (Number(doc.totals.grandTotal) || 0) > creditLimit;
+  if ((exceedsLimit || overdueCount) && b.overrideCreditWarning !== true) {
+    return res.status(409).json({
+      error: exceedsLimit ? 'This invoice exceeds the customer credit limit. Review and confirm to continue.' : 'This customer has overdue invoices. Review and confirm to continue.',
+      code: 'CREDIT_WARNING',
+      details: { outstanding, creditLimit, proposedInvoice: doc.totals.grandTotal, projectedOutstanding: r2(outstanding + doc.totals.grandTotal), overdueCount, exceedsLimit }
+    });
+  }
   const invoice = store.insert('invoices', {
     orgId: req.org.id,
     number: nextNumber(req.org.id, 'invoice'),
@@ -366,6 +381,10 @@ router.post('/invoices', requirePerm('sales', 'create'), (req, res) => {
     notes: String(b.notes || '').trim().slice(0, 2000),
     warehouseId: requestedWarehouse ? requestedWarehouse.id : null
   });
+
+  if (b.overrideCreditWarning === true && (exceedsLimit || overdueCount)) {
+    audit(req.org.id, req.user.id, 'override_credit_warning', 'invoice', invoice.id, { outstanding, creditLimit, projectedOutstanding: r2(outstanding + doc.totals.grandTotal), overdueCount });
+  }
 
   for (const item of stockPlan) {
     postStock({
