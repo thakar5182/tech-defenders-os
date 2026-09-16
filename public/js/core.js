@@ -96,6 +96,9 @@ const Core = {
       { path: '#/onboarding', label: 'Get Started', icon: '&#10024;', mod: 'dashboard' }
       ,{ path: '#/my-backup', label: 'My Data Backup', icon: '&#128190;', mod: 'dashboard' }
     ]},
+    { group: 'Backup & Restore', items: [
+      { path: '#/my-backup', label: 'My Data Backup', icon: '&#128190;', mod: 'dashboard' }
+    ]},
     { group: 'CRM', items: [
       { path: '#/crm/leads', label: 'Leads', icon: '&#9737;', mod: 'crm' },
       { path: '#/crm/intelligence', label: 'Lead Intelligence', icon: '&#10024;', mod: 'crm' },
