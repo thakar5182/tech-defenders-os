@@ -32,7 +32,7 @@ const COLLECTIONS = [
   'emailTemplates', 'emailCampaigns', 'emailQueue', 'communicationLogs',
   'automationExecutions', 'whatsappIntegrations',
   'providerWebhooks', 'gstSubmissions', 'aiDrafts', 'authChallenges',
-  'savedReports', 'reportSchedules', 'notifications', 'auditEvents'
+  'savedReports', 'reportSchedules', 'notifications', 'auditEvents', 'backupRestoreRequests'
 ];
 
 const db = {};

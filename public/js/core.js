@@ -94,6 +94,7 @@ const Core = {
       { path: '#/my-plan', label: 'My Plan', icon: '&#128179;', mod: 'dashboard' },
       { path: '#/apps', label: 'All Apps', icon: '&#9638;', mod: 'dashboard' },
       { path: '#/onboarding', label: 'Get Started', icon: '&#10024;', mod: 'dashboard' }
+      ,{ path: '#/my-backup', label: 'My Data Backup', icon: '&#128190;', mod: 'dashboard' }
     ]},
     { group: 'CRM', items: [
       { path: '#/crm/leads', label: 'Leads', icon: '&#9737;', mod: 'crm' },

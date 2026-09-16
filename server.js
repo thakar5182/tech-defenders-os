@@ -120,6 +120,7 @@ app.use('/api/finance-controls', require('./src/routes/finance-controls'));
 app.use('/api/reports', require('./src/routes/reports'));
 app.use('/api/report-controls', require('./src/routes/report-controls'));
 app.use('/api/admin', require('./src/routes/admin'));
+app.use('/api/backups', require('./src/routes/backup-controls'));
 app.use('/api/subscription', require('./src/routes/subscriptions'));
 app.use('/api/integrations', require('./src/routes/integrations'));
 app.use('/api/ops', require('./src/routes/operations'));
