@@ -96,6 +96,9 @@ const Core = {
       { path: '#/onboarding', label: 'Get Started', icon: '&#10024;', mod: 'dashboard' }
       ,{ path: '#/my-backup', label: 'My Data Backup', icon: '&#128190;', mod: 'dashboard' }
     ]},
+    { group: 'All Apps', items: [
+      { path: '#/apps', label: 'Business Apps', icon: '&#9638;', mod: 'dashboard' }
+    ]},
     { group: 'Backup & Restore', items: [
       { path: '#/my-backup', label: 'My Data Backup', icon: '&#128190;', mod: 'dashboard' }
     ]},
