@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Tech Defenders Business OS - Data Layer
  * ---------------------------------------
  * Synchronous in-memory document API backed by either PostgreSQL
@@ -32,7 +32,8 @@ const COLLECTIONS = [
   'emailTemplates', 'emailCampaigns', 'emailQueue', 'communicationLogs',
   'automationExecutions', 'whatsappIntegrations',
   'providerWebhooks', 'gstSubmissions', 'aiDrafts', 'authChallenges',
-  'savedReports', 'reportSchedules', 'notifications', 'auditEvents', 'backupRestoreRequests'
+  'savedReports', 'reportSchedules', 'notifications', 'auditEvents', 'backupRestoreRequests',
+  'mobileDevices', 'mobileAttendance', 'mobileCrashReports'
 ];
 
 const db = {};
@@ -269,3 +270,4 @@ module.exports = {
   backupSync, status, close, id, now, insert, insertMany, update, remove, find,
   findOne, byId, isEmpty, _resetForTests
 };
+

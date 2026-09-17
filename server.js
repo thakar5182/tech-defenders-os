@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Tech Defenders Business OS - Application Server
  * -----------------------------------------------
  * Express app that:
@@ -125,6 +125,7 @@ app.use('/api/subscription', require('./src/routes/subscriptions'));
 app.use('/api/integrations', require('./src/routes/integrations'));
 app.use('/api/ops', require('./src/routes/operations'));
 app.use('/api/portal', require('./src/routes/portal'));
+app.use('/api/mobile', require('./src/routes/mobile'));
 const advancedRoutes = require('./src/routes/advanced');
 app.use('/api/v3', advancedRoutes);
 
@@ -152,7 +153,7 @@ if (require.main === module) {
     server = app.listen(PORT, () => {
     console.log('');
     console.log('  ================================================');
-    console.log('   TECH DEFENDERS OS v4.3.0 · DURABLE + GOOGLE ID');
+    console.log('   TECH DEFENDERS OS v4.3.0 Â· DURABLE + GOOGLE ID');
     console.log(`   Running at  http://localhost:${PORT}`);
     console.log(`   Storage: ${store.status().mode}`);
     console.log('  ================================================');
@@ -208,3 +209,4 @@ if (process.env.NODE_ENV !== 'test') {
 
 app.ready = bootReady;
 module.exports = app;
+
