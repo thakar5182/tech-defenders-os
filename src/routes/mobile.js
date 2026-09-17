@@ -3,6 +3,7 @@ const express = require('express');
 const store = require('../../db/store');
 const { requireAuth, requirePerm, requireSuperAdmin, rateLimit } = require('../middleware');
 const { audit } = require('../util');
+const communications = require('../services/communications');
 const router = express.Router();
 router.use(requireAuth);
 
@@ -32,6 +33,20 @@ router.get('/lookup/:kind', (req, res) => {
   const items = store.find(collection, row => row.orgId === req.org.id && (!query || `${row.name || ''} ${row[field] || ''} ${row.sku || ''} ${row.serialNo || ''}`.toLowerCase().includes(query))).slice(0, 30).map(row => ({ id: row.id, name: row.name || row.assetName || row.serialNo || 'Record', subtitle: row.sku || row.serialNo || row.email || '' })); res.json({ items });
 });
 router.get('/barcode/:code', (req, res) => { const code=clean(req.params.code).toLowerCase(); const product=store.findOne('products', row=>row.orgId===req.org.id&&[row.sku,row.barcode,row.id].some(value=>String(value||'').toLowerCase()===code)); const asset=store.findOne('assetRegister', row=>row.orgId===req.org.id&&[row.serialNo,row.assetTag,row.id].some(value=>String(value||'').toLowerCase()===code)); if(!product&&!asset)return res.status(404).json({error:'No product or asset found'}); res.json({ type:product?'product':'asset', record:product||asset }); });
+
+router.get('/invoices/:id/share', requirePerm('sales', 'view'), (req,res) => {
+  const row=store.findOne('invoices', item=>item.id===req.params.id&&item.orgId===req.org.id);
+  if(!row)return res.status(404).json({error:'Invoice not found'});
+  const customer=store.findOne('customers',item=>item.id===row.customerId&&item.orgId===req.org.id)||{};
+  const days=Math.min(30,Math.max(1,Number(req.query.days)||7));
+  const token=communications.invoiceToken(req.org.id,row.id,days);
+  const origin=String(process.env.PUBLIC_APP_URL||`${req.protocol}://${req.get('host')}`).replace(/\/$/,'');
+  const pdfUrl=`${origin}/api/ops/public/invoices/${token}.pdf`;
+  const mobile=String(customer.phone||'').replace(/\D/g,'');
+  const phone=mobile.length===10?`91${mobile}`:mobile;
+  audit(req.org.id,req.user.id,'share_invoice_pdf','invoice',row.id,{days});
+  res.json({invoice:{id:row.id,number:row.number},pdfUrl,whatsAppUrl:phone?`https://wa.me/${phone}?text=${encodeURIComponent(`Hello ${customer.name||''}, please find your invoice ${row.number}.`)}`:null,expiresInDays:days});
+});
 
 router.post('/crash-reports', (req, res) => { if (!rateLimit(`mobile-crash:${req.user.id}`, 20, 3600000)) return res.status(429).json({ error: 'Too many reports' }); const record=store.insert('mobileCrashReports',{orgId:req.org.id,userId:req.user.id,message:clean(req.body?.message),screen:clean(req.body?.screen),appVersion:clean(req.body?.appVersion),createdAt:new Date().toISOString()}); audit(req.org.id,req.user.id,'mobile_crash_report','mobile_crash_report',record.id,{}); res.status(201).json({ accepted:true }); });
 
