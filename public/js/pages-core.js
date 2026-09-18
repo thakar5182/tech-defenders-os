@@ -102,7 +102,7 @@ function dashboardWorldClocks() {
     <div class="world-clock-list" role="list">
       ${DASHBOARD_CLOCKS.map((clock, index) => `<button type="button" class="world-clock ${index === 0 ? 'is-primary' : ''}" data-world-clock="${clock.zone}" aria-label="${clock.city} analog clock">
         <span class="clock-face" aria-hidden="true"><span class="clock-numerals">${Array.from({ length: 12 }, (_, index) => `<i style="--clock-angle:${(index + 1) * 30}deg"><b>${index + 1}</b></i>`).join('')}</span><i class="clock-tick tick-12"></i><i class="clock-tick tick-3"></i><i class="clock-tick tick-6"></i><i class="clock-tick tick-9"></i><b class="clock-hand hour"></b><b class="clock-hand minute"></b><b class="clock-hand second"></b><em class="clock-pin"></em></span>
-        <span class="world-clock-copy"><b>${clock.city}</b><small>${clock.short} · Live</small></span>
+        <span class="world-clock-copy"><b>${clock.city}</b><strong class="world-clock-time" data-world-time>--:--</strong><small>${clock.short} Â· Live</small></span>
       </button>`).join('')}
     </div>
   </section>`;
@@ -124,6 +124,8 @@ function startDashboardWorldClocks() {
       clock.querySelector('.hour').style.transform = `rotate(${hours * 30 + minutes * .5}deg)`;
       clock.querySelector('.minute').style.transform = `rotate(${minutes * 6 + seconds * .1}deg)`;
       clock.querySelector('.second').style.transform = `rotate(${seconds * 6}deg)`;
+      const timeReadout = clock.querySelector('[data-world-time]');
+      if (timeReadout) timeReadout.textContent = new Intl.DateTimeFormat('en-US', { timeZone, hour: 'numeric', minute: '2-digit', hour12: true }).format(new Date());
     });
   };
   update();
