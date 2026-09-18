@@ -5,7 +5,7 @@
  * POST /api/auth/login     - email/password sign-in
  * POST /api/auth/login/request-otp    - email a passwordless sign-in code
  * POST /api/auth/login/verify-otp     - verify code + sign in
- * POST /api/auth/forgot    - request reset token (returned in dev mode)
+ * POST /api/auth/forgot    - email a single-use password reset link
  * POST /api/auth/reset     - consume reset token
  * GET  /api/auth/me        - current user + org + permissions
  * POST /api/auth/logout
@@ -335,7 +335,7 @@ router.post('/login/verify-otp', loginLimiter, (req, res) => {
   res.json(sessionResponse(req, { user: publicUser(user) }, token));
 });
 
-router.post('/forgot', loginLimiter, (req, res) => {
+router.post('/forgot', loginLimiter, async (req, res) => {
   const { email } = req.body || {};
   const user = store.findOne('users', u => u.email === String(email || '').trim().toLowerCase());
   // Always respond the same way so accounts cannot be enumerated.
@@ -344,6 +344,17 @@ router.post('/forgot', loginLimiter, (req, res) => {
   const resetTokenHash = crypto.createHash('sha256').update(token).digest('hex');
   store.update('users', user.id, { resetToken: null, resetTokenHash, resetTokenAt: Date.now() });
   audit(user.orgId, null, 'password_reset_requested', 'user', user.id);
+  const appUrl = String(process.env.PUBLIC_APP_URL || `${req.protocol}://${req.get('host')}`).replace(/\/$/, '');
+  const resetUrl = `${appUrl}/?reset_token=${encodeURIComponent(token)}`;
+  const message = `Hello ${htmlEsc(user.name || 'there')},\n\nA password reset was requested for your Tech Defenders OS account. Use the secure link below within 30 minutes:\n\n${resetUrl}\n\nIf you did not request this, you can safely ignore this email.`;
+  const html = `<!doctype html><html><body style="margin:0;background:#f4f2ed;font-family:Arial,sans-serif;color:#24211c"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="padding:28px 12px"><tr><td align="center"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#fff;border:1px solid #e7e1d7;border-radius:12px"><tr><td style="background:#17150f;padding:24px 28px"><b style="color:#d7ad2b;letter-spacing:2px;font-size:11px">TECH DEFENDERS</b><div style="color:#fff;font-size:20px;font-weight:700;margin-top:6px">Password reset</div></td></tr><tr><td style="padding:30px 28px;font-size:15px;line-height:1.6"><p>Hello ${htmlEsc(user.name || 'there')},</p><p>A password reset was requested for your Tech Defenders OS account.</p><p><a href="${htmlEsc(resetUrl)}" style="display:inline-block;background:#c89b19;color:#17150f;text-decoration:none;font-weight:700;padding:12px 18px;border-radius:6px">Reset password</a></p><p style="font-size:13px;color:#666">This link expires in 30 minutes. If you did not request it, you can safely ignore this email.</p></td></tr></table></td></tr></table></body></html>`;
+  try {
+    await sendSystemEmail({ to: user.email, name: user.name || 'Tech Defenders user', subject: 'Reset your Tech Defenders OS password', text: message, html });
+    audit(user.orgId, null, 'password_reset_email_sent', 'user', user.id);
+  } catch (error) {
+    // Do not reveal whether the email exists. Keep the audit trail for support.
+    audit(user.orgId, null, 'password_reset_email_failed', 'user', user.id, { reason: String(error.message || 'provider failure').slice(0, 160) });
+  }
   const response = { message: 'If that email exists, password reset instructions have been generated.' };
   if (process.env.NODE_ENV !== 'production' && process.env.ALLOW_DEV_RESET_TOKEN === 'true') {
     response.resetToken = token;

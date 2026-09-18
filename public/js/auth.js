@@ -195,6 +195,21 @@ const Auth = {
 window.Auth = Auth;
 Auth.initGoogle();
 
+// Reset links are single-use server tokens. Read the token once, remove it
+// from the address bar, and open the reset form directly for the user.
+(() => {
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get('reset_token');
+  if (!token) return;
+  document.getElementById('form-signin').classList.add('hidden');
+  document.getElementById('form-register').classList.add('hidden');
+  document.getElementById('form-reset').classList.remove('hidden');
+  document.getElementById('rs-token').value = token;
+  document.getElementById('rs-token').type = 'hidden';
+  window.history.replaceState({}, document.title, window.location.pathname);
+  setTimeout(() => document.getElementById('rs-password').focus(), 0);
+})();
+
 /* ---------- toast helper (shared) ---------- */
 function toast(title, msg, kind) {
   const host = document.getElementById('toast-host') || (() => {
