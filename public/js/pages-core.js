@@ -7,6 +7,7 @@ const Pages = window.Pages || {};
 
 /* ================= DASHBOARD ================= */
 Core.route('dashboard', async () => {
+  stopDashboardWorldClocks();
   const d = await Core.get('/dashboard/summary');
   const k = d.kpis;
   const widgets = d.widgets || {};
@@ -16,6 +17,8 @@ Core.route('dashboard', async () => {
 
   document.getElementById('content').innerHTML = `
     ${Core.pageHead(`Good ${greeting()}, ${Core.state.user.name.split(' ')[0]}`, 'Live snapshot of your business - every figure is computed from real records.')}
+
+    ${dashboardWorldClocks()}
 
     ${Core.appLauncher()}
 
@@ -81,7 +84,61 @@ Core.route('dashboard', async () => {
       <div class="big">&#9881;</div><h3>Your dashboard is intentionally minimal</h3>
       <p>Your administrator has hidden all optional dashboard widgets. Your allowed modules remain available in the sidebar.</p>
     </div></div>` : ''}`;
+
+  startDashboardWorldClocks();
 });
+
+const DASHBOARD_CLOCKS = [
+  { city: 'Ahmedabad', zone: 'Asia/Kolkata', short: 'IST' },
+  { city: 'Dubai', zone: 'Asia/Dubai', short: 'GST' },
+  { city: 'London', zone: 'Europe/London', short: 'UK' },
+  { city: 'New York', zone: 'America/New_York', short: 'ET' }
+];
+let dashboardClockTimer = null;
+
+function dashboardWorldClocks() {
+  return `<section class="world-clock-panel" aria-label="Live world clocks">
+    <div class="world-clock-intro"><span class="world-clock-eyebrow">LIVE WORLD TIME</span><h2>Time, wherever business moves.</h2><p>Tap a clock to focus its time zone.</p></div>
+    <div class="world-clock-list" role="list">
+      ${DASHBOARD_CLOCKS.map((clock, index) => `<button type="button" class="world-clock ${index === 0 ? 'is-primary' : ''}" data-world-clock="${clock.zone}" aria-label="${clock.city} analog clock">
+        <span class="clock-face" aria-hidden="true"><i class="clock-tick tick-12"></i><i class="clock-tick tick-3"></i><i class="clock-tick tick-6"></i><i class="clock-tick tick-9"></i><b class="clock-hand hour"></b><b class="clock-hand minute"></b><b class="clock-hand second"></b><em class="clock-pin"></em></span>
+        <span class="world-clock-copy"><b>${clock.city}</b><small>${clock.short} · Live</small></span>
+      </button>`).join('')}
+    </div>
+  </section>`;
+}
+
+function startDashboardWorldClocks() {
+  const update = () => {
+    if ((location.hash || '#/dashboard') !== '#/dashboard') {
+      stopDashboardWorldClocks();
+      return;
+    }
+    document.querySelectorAll('[data-world-clock]').forEach(clock => {
+      const timeZone = clock.dataset.worldClock;
+      const parts = new Intl.DateTimeFormat('en-GB', { timeZone, hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' }).formatToParts(new Date());
+      const value = type => Number(parts.find(part => part.type === type)?.value || 0);
+      const seconds = value('second');
+      const minutes = value('minute');
+      const hours = value('hour') % 12;
+      clock.querySelector('.hour').style.transform = `rotate(${hours * 30 + minutes * .5}deg)`;
+      clock.querySelector('.minute').style.transform = `rotate(${minutes * 6 + seconds * .1}deg)`;
+      clock.querySelector('.second').style.transform = `rotate(${seconds * 6}deg)`;
+    });
+  };
+  update();
+  dashboardClockTimer = window.setInterval(update, 1000);
+  document.querySelectorAll('[data-world-clock]').forEach(clock => {
+    clock.addEventListener('click', () => {
+      document.querySelectorAll('[data-world-clock]').forEach(item => item.classList.toggle('is-primary', item === clock));
+    });
+  });
+}
+
+function stopDashboardWorldClocks() {
+  if (dashboardClockTimer) window.clearInterval(dashboardClockTimer);
+  dashboardClockTimer = null;
+}
 
 function greeting() {
   const h = new Date().getHours();
