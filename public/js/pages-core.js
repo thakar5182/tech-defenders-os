@@ -101,7 +101,7 @@ function dashboardWorldClocks() {
     <div class="world-clock-intro"><span class="world-clock-eyebrow">LIVE WORLD TIME</span><h2>Time, wherever business moves.</h2><p>Tap a clock to focus its time zone.</p></div>
     <div class="world-clock-list" role="list">
       ${DASHBOARD_CLOCKS.map((clock, index) => `<button type="button" class="world-clock ${index === 0 ? 'is-primary' : ''}" data-world-clock="${clock.zone}" aria-label="${clock.city} analog clock">
-        <span class="clock-face" aria-hidden="true"><span class="clock-numerals">${Array.from({ length: 12 }, (_, index) => `<i style="--clock-angle:${(index + 1) * 30}deg"><b>${index + 1}</b></i>`).join(')}</span><i class="clock-tick tick-12"></i><i class="clock-tick tick-3"></i><i class="clock-tick tick-6"></i><i class="clock-tick tick-9"></i><b class="clock-hand hour"></b><b class="clock-hand minute"></b><b class="clock-hand second"></b><em class="clock-pin"></em></span>
+        <span class="clock-face" aria-hidden="true"><span class="clock-numerals">${Array.from({ length: 12 }, (_, index) => `<i style="--clock-angle:${(index + 1) * 30}deg"><b>${index + 1}</b></i>`).join('')}</span><i class="clock-tick tick-12"></i><i class="clock-tick tick-3"></i><i class="clock-tick tick-6"></i><i class="clock-tick tick-9"></i><b class="clock-hand hour"></b><b class="clock-hand minute"></b><b class="clock-hand second"></b><em class="clock-pin"></em></span>
         <span class="world-clock-copy"><b>${clock.city}</b><small>${clock.short} · Live</small></span>
       </button>`).join('')}
     </div>
