@@ -565,7 +565,7 @@ Pages.testIntegration = provider => {
   }
   const common = [{ name: 'to', label: provider === 'email' ? 'Recipient email *' : 'Mobile with country code *', required: true }];
   const fields = provider === 'email' ? [
-    ...common, { name: 'subject', label: 'Subject *', value: 'Tech Defenders OS live test', required: true },
+    ...common, { name: 'name', label: 'Recipient name', placeholder: 'Optional — inferred from email if blank' }, { name: 'subject', label: 'Subject *', value: 'Tech Defenders OS live test', required: true },
     { name: 'text', label: 'Message *', type: 'textarea', value: 'This is a live provider test from Tech Defenders OS.', required: true }
   ] : provider === 'sms' ? [
     ...common, { name: 'templateId', label: 'Approved MSG91 Flow template ID *', required: true },

@@ -218,9 +218,10 @@ async function sendBrevoEmail(input) {
   const textContent = clean(input.text, 20_000);
   const htmlContent = clean(input.html, 50_000);
   if (!subject || (!textContent && !htmlContent)) throw new ProviderError('Subject and message content are required', 'VALIDATION_ERROR', 400);
+  const recipientName = clean(input.name, 100) || clean(String(input.to).split('@')[0].replace(/[._-]+/g, ' '), 100) || 'Tech Defenders contact';
   const payload = {
     sender: { email: fromAddress(), name: clean(process.env.EMAIL_FROM_NAME || process.env.BREVO_SENDER_NAME || 'Tech Defenders', 100) },
-    to: [{ email: clean(input.to, 180), name: clean(input.name, 100) }],
+    to: [{ email: clean(input.to, 180), name: recipientName }],
     subject,
     tags: ['tech-defenders-os']
   };
