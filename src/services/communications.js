@@ -118,6 +118,9 @@ function queueEmail(org, actor, input) {
     status: input.scheduledAt && new Date(input.scheduledAt) > new Date() ? 'scheduled' : 'queued',
     scheduledAt: input.scheduledAt || new Date().toISOString(), total: recipients.length, queued: 0, sent: 0, failed: 0, skipped: 0, requestedBy: actor.id,
     invoiceId: input.invoiceId || null, attachInvoice: input.attachInvoice === true,
+    customAttachment: input.customAttachment && /^[a-z0-9][a-z0-9._ -]{0,119}$/i.test(clean(input.customAttachment.name, 120)) && /^[A-Za-z0-9+/=]+$/.test(clean(input.customAttachment.content, 8_000_000)) ? {
+      name: clean(input.customAttachment.name, 120), mime: clean(input.customAttachment.mime, 100), size: Math.max(0, Number(input.customAttachment.size) || 0), content: clean(input.customAttachment.content, 8_000_000)
+    } : null,
     publicBaseUrl: clean(input.publicBaseUrl || process.env.PUBLIC_APP_URL, 300).replace(/\/$/, '')
   });
   for (const customer of recipients) {
@@ -147,6 +150,7 @@ async function processEmailJob(job) {
   if (unsubscribeUrl) body += `\n\nTo stop marketing email, use your secure unsubscribe link: ${unsubscribeUrl}`;
   const attachments = [];
   if (campaign.attachInvoice && invoice) attachments.push({ name: `${invoice.number}.pdf`, content: (await invoicePdf(invoice, customer, org)).toString('base64') });
+  if (campaign.customAttachment) attachments.push({ name: campaign.customAttachment.name, content: campaign.customAttachment.content });
   const result = await EmailService.sendTemplateEmail({ orgId: job.orgId, to: job.to, name: customer?.name || job.recipientName, subject: renderTemplate(campaign.subject, vars), text: body, html: emailHtml(campaign.body, vars, { unsubscribeUrl, actionUrl: vars.invoice_url, actionLabel: 'View invoice' }), attachments });
   const delivery = store.insert('messageDeliveries', { orgId: job.orgId, channel: 'email', idempotencyKey: job.idempotencyKey, recipient: result.recipient, reference: campaign.number, status: result.status, provider: result.provider, providerId: result.providerId, requestedBy: campaign.requestedBy, attemptCount: job.attempts + 1, acceptedAt: new Date().toISOString() });
   store.insert('communicationLogs', { orgId: job.orgId, customerId: job.customerId, channel: 'email', messageType: campaign.type === 'marketing' ? 'campaign' : (invoice ? 'invoice' : 'email'), relatedInvoiceId: invoice?.id || null, status: result.status, initiatedBy: campaign.requestedBy, campaignId: campaign.id, deliveryId: delivery.id, subject: campaign.subject });

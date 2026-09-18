@@ -60,6 +60,26 @@ const upload = multer({
   fileFilter: (req, file, callback) => imports.ALLOWED_EXTENSIONS.has(path.extname(file.originalname).toLowerCase()) ? callback(null, true) : callback(Object.assign(new Error('Upload ZIP, CSV, XLSX, XLS, JSON, PDF or XML only'), { status: 400, expose: true }))
 });
 
+// Email artwork is kept with the queued campaign so every recipient receives
+// the exact reviewed asset.  Deliberately accept images only: this keeps the
+// email composer safe from executable/document uploads.
+const emailArtworkUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { files: 1, fileSize: (Number(process.env.EMAIL_ATTACHMENT_MAX_MB) || 5) * 1024 * 1024 },
+  fileFilter: (req, file, callback) => {
+    const allowed = new Set(['image/jpeg', 'image/png', 'image/webp']);
+    allowed.has(file.mimetype)
+      ? callback(null, true)
+      : callback(Object.assign(new Error('Attach a JPG, PNG or WEBP image only'), { status: 400, expose: true }));
+  }
+});
+function emailArtwork(req, res, next) {
+  emailArtworkUpload.single('attachment')(req, res, error => {
+    if (!error) return next();
+    res.status(error.code === 'LIMIT_FILE_SIZE' ? 413 : (error.status || 400)).json({ error: error.code === 'LIMIT_FILE_SIZE' ? 'Image must be 5 MB or smaller' : error.message });
+  });
+}
+
 function uploadOne(req, res, next) {
   upload.single('file')(req, res, error => {
     if (!error) return next();
@@ -262,10 +282,21 @@ router.delete('/email/templates/:id', emailAdmin, (req, res) => {
   store.remove('emailTemplates', template.id); res.json({ message: 'Template deleted' });
 });
 
-router.post('/email/send', communicationSend, (req, res) => {
-  const bulk = Array.isArray(req.body.customerIds) && req.body.customerIds.length > 1;
+router.post('/email/send', communicationSend, emailArtwork, (req, res) => {
+  let customerIds = req.body.customerIds || [];
+  if (typeof customerIds === 'string') {
+    try { customerIds = JSON.parse(customerIds); } catch (_) { customerIds = [customerIds]; }
+  }
+  if (!Array.isArray(customerIds)) customerIds = [];
+  const bulk = customerIds.length > 1;
   if ((bulk || req.body.type === 'marketing') && !can(req.user, 'admin', 'edit')) return res.status(403).json({ error: 'Only an administrator can queue bulk or marketing email' });
-  try { const campaign = communications.queueEmail(req.org, req.user, { ...req.body, publicBaseUrl: originFor(req) }); communications.runEmailWorker().catch(() => {}); res.status(202).json({ campaign }); }
+  const customAttachment = req.file ? {
+    name: clean(req.file.originalname, 120).replace(/[^a-z0-9._ -]/gi, '_'),
+    mime: req.file.mimetype,
+    size: req.file.size,
+    content: req.file.buffer.toString('base64')
+  } : null;
+  try { const campaign = communications.queueEmail(req.org, req.user, { ...req.body, customerIds, customAttachment, publicBaseUrl: originFor(req) }); communications.runEmailWorker().catch(() => {}); res.status(202).json({ campaign }); }
   catch (error) { res.status(400).json({ error: error.message }); }
 });
 
