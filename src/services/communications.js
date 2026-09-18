@@ -3,10 +3,10 @@
 const crypto = require('crypto');
 const PDFDocument = require('pdfkit');
 const store = require('../../db/store');
-const providers = require('./integrations');
+const EmailService = require('./email-service');
 const { audit } = require('../util');
 
-const TEMPLATE_VARS = new Set(['customer_name', 'company_name', 'invoice_number', 'invoice_date', 'invoice_total', 'due_date', 'payment_link', 'sales_person']);
+const TEMPLATE_VARS = new Set(['customer_name', 'company_name', 'invoice_number', 'invoice_date', 'invoice_total', 'invoice_amount', 'due_date', 'invoice_due_date', 'payment_link', 'sales_person', 'quotation_number', 'ticket_number', 'ticket_status', 'ticket_priority', 'payment_amount', 'payment_date', 'renewal_date', 'assigned_user', 'portal_url', 'invoice_url', 'quotation_url', 'ticket_url', 'company_logo']);
 let workerRunning = false;
 
 const clean = (value, max = 20000) => String(value == null ? '' : value).trim().slice(0, max);
@@ -44,13 +44,34 @@ function renderTemplate(text, variables) {
   return clean(text).replace(/{{\s*([a-z_]+)\s*}}/gi, (match, key) => TEMPLATE_VARS.has(key) ? clean(variables[key], 2000) : match);
 }
 
+const htmlEsc = value => String(value == null ? '' : value).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+function sanitizeHtml(value) {
+  return clean(value, 50_000)
+    .replace(/<\/?(?:script|iframe|object|embed|form|input|button)[^>]*>/gi, '')
+    .replace(/\son\w+\s*=\s*(["']).*?\1/gi, '')
+    .replace(/\s(href|src)\s*=\s*(["'])\s*javascript:[\s\S]*?\2/gi, '');
+}
+function renderHtmlTemplate(html, variables) {
+  return sanitizeHtml(html).replace(/{{\s*([a-z_]+)\s*}}/gi, (match, key) => TEMPLATE_VARS.has(key) ? htmlEsc(clean(variables[key], 2000)) : match);
+}
+function emailHtml(content, vars, options = {}) {
+  const body = renderHtmlTemplate(content, vars).replace(/\n/g, '<br>');
+  const action = options.actionUrl ? `<a href="${htmlEsc(options.actionUrl)}" style="display:inline-block;background:#c89b19;color:#15130e;text-decoration:none;font-weight:700;padding:12px 20px;border-radius:6px">${htmlEsc(options.actionLabel || 'Open Tech Defenders OS')}</a>` : '';
+  const unsubscribe = options.unsubscribeUrl ? `<p style="margin:22px 0 0;font-size:12px;color:#777">You received this marketing email from ${htmlEsc(vars.company_name)}. <a href="${htmlEsc(options.unsubscribeUrl)}" style="color:#8b6810">Unsubscribe</a></p>` : '';
+  return `<!doctype html><html><body style="margin:0;background:#f4f2ed;font-family:Arial,Helvetica,sans-serif;color:#24211c"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f2ed;padding:28px 12px"><tr><td align="center"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:640px;background:#fff;border:1px solid #e7e1d7;border-radius:12px;overflow:hidden"><tr><td style="background:#17150f;padding:24px 28px"><div style="font-size:11px;letter-spacing:2px;font-weight:700;color:#d7ad2b">TECH DEFENDERS</div><div style="font-size:21px;font-weight:700;color:#fff;margin-top:5px">Business OS</div></td></tr><tr><td style="padding:32px 28px"><div style="font-size:15px;line-height:1.65">${body}</div>${action}${unsubscribe}</td></tr><tr><td style="padding:18px 28px;background:#fbfaf7;border-top:1px solid #eee7dc;font-size:12px;color:#777">Tech Defenders · Secure business operations</td></tr></table></td></tr></table></body></html>`;
+}
+
 function variablesFor(org, customer, input = {}) {
   const invoice = input.invoice || null;
   return {
     customer_name: customer ? customer.name : input.customerName || '', company_name: org.name || org.legalName || 'Tech Defenders',
     invoice_number: invoice ? invoice.number : input.invoiceNumber || '', invoice_date: invoice ? invoice.date : input.invoiceDate || '',
     invoice_total: invoice ? String(invoice.totals?.grandTotal || 0) : String(input.invoiceTotal || ''),
-    due_date: invoice ? invoice.dueDate || '' : input.dueDate || '', payment_link: input.paymentLink || '', sales_person: input.salesPerson || ''
+    due_date: invoice ? invoice.dueDate || '' : input.dueDate || '', invoice_due_date: invoice ? invoice.dueDate || '' : input.dueDate || '',
+    invoice_amount: invoice ? String(invoice.totals?.grandTotal || 0) : String(input.invoiceTotal || ''), payment_link: input.paymentLink || '', sales_person: input.salesPerson || '',
+    quotation_number: input.quotationNumber || '', ticket_number: input.ticketNumber || '', ticket_status: input.ticketStatus || '', ticket_priority: input.ticketPriority || '',
+    payment_amount: input.paymentAmount || '', payment_date: input.paymentDate || '', renewal_date: input.renewalDate || '', assigned_user: input.assignedUser || '',
+    portal_url: input.portalUrl || '', invoice_url: input.invoiceUrl || input.paymentLink || '', quotation_url: input.quotationUrl || '', ticket_url: input.ticketUrl || '', company_logo: input.companyLogo || ''
   };
 }
 
@@ -81,9 +102,12 @@ function invoicePdf(invoice, customer, org) {
 }
 
 function queueEmail(org, actor, input) {
+  // Fail before creating a campaign when email is disabled for the workspace
+  // or its Render-only provider configuration is incomplete.
+  EmailService.validateConfiguration(org.id);
   const customers = (input.customerIds || []).map(id => store.findOne('customers', item => item.id === id && item.orgId === org.id)).filter(Boolean);
   const direct = input.to ? [{ id: null, name: input.name || '', email: input.to, marketingOptOut: false }] : [];
-  const recipients = [...customers, ...direct].filter((item, index, all) => item.email && all.findIndex(other => clean(other.email, 180).toLowerCase() === clean(item.email, 180).toLowerCase()) === index);
+  const recipients = [...customers, ...direct].filter((item, index, all) => item.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(clean(item.email, 180)) && all.findIndex(other => clean(other.email, 180).toLowerCase() === clean(item.email, 180).toLowerCase()) === index);
   if (!recipients.length) throw new Error('Select at least one customer with a valid email address');
   if (recipients.length > (Number(process.env.EMAIL_CAMPAIGN_MAX_RECIPIENTS) || 5000)) throw new Error('Campaign recipient limit exceeded');
   const template = input.templateId ? store.findOne('emailTemplates', item => item.id === input.templateId && item.orgId === org.id) : null;
@@ -97,7 +121,8 @@ function queueEmail(org, actor, input) {
     publicBaseUrl: clean(input.publicBaseUrl || process.env.PUBLIC_APP_URL, 300).replace(/\/$/, '')
   });
   for (const customer of recipients) {
-    if (campaign.type === 'marketing' && customer.marketingOptOut) { campaign.skipped += 1; continue; }
+    const suppressed = store.findOne('emailSuppressions', item => item.orgId === org.id && clean(item.email, 180).toLowerCase() === clean(customer.email, 180).toLowerCase());
+    if ((campaign.type === 'marketing' && customer.marketingOptOut) || suppressed) { campaign.skipped += 1; continue; }
     store.insert('emailQueue', {
       orgId: org.id, campaignId: campaign.id, customerId: customer.id || null, to: clean(customer.email, 180), recipientName: clean(customer.name, 120),
       status: 'queued', scheduledAt: campaign.scheduledAt, attempts: 0, maxAttempts: 3, idempotencyKey: `campaign:${campaign.id}:${crypto.createHash('sha256').update(customer.email.toLowerCase()).digest('hex').slice(0, 20)}`
@@ -118,10 +143,11 @@ async function processEmailJob(job) {
   const invoiceLink = invoice ? `${campaign.publicBaseUrl || ''}/api/ops/public/invoices/${invoiceToken(job.orgId, invoice.id)}.pdf` : '';
   const vars = variablesFor(org, customer, { invoice, paymentLink: invoiceLink });
   let body = renderTemplate(campaign.body, vars);
-  if (campaign.type === 'marketing' && customer?.id) body += `\n\nTo stop marketing email, use your secure unsubscribe link: ${campaign.publicBaseUrl || ''}/api/ops/public/unsubscribe/${unsubscribeToken(job.orgId, customer.id)}`;
+  const unsubscribeUrl = campaign.type === 'marketing' && customer?.id ? `${campaign.publicBaseUrl || ''}/api/ops/public/unsubscribe/${unsubscribeToken(job.orgId, customer.id)}` : '';
+  if (unsubscribeUrl) body += `\n\nTo stop marketing email, use your secure unsubscribe link: ${unsubscribeUrl}`;
   const attachments = [];
   if (campaign.attachInvoice && invoice) attachments.push({ name: `${invoice.number}.pdf`, content: (await invoicePdf(invoice, customer, org)).toString('base64') });
-  const result = await providers.sendEmail({ orgId: job.orgId, to: job.to, name: customer?.name || job.recipientName, subject: renderTemplate(campaign.subject, vars), text: body, attachments });
+  const result = await EmailService.sendTemplateEmail({ orgId: job.orgId, to: job.to, name: customer?.name || job.recipientName, subject: renderTemplate(campaign.subject, vars), text: body, html: emailHtml(campaign.body, vars, { unsubscribeUrl, actionUrl: vars.invoice_url, actionLabel: 'View invoice' }), attachments });
   const delivery = store.insert('messageDeliveries', { orgId: job.orgId, channel: 'email', idempotencyKey: job.idempotencyKey, recipient: result.recipient, reference: campaign.number, status: result.status, provider: result.provider, providerId: result.providerId, requestedBy: campaign.requestedBy, attemptCount: job.attempts + 1, acceptedAt: new Date().toISOString() });
   store.insert('communicationLogs', { orgId: job.orgId, customerId: job.customerId, channel: 'email', messageType: campaign.type === 'marketing' ? 'campaign' : (invoice ? 'invoice' : 'email'), relatedInvoiceId: invoice?.id || null, status: result.status, initiatedBy: campaign.requestedBy, campaignId: campaign.id, deliveryId: delivery.id, subject: campaign.subject });
   return result;
@@ -154,4 +180,4 @@ function communicationTimeline(orgId, customerId) {
   return store.find('communicationLogs', item => item.orgId === orgId && (!customerId || item.customerId === customerId)).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
-module.exports = { TEMPLATE_VARS, signPayload, verifyPayload, invoiceToken, unsubscribeToken, renderTemplate, variablesFor, invoicePdf, queueEmail, runEmailWorker, communicationTimeline };
+module.exports = { TEMPLATE_VARS, signPayload, verifyPayload, invoiceToken, unsubscribeToken, renderTemplate, renderHtmlTemplate, sanitizeHtml, emailHtml, variablesFor, invoicePdf, queueEmail, runEmailWorker, communicationTimeline };

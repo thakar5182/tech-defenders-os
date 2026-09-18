@@ -10,6 +10,7 @@ const store = require('../../db/store');
 const { requireAuth, requirePerm } = require('../middleware');
 const { can, audit, nextNumber } = require('../util');
 const providers = require('../services/integrations');
+const EmailService = require('../services/email-service');
 const imports = require('../services/imports');
 const communications = require('../services/communications');
 const automations = require('../services/automation-engine');
@@ -50,6 +51,7 @@ const importCreate = requireAny(['dataImport', 'admin'], 'create');
 const importManage = requireAny(['dataImport', 'admin'], 'edit');
 const communicationView = requireAny(['communication', 'admin'], 'view');
 const communicationSend = requireAny(['communication', 'admin'], 'create');
+const emailAdmin = requirePerm('admin', 'edit');
 const automationView = requireAny(['automation', 'admin'], 'view');
 const automationManage = requireAny(['automation', 'admin'], 'edit');
 
@@ -241,33 +243,75 @@ router.get('/imports/:id/errors.csv', importView, (req, res) => {
 
 router.get('/email/templates', communicationView, (req, res) => res.json({ templates: store.find('emailTemplates', item => item.orgId === req.org.id).sort((a, b) => a.name.localeCompare(b.name)) }));
 
-router.post('/email/templates', communicationSend, (req, res) => {
+router.post('/email/templates', emailAdmin, (req, res) => {
   if (!clean(req.body.name, 120) || !clean(req.body.subject, 180) || !clean(req.body.body, 20000)) return res.status(400).json({ error: 'Template name, subject and message are required' });
   const template = store.insert('emailTemplates', { orgId: req.org.id, name: clean(req.body.name, 120), type: req.body.type === 'marketing' ? 'marketing' : 'transactional', subject: clean(req.body.subject, 180), body: clean(req.body.body, 20000), createdBy: req.user.id, active: true });
   audit(req.org.id, req.user.id, 'create', 'email_template', template.id, { name: template.name }); res.status(201).json({ template });
 });
 
-router.patch('/email/templates/:id', communicationSend, (req, res) => {
+router.patch('/email/templates/:id', emailAdmin, (req, res) => {
   const template = store.findOne('emailTemplates', item => item.id === req.params.id && item.orgId === req.org.id);
   if (!template) return res.status(404).json({ error: 'Email template not found' });
   const patch = {}; for (const key of ['name', 'subject', 'body', 'active']) if (key in req.body) patch[key] = typeof req.body[key] === 'string' ? clean(req.body[key], key === 'body' ? 20000 : 180) : !!req.body[key];
   res.json({ template: store.update('emailTemplates', template.id, patch) });
 });
 
-router.delete('/email/templates/:id', communicationSend, (req, res) => {
+router.delete('/email/templates/:id', emailAdmin, (req, res) => {
   const template = store.findOne('emailTemplates', item => item.id === req.params.id && item.orgId === req.org.id);
   if (!template) return res.status(404).json({ error: 'Email template not found' });
   store.remove('emailTemplates', template.id); res.json({ message: 'Template deleted' });
 });
 
 router.post('/email/send', communicationSend, (req, res) => {
+  const bulk = Array.isArray(req.body.customerIds) && req.body.customerIds.length > 1;
+  if ((bulk || req.body.type === 'marketing') && !can(req.user, 'admin', 'edit')) return res.status(403).json({ error: 'Only an administrator can queue bulk or marketing email' });
   try { const campaign = communications.queueEmail(req.org, req.user, { ...req.body, publicBaseUrl: originFor(req) }); communications.runEmailWorker().catch(() => {}); res.status(202).json({ campaign }); }
   catch (error) { res.status(400).json({ error: error.message }); }
+});
+
+router.get('/email/status', communicationView, (req, res) => {
+  const integration = providers.providerState(req.org.id, 'email');
+  res.json({ email: { provider: integration.provider, enabled: integration.enabled, configured: integration.configured, active: integration.active, status: integration.status, message: integration.message, from: providers.fromAddress() || null, fromName: process.env.EMAIL_FROM_NAME || process.env.BREVO_SENDER_NAME || 'Tech Defenders' } });
+});
+
+router.post('/email/preview', communicationView, (req, res) => {
+  const values = communications.variablesFor(req.org, { name: clean(req.body.customerName || 'Customer', 120) }, { invoiceNumber: clean(req.body.invoiceNumber || 'INV-0001', 80), invoiceTotal: clean(req.body.invoiceTotal || '0', 40), dueDate: clean(req.body.dueDate || '', 20), portalUrl: originFor(req) });
+  res.json({ subject: communications.renderTemplate(req.body.subject || 'Tech Defenders OS update', values), html: communications.emailHtml(req.body.body || 'Hello {{customer_name}},', values), variables: [...communications.TEMPLATE_VARS] });
+});
+
+router.post('/email/test', emailAdmin, async (req, res) => {
+  const to = clean(req.body.to, 180);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return res.status(400).json({ error: 'Enter a valid recipient email' });
+  try {
+    const vars = communications.variablesFor(req.org, { name: clean(req.body.customerName || 'Admin', 120) }, { portalUrl: originFor(req) });
+    const result = await EmailService.sendTestEmail({ orgId: req.org.id, to, name: vars.customer_name, subject: clean(req.body.subject || 'Tech Defenders OS email test', 180), text: communications.renderTemplate(req.body.body || 'Your Email Center is configured and ready.', vars), html: communications.emailHtml(req.body.body || 'Hello {{customer_name}},\n\nYour Email Center is configured and ready.', vars) });
+    store.insert('communicationLogs', { orgId: req.org.id, channel: 'email', messageType: 'test', status: result.status, initiatedBy: req.user.id, subject: clean(req.body.subject || 'Tech Defenders OS email test', 180), provider: result.provider, providerId: result.providerId });
+    audit(req.org.id, req.user.id, 'send_test_email', 'email', result.providerId, { provider: result.provider });
+    res.status(202).json({ email: result, message: 'Provider accepted the test email. Delivery can be confirmed in the provider dashboard or webhook log.' });
+  } catch (error) { res.status(error.status || 400).json({ error: error.message, code: error.code || 'EMAIL_TEST_FAILED' }); }
+});
+
+router.post('/email/templates/:id/duplicate', emailAdmin, (req, res) => {
+  const template = store.findOne('emailTemplates', item => item.id === req.params.id && item.orgId === req.org.id);
+  if (!template) return res.status(404).json({ error: 'Email template not found' });
+  const { id, createdAt, updatedAt, ...source } = template;
+  const copy = store.insert('emailTemplates', { ...source, name: clean(`${template.name} copy`, 120), createdBy: req.user.id });
+  audit(req.org.id, req.user.id, 'duplicate', 'email_template', copy.id, { sourceId: template.id });
+  res.status(201).json({ template: copy });
 });
 
 router.get('/email/campaigns', communicationView, (req, res) => {
   const campaigns = store.find('emailCampaigns', item => item.orgId === req.org.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 100);
   res.json({ campaigns, queue: store.find('emailQueue', item => item.orgId === req.org.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 250).map(item => ({ ...item, to: providers.maskRecipient(item.to) })) });
+});
+
+router.get('/email/logs', communicationView, (req, res) => {
+  const campaigns = new Map(store.find('emailCampaigns', item => item.orgId === req.org.id).map(item => [item.id, item]));
+  const queue = store.find('emailQueue', item => item.orgId === req.org.id).sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, 500).map(item => {
+    const campaign = campaigns.get(item.campaignId);
+    return { id: item.id, recipient: providers.maskRecipient(item.to), status: item.status, attempts: item.attempts, sentAt: item.sentAt || null, error: item.error || null, providerId: item.providerId || null, subject: campaign?.subject || '', templateId: campaign?.templateId || null, campaignName: campaign?.name || '', trigger: campaign?.automationRuleId || null, automationId: campaign?.automationExecutionId || null };
+  });
+  res.json({ logs: queue });
 });
 
 router.post('/email/jobs/:id/retry', communicationSend, (req, res) => {

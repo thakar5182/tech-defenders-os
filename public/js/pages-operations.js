@@ -197,26 +197,45 @@ Pages.cancelImport = async id => { if (await Core.confirm('Cancel this import wi
 Pages.rollbackImport = async id => { if (await Core.confirm('Remove records created by this import and restore merged records? This action is audited.', 'Rollback import')) { try { await Core.post(`/ops/imports/${id}/rollback`, {}); toast('Import rolled back', 'Imported changes were reversed', 'success'); Core.render(); } catch (error) { toast('Rollback stopped', error.message, 'error'); } } };
 
 Core.route('communication/email', async () => {
-  const [templateData, customerData, campaignData] = await Promise.all([Core.get('/ops/email/templates'), Core.get('/crm/customers'), Core.get('/ops/email/campaigns')]);
+  const [templateData, customerData, campaignData, emailStatus, logData] = await Promise.all([Core.get('/ops/email/templates'), Core.get('/crm/customers'), Core.get('/ops/email/campaigns'), Core.get('/ops/email/status'), Core.get('/ops/email/logs')]);
   Pages._emailTemplates = templateData.templates; Pages._emailCustomers = customerData.customers;
   document.getElementById('content').innerHTML = `
-    ${Core.pageHead('Email Center', 'Transactional email, bulk campaigns, templates, scheduling and retry queues', `<button class="btn btn-outline" onclick="Pages.newEmailTemplate()">New Template</button><button class="btn btn-gold" onclick="Pages.newEmailCampaign()">Send Email</button>`)}
+    ${Core.pageHead('Email Center', 'Transactional email, controlled bulk campaigns, templates and delivery diagnostics', `<button class="btn btn-outline" onclick="Pages.newEmailTemplate()">New Template</button><button class="btn btn-outline" onclick="Pages.sendEmailTest()">Send Test</button><button class="btn btn-gold" onclick="Pages.newEmailCampaign()">Queue Email</button>`)}
+    <section class="email-ops-hero ${emailStatus.email.configured ? 'is-ready' : 'needs-setup'}"><div><span class="eyebrow">EMAIL OPERATIONS</span><h2>${emailStatus.email.configured ? 'Provider connection ready for a live test' : 'Email provider needs server-side setup'}</h2><p>${Core.esc(emailStatus.email.message)} Sender: <b>${Core.esc(emailStatus.email.from || 'Not configured')}</b>.</p></div><div class="email-ops-state"><span>${Core.esc(emailStatus.email.provider)}</span>${Core.badge(emailStatus.email.status)}</div></section>
     <div class="grid-kpi">${Core.kpi('Templates', templateData.templates.length, 'reusable messages')}${Core.kpi('Campaigns', campaignData.campaigns.length, 'individual and bulk')}${Core.kpi('Queue', campaignData.queue.filter(item => ['queued','retry','sending'].includes(item.status)).length, 'waiting or retrying')}${Core.kpi('Failed', campaignData.queue.filter(item => item.status === 'failed').length, 'manual retry available', campaignData.queue.some(item => item.status === 'failed') ? 'k-danger' : '')}</div>
     <div class="grid-2col">
       <section><div class="section-title"><div><h2>Campaign history</h2><p>Queued work is rate-controlled and retried with backoff.</p></div></div>${Core.table([
         { label: 'Campaign', render: item => `<b>${Core.esc(item.name)}</b><small class="subline">${Core.esc(item.number)}</small>` }, { label: 'Type', render: item => Core.badge(item.type) },
         { label: 'Total', num: true, key: 'total' }, { label: 'Sent', num: true, key: 'sent' }, { label: 'Failed', num: true, key: 'failed' }, { label: 'Status', render: item => Core.badge(item.status) }
       ], campaignData.campaigns, { emptyTitle: 'No email campaigns' })}</section>
-      <aside><div class="section-title"><div><h2>Templates</h2><p>Variables are filled per customer or invoice.</p></div></div>${templateData.templates.length ? `<div class="template-list">${templateData.templates.map(item => `<article class="card card-pad"><div class="row-split"><b>${Core.esc(item.name)}</b>${Core.badge(item.type)}</div><strong>${Core.esc(item.subject)}</strong><p>${Core.esc(item.body).slice(0,140)}</p></article>`).join('')}</div>` : '<div class="card card-pad"><div class="empty-state">Create a template to standardize communication.</div></div>'}</aside>
+      <aside><div class="section-title"><div><h2>Templates</h2><p>Variables are filled safely per recipient.</p></div></div>${templateData.templates.length ? `<div class="template-list">${templateData.templates.map(item => `<article class="card card-pad"><div class="row-split"><b>${Core.esc(item.name)}</b>${Core.badge(item.type)}</div><strong>${Core.esc(item.subject)}</strong><p>${Core.esc(item.body).slice(0,140)}</p><div class="template-actions"><button class="btn btn-ghost btn-sm" data-preview-template="${Core.esc(item.id)}">Preview</button><button class="btn btn-ghost btn-sm" data-duplicate-template="${Core.esc(item.id)}">Duplicate</button></div></article>`).join('')}</div>` : '<div class="card card-pad"><div class="empty-state">Create a template to standardize communication.</div></div>'}</aside>
     </div>
     <div class="section-title"><div><h2>Failed jobs</h2><p>Recipient addresses are masked in operational views.</p></div></div>
-    ${Core.table([{ label:'Recipient', key:'to' }, { label:'Status', render:item=>Core.badge(item.status) }, { label:'Attempts', key:'attempts' }, { label:'Error', key:'error' }, { label:'', render:item=>item.status==='failed'?`<button class="btn btn-outline btn-sm" onclick="Pages.retryEmail('${item.id}')">Retry</button>`:'' }], campaignData.queue.filter(item => item.status === 'failed'), { emptyTitle: 'No failed email jobs' })}`;
+    ${Core.table([{ label:'Recipient', key:'to' }, { label:'Status', render:item=>Core.badge(item.status) }, { label:'Attempts', key:'attempts' }, { label:'Error', key:'error' }, { label:'', render:item=>item.status==='failed'?`<button class="btn btn-outline btn-sm" onclick="Pages.retryEmail('${item.id}')">Retry</button>`:'' }], campaignData.queue.filter(item => item.status === 'failed'), { emptyTitle: 'No failed email jobs' })}
+    <div class="section-title"><div><h2>Email logs</h2><p>Provider-safe diagnostics. Addresses remain masked.</p></div></div>
+    ${Core.table([{label:'Recipient',key:'recipient'},{label:'Subject',key:'subject'},{label:'Campaign',key:'campaignName'},{label:'Status',render:item=>Core.badge(item.status)},{label:'Sent',render:item=>item.sentAt?Core.fmtDate(item.sentAt):'-'},{label:'Error',key:'error'}],logData.logs.slice(0,50),{emptyTitle:'No email activity yet',emptyText:'Queued, sent and failed email will be recorded here.'})}`;
+  document.querySelectorAll('[data-preview-template]').forEach(button => button.onclick = () => Pages.previewEmail((templateData.templates || []).find(item => item.id === button.dataset.previewTemplate)));
+  document.querySelectorAll('[data-duplicate-template]').forEach(button => button.onclick = async () => { try { await Core.post(`/ops/email/templates/${button.dataset.duplicateTemplate}/duplicate`, {}); toast('Template duplicated', 'Edit the copy before using it', 'success'); Core.render(); } catch (error) { toast('Template not duplicated', error.message, 'error'); } });
 });
 
 Pages.newEmailTemplate = () => Core.formModal({ title: 'New email template', fields: [
   { name:'name', label:'Template name *', required:true }, { name:'type', label:'Type', type:'select', options:[{value:'transactional',label:'Transactional'},{value:'marketing',label:'Marketing'}] },
   { name:'subject', label:'Subject *', required:true, placeholder:'Invoice {{invoice_number}} from {{company_name}}' }, { name:'body', label:'Message *', type:'textarea', required:true, placeholder:'Hello {{customer_name}}, ...' }
 ], submitLabel:'Create Template', onSubmit: async values => { await Core.post('/ops/email/templates', values); toast('Template created', 'Ready for campaigns', 'success'); Core.render(); } });
+
+Pages.previewEmail = async template => {
+  if (!template) return;
+  try {
+    const preview = await Core.post('/ops/email/preview', { subject: template.subject, body: template.body });
+    const modal = Core.openModal({ title: `Preview · ${template.name}`, wide:true, body:`<div class="email-preview-shell"><div class="email-preview-toolbar"><b>${Core.esc(preview.subject)}</b><span>Desktop & mobile-safe email</span></div><iframe title="Email preview" sandbox="" srcdoc="${Core.esc(preview.html)}"></iframe></div>`, footer:'<button class="btn btn-outline" data-cancel>Close</button><button class="btn btn-gold" data-test>Send test</button>' });
+    modal.el.querySelector('[data-cancel]').onclick = modal.close; modal.el.querySelector('[data-test]').onclick = () => { modal.close(); Pages.sendEmailTest(template); };
+  } catch (error) { toast('Preview unavailable', error.message, 'error'); }
+};
+
+Pages.sendEmailTest = template => Core.formModal({ title:'Send test email', fields:[
+  { name:'to', label:'Recipient email *', type:'email', required:true }, { name:'subject', label:'Subject *', value:template?.subject || 'Tech Defenders OS email test', required:true },
+  { name:'body', label:'Message *', type:'textarea', value:template?.body || 'Hello {{customer_name}},\n\nYour Email Center is configured and ready.', required:true }
+], submitLabel:'Send Test', onSubmit:async values => { const result = await Core.post('/ops/email/test', values); toast('Test accepted', result.message, 'success'); } });
 
 Pages.newEmailCampaign = () => {
   const templates = Pages._emailTemplates || [], customers = (Pages._emailCustomers || []).filter(item => item.email);

@@ -29,7 +29,7 @@ const COLLECTIONS = [
   'automationRules', 'backgroundJobs', 'integrationConfigs', 'messageDeliveries',
   'importJobs', 'importFiles', 'importRecords', 'importMappings', 'importErrors',
   'clientDocuments', 'customerDocuments', 'portalAccess',
-  'emailTemplates', 'emailCampaigns', 'emailQueue', 'communicationLogs',
+  'emailTemplates', 'emailCampaigns', 'emailQueue', 'emailSuppressions', 'communicationLogs',
   'automationExecutions', 'whatsappIntegrations',
   'providerWebhooks', 'gstSubmissions', 'aiDrafts', 'authChallenges',
   'savedReports', 'reportSchedules', 'notifications', 'auditEvents', 'backupRestoreRequests',
@@ -270,4 +270,3 @@ module.exports = {
   backupSync, status, close, id, now, insert, insertMany, update, remove, find,
   findOne, byId, isEmpty, _resetForTests
 };
-

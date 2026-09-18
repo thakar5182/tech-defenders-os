@@ -65,7 +65,12 @@ function customerFor(record) {
 
 function actionVariables(rule, record, customer, org) {
   const invoice = rule.trigger.includes('invoice') || rule.trigger === 'new_sale' ? record : null;
-  return communications.variablesFor(org, customer, { invoice, salesPerson: '' });
+  const ticket = rule.trigger.startsWith('ticket_') ? record : null;
+  const quotation = rule.trigger.startsWith('quotation_') ? record : null;
+  return communications.variablesFor(org, customer, {
+    invoice, salesPerson: '', quotationNumber: quotation?.number || '', ticketNumber: ticket?.number || '',
+    ticketStatus: ticket?.status || '', ticketPriority: ticket?.priority || '', renewalDate: record.endDate || ''
+  });
 }
 
 async function executeAction(execution, action, record, rule) {
@@ -93,7 +98,8 @@ async function executeAction(execution, action, record, rule) {
   if (action.type === 'send_email') {
     if (!customer?.email) throw new Error('Customer email is missing');
     const campaign = communications.queueEmail(org, { id: rule.createdBy }, { to: customer.email, name: customer.name, subject: communications.renderTemplate(action.subject || rule.name, variables), body: communications.renderTemplate(action.message || '', variables), type: 'transactional', invoiceId: record.customerId && record.number ? record.id : null, attachInvoice: action.attachInvoice === true });
-    return { status: 'queued', campaignId: campaign.id };
+    store.update('emailCampaigns', campaign.id, { automationRuleId: rule.id, automationExecutionId: execution.id, trigger: rule.trigger });
+    return { status: 'queued', campaignId: campaign.id, recipient: customer.email.replace(/^(.{2}).*(@.*)$/, '$1***$2') };
   }
   if (action.type === 'send_whatsapp') {
     if (!customer?.phone) throw new Error('Customer mobile number is missing');

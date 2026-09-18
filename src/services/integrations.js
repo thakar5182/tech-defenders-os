@@ -6,14 +6,15 @@
  */
 'use strict';
 const crypto = require('crypto');
+const nodemailer = require('nodemailer');
 const store = require('../../db/store');
 
 const PROVIDERS = [
   {
     key: 'email', label: 'Email · Brevo Free Tier', mark: 'BR',
-    credentials: ['BREVO_API_KEY', 'BREVO_SENDER_EMAIL'],
+    credentials: ['EMAIL_PROVIDER', 'EMAIL_FROM'],
     description: 'Transactional OTPs, invoices, quotations and service updates',
-    setup: 'Create a Brevo account, verify a sender/domain, then add the free-tier API key and sender address in Render. Current Brevo quota rules still apply.'
+    setup: 'Use Brevo or SMTP server-side only. Verify support@techdefenderss.com or its domain, set the required Render environment variables, then enable this integration. Current provider quota rules still apply.'
   },
   {
     key: 'sms', label: 'SMS · MSG91', mark: 'M9',
@@ -64,7 +65,26 @@ function definition(key) {
 }
 
 function missingCredentials(provider) {
+  if (provider.key === 'email') return missingEmailCredentials();
   return provider.credentials.filter(key => !clean(process.env[key]));
+}
+
+function emailProvider() {
+  return clean(process.env.EMAIL_PROVIDER || 'brevo', 20).toLowerCase();
+}
+
+function fromAddress() {
+  return clean(process.env.EMAIL_FROM || process.env.BREVO_SENDER_EMAIL, 180);
+}
+
+function missingEmailCredentials() {
+  const provider = emailProvider();
+  if (!['brevo', 'smtp'].includes(provider)) return ['EMAIL_PROVIDER (brevo or smtp)'];
+  const required = provider === 'smtp'
+    ? ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASSWORD', 'EMAIL_FROM']
+    : ['BREVO_API_KEY'];
+  if (!fromAddress()) required.push('EMAIL_FROM');
+  return [...new Set(required.filter(key => key === 'EMAIL_FROM' ? !fromAddress() : !clean(process.env[key])))];
 }
 
 function providerState(orgId, providerOrKey) {
@@ -185,27 +205,27 @@ function emailValid(value) {
 
 async function sendEmail(input) {
   requireConfigured(input.orgId, 'email');
-  const result = await sendBrevoEmail(input);
+  const result = emailProvider() === 'smtp' ? await sendSmtpEmail(input) : await sendBrevoEmail(input);
   markProvider(input.orgId, 'email', true);
   return result;
 }
 
 async function sendBrevoEmail(input) {
-  const missing = ['BREVO_API_KEY', 'BREVO_SENDER_EMAIL'].filter(key => !clean(process.env[key]));
-  if (missing.length) throw new ProviderError(`Email OTP is not configured. Missing server configuration: ${missing.join(', ')}`, 'EMAIL_OTP_NOT_CONFIGURED', 503);
+  const missing = missingEmailCredentials();
+  if (missing.length) throw new ProviderError(`Email is not configured. Missing server configuration: ${missing.join(', ')}`, 'EMAIL_NOT_CONFIGURED', 503);
   if (!emailValid(input.to)) throw new ProviderError('A valid recipient email is required', 'VALIDATION_ERROR', 400);
   const subject = clean(input.subject, 180);
   const textContent = clean(input.text, 20_000);
   const htmlContent = clean(input.html, 50_000);
   if (!subject || (!textContent && !htmlContent)) throw new ProviderError('Subject and message content are required', 'VALIDATION_ERROR', 400);
   const payload = {
-    sender: { email: clean(process.env.BREVO_SENDER_EMAIL, 180), name: clean(process.env.BREVO_SENDER_NAME || 'Tech Defenders', 100) },
+    sender: { email: fromAddress(), name: clean(process.env.EMAIL_FROM_NAME || process.env.BREVO_SENDER_NAME || 'Tech Defenders', 100) },
     to: [{ email: clean(input.to, 180), name: clean(input.name, 100) }],
     subject,
     tags: ['tech-defenders-os']
   };
   if (htmlContent) payload.htmlContent = htmlContent;
-  else payload.textContent = textContent;
+  if (textContent) payload.textContent = textContent;
   const attachments = (Array.isArray(input.attachments) ? input.attachments : []).slice(0, 5)
     .filter(item => item && /^[a-z0-9][a-z0-9._ -]{0,119}$/i.test(clean(item.name, 120)) && /^[A-Za-z0-9+/=]+$/.test(clean(item.content, 8_000_000)));
   if (attachments.length) payload.attachment = attachments.map(item => ({ name: clean(item.name, 120), content: clean(item.content, 8_000_000) }));
@@ -219,10 +239,43 @@ async function sendBrevoEmail(input) {
   return { provider: 'brevo', providerId, status: 'accepted', recipient: maskRecipient(input.to) };
 }
 
+async function sendSmtpEmail(input) {
+  const missing = missingEmailCredentials();
+  if (missing.length) throw new ProviderError(`SMTP is not configured. Missing server configuration: ${missing.join(', ')}`, 'SMTP_NOT_CONFIGURED', 503);
+  if (!emailValid(input.to)) throw new ProviderError('A valid recipient email is required', 'VALIDATION_ERROR', 400);
+  const subject = clean(input.subject, 180);
+  const text = clean(input.text, 20_000);
+  const html = clean(input.html, 50_000);
+  if (!subject || (!text && !html)) throw new ProviderError('Subject and message content are required', 'VALIDATION_ERROR', 400);
+  try {
+    const transporter = nodemailer.createTransport({
+      host: clean(process.env.SMTP_HOST, 200), port: Number(process.env.SMTP_PORT) || 587,
+      secure: String(process.env.SMTP_SECURE || '').toLowerCase() === 'true',
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASSWORD },
+      connectionTimeout: Number(process.env.PROVIDER_TIMEOUT_MS) || 15_000,
+      greetingTimeout: Number(process.env.PROVIDER_TIMEOUT_MS) || 15_000,
+      socketTimeout: Number(process.env.PROVIDER_TIMEOUT_MS) || 15_000
+    });
+    const result = await transporter.sendMail({
+      from: { address: fromAddress(), name: clean(process.env.EMAIL_FROM_NAME || 'Tech Defenders', 100) },
+      to: { address: clean(input.to, 180), name: clean(input.name, 100) || undefined }, subject,
+      text: text || undefined, html: html || undefined,
+      attachments: (Array.isArray(input.attachments) ? input.attachments : []).slice(0, 5).map(item => ({ filename: clean(item.name, 120), content: Buffer.from(clean(item.content, 8_000_000), 'base64') }))
+    });
+    return { provider: 'smtp', providerId: clean(result.messageId, 300), status: 'accepted', recipient: maskRecipient(input.to) };
+  } catch (error) {
+    const message = clean(error?.message || 'SMTP provider rejected message', 300);
+    const auth = /auth|credential|login|username|password/i.test(message);
+    throw new ProviderError(auth ? 'SMTP authentication failed' : `SMTP delivery failed: ${message}`, auth ? 'SMTP_AUTH_FAILED' : 'SMTP_SEND_FAILED', 502, !auth);
+  }
+}
+
 /** Public-auth transactional email. It intentionally does not depend on an
  * organization integration switch because a new workspace has no org yet. */
 async function sendSystemEmail(input) {
-  return sendBrevoEmail({ ...input, name: input.name || 'Tech Defenders user' });
+  return emailProvider() === 'smtp'
+    ? sendSmtpEmail({ ...input, name: input.name || 'Tech Defenders user' })
+    : sendBrevoEmail({ ...input, name: input.name || 'Tech Defenders user' });
 }
 
 function normalizeMobile(value) {
@@ -363,5 +416,6 @@ function payloadHash(value) {
 module.exports = {
   PROVIDERS, ProviderError, definition, providerState, setProviderEnabled, markProvider,
   requireConfigured, requestJson, sendEmail, sendSystemEmail, sendSms, sendWhatsApp, gstAuthenticate,
+  emailProvider, fromAddress, missingEmailCredentials, sendSmtpEmail,
   generateEinvoice, generateEwayBill, maskRecipient, payloadHash, clean, normalizeMobile
 };
