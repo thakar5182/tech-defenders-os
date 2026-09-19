@@ -78,7 +78,7 @@ async function run() {
       cleanOrg.length === 1 && cleanOrg[0].name === 'Tech Defenders' &&
       store.find('users').length === 9 && store.find('accounts').length === 20 &&
       store.find('sequences').length === 23);
-    response = await req('GET', '/');
+    response = await req('GET', '/login');
     check('sign-in page renders secure login options without exposed credentials',
       response.status === 200 && response.raw.includes('/assets/tech-defenders-logo.webp') &&
       !response.raw.includes('superadmin@techdefenders.in') && response.raw.includes('Sign in with Email OTP') &&
