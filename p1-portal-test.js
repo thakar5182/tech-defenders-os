@@ -78,7 +78,7 @@ async function run() {
 
     response = await request('POST', `/api/purchase/suppliers/${supplier.id}/portal-invite`, {}, cookie);
     const supplierToken = response.json.token;
-    check('supplier invitation is created', response.status === 200 && !!supplierToken);
+    check('supplier invitation uses the integrated OS portal', response.status === 200 && !!supplierToken && /^http:\/\/127\.0\.0\.1:\d+\/portal\?access=/.test(response.json.inviteUrl), response.json);
     response = await request('POST', `/api/portal/rfqs/${rfq.id}/quote`, { lines: [{ rate: 4500, taxPct: 18 }], freight: 250, leadTimeDays: 4, paymentTerms: 'Net 15' }, null, bearer(supplierToken));
     check('supplier submits an RFQ response', response.status === 200 && response.json.rfq?.quotes?.[0]?.rate !== 4500 && response.json.rfq?.quotes?.[0]?.lines?.[0]?.rate === 4500);
     response = await request('POST', `/api/portal/purchase-orders/${po.id}/decision`, { decision: 'accepted', note: 'Confirmed' }, null, bearer(supplierToken));
