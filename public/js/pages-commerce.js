@@ -866,7 +866,7 @@ Core.route('purchase/suppliers', async () => {
       { label: 'GSTIN', key: 'gstin' },
       { label: 'State code', key: 'stateCode' },
       { label: 'Address', key: 'address' }
-      ,{ label: '', render: s => Core.can('purchase', 'edit') ? `<button class="btn btn-ghost btn-sm" onclick="Pages.openSupplierForm('${s.id}')">Edit</button>` : '' }
+      ,{ label: '', render: s => Core.can('purchase', 'edit') ? `<div class="actions-cell"><button class="btn btn-outline btn-sm" onclick="Pages.manageSupplierPortal('${s.id}')">Portal</button><button class="btn btn-ghost btn-sm" onclick="Pages.openSupplierForm('${s.id}')">Edit</button></div>` : '' }
     ], d.suppliers, { emptyTitle: 'No suppliers', emptyText: 'Add vendors to send RFQs.' })}`;
 });
 
@@ -885,6 +885,28 @@ Pages.openSupplierForm = async function (id) {
     submitLabel: existing ? 'Save changes' : 'Create supplier',
     onSubmit: async v => { if (existing) await Core.patch('/purchase/suppliers/' + existing.id, v); else await Core.post('/purchase/suppliers', v); toast('Saved', existing ? 'Supplier updated' : 'Supplier added', 'success'); Core.render(); }
   });
+};
+
+Pages.createSupplierPortalInvite = async id => {
+  try {
+    const result = await Core.post('/purchase/suppliers/' + id + '/portal-invite', {});
+    const value = result.inviteUrl || result.token;
+    if (value) await navigator.clipboard.writeText(value);
+    toast('Supplier invite ready', result.emailStatus === 'sent' ? 'Invitation emailed and secure link copied.' : 'Secure link copied. Email could not be sent automatically.', result.emailStatus === 'sent' ? 'success' : 'warning');
+  } catch (error) { toast('Invite failed', error.message, 'error'); }
+};
+
+Pages.manageSupplierPortal = async id => {
+  try {
+    const data = await Core.get('/purchase/suppliers/' + id + '/portal-access');
+    const active = data.invites.find(row => row.active);
+    const modal = Core.openModal({ title: 'Supplier portal access', wide: false,
+      body: active ? `<p><b>Active invitation</b></p><p class="muted">Expires ${Core.fmtDate(active.expiresAt)} · ${Core.esc(active.email || '')}</p><p>Resend creates a fresh secure link and cancels the previous link.</p>` : '<div class="empty-state">No active invitation. Create one to email a secure access link.</div>',
+      footer: `<button class="btn btn-outline" data-cancel>Close</button>${active ? '<button class="btn btn-outline" data-revoke>Revoke</button><button class="btn btn-gold" data-send>Resend invite</button>' : '<button class="btn btn-gold" data-send>Send invite</button>'}` });
+    modal.el.querySelector('[data-cancel]').onclick = modal.close;
+    modal.el.querySelector('[data-send]').onclick = async () => { await Pages.createSupplierPortalInvite(id); modal.close(); };
+    if (active) modal.el.querySelector('[data-revoke]').onclick = async () => { await Core.post('/purchase/suppliers/' + id + '/portal-revoke', {}); toast('Portal access revoked', 'The private link can no longer be used.', 'success'); modal.close(); };
+  } catch (error) { toast('Portal access failed', error.message, 'error'); }
 };
 
 /* ================= PRODUCTS ================= */
