@@ -87,6 +87,10 @@ async function run() {
     response = await request('POST', '/api/portal/supplier-documents', { title: 'Supplier invoice', type: 'invoice', reference: 'SI-001', contentData }, null, bearer(supplierToken));
     const supplierDocument = response.json.document;
     check('supplier uploads invoice document securely', response.status === 201 && supplierDocument?.status === 'submitted' && !supplierDocument?.contentData);
+    response = await request('GET', `/api/purchase/suppliers/${supplier.id}/portal-workspace`, null, cookie);
+    check('administrator sees supplier portal workspace', response.status === 200 && response.json.documents?.length === 1 && response.json.activity?.length >= 3);
+    response = await request('PATCH', `/api/purchase/suppliers/${supplier.id}/portal-documents/${supplierDocument.id}`, { status: 'approved', reviewNote: 'Verified' }, cookie);
+    check('administrator reviews supplier document', response.status === 200 && response.json.document?.status === 'approved' && !response.json.document?.contentData);
     response = await request('GET', `/api/portal/supplier-documents/${supplierDocument.id}/download`, null, null, bearer(supplierToken));
     check('supplier can download its uploaded document', response.status === 200 && response.buffer.toString().startsWith('%PDF'));
     response = await request('GET', '/api/portal/session', null, null, bearer(supplierToken));

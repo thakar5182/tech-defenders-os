@@ -306,6 +306,37 @@ router.post('/suppliers/:id/portal-revoke', requirePerm('purchase', 'edit'), (re
   res.json({ message: 'Supplier portal access revoked' });
 });
 
+router.get('/suppliers/:id/portal-workspace', requirePerm('purchase', 'view'), (req, res) => {
+  const supplier = store.findOne('suppliers', row => row.id === req.params.id && row.orgId === req.org.id);
+  if (!supplier) return res.status(404).json({ error: 'Supplier not found' });
+  const documents = store.find('supplierDocuments', row => row.orgId === req.org.id && row.supplierId === supplier.id)
+    .map(({ contentData, ...row }) => row).sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  const activity = store.find('portalActivities', row => row.orgId === req.org.id && row.partyType === 'supplier' && row.partyId === supplier.id)
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))).slice(0, 100);
+  res.json({ supplier, documents, activity });
+});
+
+router.patch('/suppliers/:id/portal-documents/:documentId', requirePerm('purchase', 'edit'), (req, res) => {
+  const supplier = store.findOne('suppliers', row => row.id === req.params.id && row.orgId === req.org.id);
+  const document = store.findOne('supplierDocuments', row => row.id === req.params.documentId && row.supplierId === req.params.id && row.orgId === req.org.id);
+  if (!supplier || !document) return res.status(404).json({ error: 'Supplier document not found' });
+  const status = String(req.body?.status || '');
+  if (!['under_review', 'approved', 'rejected'].includes(status)) return res.status(400).json({ error: 'Choose under_review, approved or rejected' });
+  const updated = store.update('supplierDocuments', document.id, { status, reviewNote: String(req.body?.reviewNote || '').trim().slice(0, 500), reviewedAt: new Date().toISOString(), reviewedBy: req.user.id });
+  store.insert('portalActivities', { orgId: req.org.id, partyType: 'supplier', partyId: supplier.id, action: 'document_' + status, entityType: 'supplier_document', entityId: document.id, detail: updated.title });
+  audit(req.org.id, req.user.id, 'review', 'supplier_document', document.id, { supplierId: supplier.id, status });
+  res.json({ document: (({ contentData, ...row }) => row)(updated) });
+});
+
+router.get('/suppliers/:id/portal-documents/:documentId/download', requirePerm('purchase', 'view'), (req, res) => {
+  const document = store.findOne('supplierDocuments', row => row.id === req.params.documentId && row.supplierId === req.params.id && row.orgId === req.org.id);
+  if (!document?.contentData) return res.status(404).json({ error: 'Supplier document not found' });
+  const extension = { 'application/pdf': 'pdf', 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' }[document.mimeType] || 'file';
+  res.setHeader('Content-Type', document.mimeType || 'application/octet-stream');
+  res.setHeader('Content-Disposition', `attachment; filename="${String(document.title || 'supplier-document').replace(/[^a-z0-9._ -]/gi, '_')}.${extension}"`);
+  res.send(Buffer.from(String(document.contentData).split(',')[1] || '', 'base64'));
+});
+
 /* ================= GRN (Goods Receipt Note) ================= */
 router.get('/grns', requirePerm('purchase', 'view'), (req, res) => {
   const list = store.find('grns', g => g.orgId === req.org.id)
