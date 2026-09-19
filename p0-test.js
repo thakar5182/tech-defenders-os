@@ -180,6 +180,15 @@ async function run() {
     const workOrder = response.json.workOrder;
     check('project work order is created', response.status === 201 && workOrder?.projectId === project.id);
 
+    response = await request('GET', '/api/p0/projects/' + project.id, null, cookie);
+    check('project delivery control returns milestones and tasks', response.status === 200 && response.json.milestones?.length === 1 && response.json.workOrders?.length === 1);
+
+    response = await request('PATCH', '/api/p0/projects/' + project.id + '/milestones/' + response.json.milestones[0].id, { status: 'completed' }, cookie);
+    check('milestone status is updated', response.status === 200 && response.json.milestone?.status === 'completed');
+
+    response = await request('PATCH', '/api/p0/projects/' + project.id + '/work-orders/' + workOrder.id, { status: 'in_progress' }, cookie);
+    check('work order status is updated', response.status === 200 && response.json.workOrder?.status === 'in_progress');
+
     response = await request('POST', '/api/p0/projects/' + project.id + '/timesheets', {
       workOrderId: workOrder.id,
       workDate: '2026-09-19',

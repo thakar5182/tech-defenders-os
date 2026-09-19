@@ -17,13 +17,14 @@ const COLLECTIONS = [
   'organizations', 'subscriptions', 'branches', 'users', 'sequences',
   'leads', 'customers', 'customerContacts', 'meetings', 'suppliers', 'deals', 'tasks', 'activities',
   'products', 'productCategories', 'warehouses', 'stockReservations', 'priceLists', 'assetRegister', 'stockIncidents',
+  'inventoryLots', 'inventorySerials', 'qualityInspections', 'ncrRecords', 'stockHolds',
   'quotations', 'proformas', 'salesOrders', 'deliveryChallans', 'salesVisits', 'dispatchRecords', 'gatePasses',
   'invoices', 'receipts', 'creditNotes', 'debitNotes',
   'requisitions', 'rfqs', 'purchaseOrders', 'grns',
   'purchaseInvoices', 'purchaseReturns', 'supplierPayments',
   'stockLedger', 'boms', 'jobOrders',
   'amcContracts', 'tickets', 'ticketMessages', 'serviceSlaPolicies',
-  'accounts', 'journals', 'expenses', 'bankTransactions', 'costCenters', 'pettyCashTransactions', 'chequeRegisters',
+  'accounts', 'journals', 'expenses', 'bankAccounts', 'bankTransactions', 'bankStatementImports', 'bankReconciliations', 'costCenters', 'pettyCashTransactions', 'chequeRegisters',
   'employees', 'leaveRequests',
   'approvalWorkflows', 'approvalRequests',
   'automationRules', 'backgroundJobs', 'integrationConfigs', 'messageDeliveries',
@@ -36,6 +37,13 @@ const COLLECTIONS = [
   'mobileDevices', 'mobileAttendance', 'mobileCrashReports',
   'attendanceRecords', 'shifts', 'salaryComponents', 'payrollPolicies', 'payrollRuns', 'payslips',
   'projects', 'projectMilestones', 'workOrders', 'timesheets', 'mentions', 'backupSnapshots'
+  ,'customerSegments', 'assignmentRules', 'recurringInvoiceProfiles', 'paymentLinks'
+  ,'purchaseMatchReviews', 'landedCostAllocations', 'workCenters', 'manufacturingRoutings', 'mrpRuns'
+  ,'serviceDispatches', 'technicianTimeLogs', 'knowledgeArticles'
+  ,'apiKeys', 'apiWebhooks', 'apiRequestLogs', 'customReports'
+  ,'communicationSegments', 'communicationConsents', 'templateApprovals', 'inboundCommunications'
+  ,'commerceCatalogs', 'commercePrices', 'commerceCarts', 'commerceOrders'
+  ,'aiConversations', 'aiRecommendations', 'aiActionRequests'
 ];
 
 const db = {};
