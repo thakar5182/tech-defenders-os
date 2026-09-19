@@ -6,6 +6,7 @@
  */
 'use strict';
 const express = require('express');
+const crypto = require('crypto');
 const store = require('../../db/store');
 const { requireAuth, requirePerm } = require('../middleware');
 const { r2, nextNumber, audit, notify, postStock } = require('../util');
@@ -245,6 +246,23 @@ router.patch('/suppliers/:id', requirePerm('purchase', 'edit'), (req, res) => {
   const updated = store.update('suppliers', supplier.id, patch);
   audit(req.org.id, req.user.id, 'update', 'supplier', supplier.id, patch);
   res.json({ supplier: updated });
+});
+
+router.post('/suppliers/:id/portal-invite', requirePerm('purchase', 'edit'), (req, res) => {
+  const supplier = store.findOne('suppliers', s => s.id === req.params.id && s.orgId === req.org.id);
+  if (!supplier) return res.status(404).json({ error: 'Supplier not found' });
+  if (!supplier.email) return res.status(400).json({ error: 'Add the supplier email before creating a portal invite' });
+  const token = crypto.randomBytes(32).toString('base64url');
+  const expiresAt = new Date(Date.now() + 7 * 86400000).toISOString();
+  store.find('portalAccess', row => row.orgId === req.org.id && row.supplierId === supplier.id && !row.revokedAt)
+    .forEach(row => store.update('portalAccess', row.id, { revokedAt: new Date().toISOString() }));
+  store.insert('portalAccess', {
+    orgId: req.org.id, partyType: 'supplier', supplierId: supplier.id, email: supplier.email,
+    tokenHash: crypto.createHash('sha256').update(token).digest('hex'), expiresAt, createdBy: req.user.id
+  });
+  audit(req.org.id, req.user.id, 'create', 'supplier_portal_invite', supplier.id, { email: supplier.email });
+  const base = String(process.env.PORTAL_WEB_URL || process.env.PUBLIC_APP_URL || '').replace(/\/$/, '');
+  res.json({ token, expiresAt, inviteUrl: base ? base + '/portal?access=' + encodeURIComponent(token) : '/portal?access=' + encodeURIComponent(token) });
 });
 
 /* ================= GRN (Goods Receipt Note) ================= */
