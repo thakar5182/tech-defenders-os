@@ -17,6 +17,7 @@ const COLLECTIONS = [
   'organizations', 'subscriptions', 'branches', 'users', 'sequences',
   'leads', 'customers', 'customerContacts', 'meetings', 'suppliers', 'deals', 'tasks', 'activities',
   'products', 'productCategories', 'warehouses', 'stockReservations', 'priceLists', 'assetRegister', 'stockIncidents',
+  'inventoryLots', 'inventorySerials', 'qualityInspections', 'ncrRecords', 'stockHolds',
   'quotations', 'proformas', 'salesOrders', 'deliveryChallans', 'salesVisits', 'dispatchRecords', 'gatePasses',
   'invoices', 'receipts', 'creditNotes', 'debitNotes',
   'requisitions', 'rfqs', 'purchaseOrders', 'grns',

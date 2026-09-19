@@ -142,6 +142,7 @@ const Core = {
       ,{ path: '#/inventory/price-lists', label: 'Price Lists', icon: '&#127991;', mod: 'inventory' }
       ,{ path: '#/inventory/assets', label: 'Assets', icon: '&#127970;', mod: 'inventory' }
       ,{ path: '#/inventory/damage-loss', label: 'Damage / Loss', icon: '&#9888;', mod: 'inventory' }
+      ,{ path: '#/inventory/quality', label: 'Quality & Traceability', icon: '&#10003;', mod: 'inventory' }
     ]},
     { group: 'Manufacturing', items: [
       { path: '#/manufacturing/boms', label: 'BOMs', icon: '&#8981;', mod: 'manufacturing' },
