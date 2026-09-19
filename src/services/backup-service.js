@@ -33,4 +33,17 @@ function verifySnapshot(snapshot) {
   const parsed = JSON.parse(Buffer.concat([decipher.update(body), decipher.final()]).toString('utf8'));
   return { orgId: parsed.orgId, createdAt: parsed.createdAt, collections: Object.keys(parsed.records).length };
 }
-module.exports = { createEncryptedSnapshot, verifySnapshot };
+async function uploadToRemote(snapshot) {
+  const accessKey=String(process.env.BACKUP_S3_ACCESS_KEY_ID||'').trim(), secret=String(process.env.BACKUP_S3_SECRET_ACCESS_KEY||'').trim(), bucket=String(process.env.BACKUP_S3_BUCKET||'').trim();
+  if (!accessKey || !secret || !bucket) return { configured:false, uploaded:false };
+  const region=String(process.env.BACKUP_S3_REGION||'auto').trim(), prefix=String(process.env.BACKUP_S3_PREFIX||'tech-defenders-os').replace(/^\\/|\\/$/g,''), endpoint=new URL(process.env.BACKUP_S3_ENDPOINT||'https://s3.'+region+'.amazonaws.com'), keyName=[prefix,snapshot.orgId,snapshot.filename].filter(Boolean).join('/'), target=new URL(endpoint);
+  if (process.env.BACKUP_S3_PATH_STYLE !== 'false') target.pathname='/'+bucket+'/'+keyName.split('/').map(encodeURIComponent).join('/'); else { target.hostname=bucket+'.'+endpoint.hostname; target.pathname='/'+keyName.split('/').map(encodeURIComponent).join('/'); }
+  const payload=fs.readFileSync(path.join(safeDir(),snapshot.filename)), payloadHash=crypto.createHash('sha256').update(payload).digest('hex'), now=new Date(), amzDate=now.toISOString().replace(/[:-]|\\.\\d{3}/g,''), dateStamp=amzDate.slice(0,8), host=target.host;
+  const hmac=(secretValue,value,encoding)=>crypto.createHmac('sha256',secretValue).update(value,'utf8').digest(encoding);
+  const canonicalHeaders='host:'+host+'\\n'+'x-amz-content-sha256:'+payloadHash+'\\n'+'x-amz-date:'+amzDate+'\\n', signedHeaders='host;x-amz-content-sha256;x-amz-date', canonical='PUT\\n'+target.pathname+'\\n\\n'+canonicalHeaders+'\\n'+signedHeaders+'\\n'+payloadHash, scope=dateStamp+'/'+region+'/s3/aws4_request', stringToSign='AWS4-HMAC-SHA256\\n'+amzDate+'\\n'+scope+'\\n'+crypto.createHash('sha256').update(canonical).digest('hex'), kDate=hmac('AWS4'+secret,dateStamp), kRegion=hmac(kDate,region), kService=hmac(kRegion,'s3'), signature=hmac(hmac(kService,'aws4_request'),stringToSign,'hex');
+  const response=await fetch(target,{method:'PUT',headers:{host,'x-amz-content-sha256':payloadHash,'x-amz-date':amzDate,authorization:'AWS4-HMAC-SHA256 Credential='+accessKey+'/'+scope+', SignedHeaders='+signedHeaders+', Signature='+signature,'content-type':'application/octet-stream'},body:payload});
+  if(!response.ok)throw new Error('Remote backup upload failed ('+response.status+')');
+  return {configured:true,uploaded:true,remoteKey:keyName,provider:process.env.BACKUP_S3_PROVIDER||'s3-compatible'};
+}
+async function createAndUpload(orgId,actorId){const snapshot=createEncryptedSnapshot(orgId,actorId);try{const remote=await uploadToRemote(snapshot);return store.update('backupSnapshots',snapshot.id,{storage:remote.uploaded?'local+remote-encrypted':'local-encrypted',remoteKey:remote.remoteKey||null,remoteProvider:remote.provider||null,remoteStatus:remote.uploaded?'uploaded':'not_configured'});}catch(error){return store.update('backupSnapshots',snapshot.id,{status:'remote_upload_failed',remoteStatus:'failed',remoteError:String(error.message).slice(0,300)});}}
+module.exports = { createEncryptedSnapshot, createAndUpload, uploadToRemote, verifySnapshot };
