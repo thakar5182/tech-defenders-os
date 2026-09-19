@@ -28,7 +28,7 @@ const COLLECTIONS = [
   'approvalWorkflows', 'approvalRequests',
   'automationRules', 'backgroundJobs', 'integrationConfigs', 'messageDeliveries',
   'importJobs', 'importFiles', 'importRecords', 'importMappings', 'importErrors',
-  'clientDocuments', 'customerDocuments', 'portalAccess',
+  'clientDocuments', 'customerDocuments', 'supplierDocuments', 'portalAccess', 'portalActivities',
   'emailTemplates', 'emailCampaigns', 'emailQueue', 'emailSuppressions', 'communicationLogs',
   'automationExecutions', 'whatsappIntegrations',
   'providerWebhooks', 'gstSubmissions', 'aiDrafts', 'authChallenges',
