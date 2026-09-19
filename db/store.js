@@ -115,6 +115,15 @@ async function initialize(options = {}) {
 
 function ensureLoaded() { if (!loaded) load(); }
 
+/* Existing PostgreSQL workspaces do not have a row for a collection until its
+ * first write. Keep new collections safe during rolling production updates. */
+function collection(col) {
+  ensureLoaded();
+  if (!COLLECTIONS.includes(col)) throw new Error(`Unknown collection: ${col}`);
+  if (!Array.isArray(db[col])) db[col] = [];
+  return db[col];
+}
+
 function scheduleFlush() {
   if (timer) return;
   timer = setTimeout(() => {
@@ -201,30 +210,28 @@ function flushSync() {
 function id() { return crypto.randomUUID(); }
 function now() { return new Date().toISOString(); }
 function insert(col, obj) {
-  ensureLoaded();
   const rec = Object.assign({ id: id(), createdAt: now() }, obj);
-  db[col].push(rec); save(col); return rec;
+  collection(col).push(rec); save(col); return rec;
 }
 function insertMany(col, arr) {
-  ensureLoaded();
-  for (const obj of arr) db[col].push(Object.assign({ id: id(), createdAt: now() }, obj));
+  const records = collection(col);
+  for (const obj of arr) records.push(Object.assign({ id: id(), createdAt: now() }, obj));
   save(col);
 }
 function update(col, recId, patch) {
-  ensureLoaded();
-  const rec = db[col].find(item => item.id === recId);
+  const rec = collection(col).find(item => item.id === recId);
   if (!rec) return null;
   Object.assign(rec, patch, { updatedAt: now() }); save(col); return rec;
 }
 function remove(col, recId) {
-  ensureLoaded();
-  const index = db[col].findIndex(item => item.id === recId);
+  const records = collection(col);
+  const index = records.findIndex(item => item.id === recId);
   if (index === -1) return false;
-  db[col].splice(index, 1); save(col); return true;
+  records.splice(index, 1); save(col); return true;
 }
-function find(col, pred) { ensureLoaded(); return pred ? db[col].filter(pred) : db[col].slice(); }
-function findOne(col, pred) { ensureLoaded(); return db[col].find(pred) || null; }
-function byId(col, recId) { ensureLoaded(); return db[col].find(item => item.id === recId) || null; }
+function find(col, pred) { const records = collection(col); return pred ? records.filter(pred) : records.slice(); }
+function findOne(col, pred) { return collection(col).find(pred) || null; }
+function byId(col, recId) { return collection(col).find(item => item.id === recId) || null; }
 function isEmpty() { ensureLoaded(); return db.users.length === 0; }
 
 function reset() {
