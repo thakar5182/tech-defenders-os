@@ -262,8 +262,14 @@ router.post('/suppliers/:id/portal-invite', requirePerm('purchase', 'edit'), asy
     tokenHash: crypto.createHash('sha256').update(token).digest('hex'), expiresAt, createdBy: req.user.id
   });
   audit(req.org.id, req.user.id, 'create', 'supplier_portal_invite', supplier.id, { email: supplier.email });
-  const base = String(process.env.PORTAL_WEB_URL || process.env.PUBLIC_APP_URL || '').replace(/\/$/, '');
-  const inviteUrl = base ? base + '/portal?access=' + encodeURIComponent(token) : '/portal?access=' + encodeURIComponent(token);
+  /* The standalone customer portal does not render supplier workflows. Keep
+   * supplier invitations on the integrated OS portal unless a dedicated
+   * supplier portal URL is explicitly configured. */
+  const configuredBase = process.env.SUPPLIER_PORTAL_WEB_URL || process.env.PUBLIC_APP_URL || `${req.protocol}://${req.get('host')}`;
+  let base;
+  try { base = new URL(String(configuredBase)).origin; }
+  catch (_) { base = `${req.protocol}://${req.get('host')}`; }
+  const inviteUrl = base + '/portal?access=' + encodeURIComponent(token);
   let emailStatus = 'not_configured';
   if (/^https:\/\//.test(inviteUrl)) {
     try {
