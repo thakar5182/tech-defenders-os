@@ -9,6 +9,7 @@ const express = require('express');
 const crypto = require('crypto');
 const store = require('../../db/store');
 const { requireAuth, requirePerm } = require('../middleware');
+const { sendSystemEmail } = require('../services/integrations');
 const { r2, nextNumber, audit, notify, postStock } = require('../util');
 
 const router = express.Router();
@@ -248,7 +249,7 @@ router.patch('/suppliers/:id', requirePerm('purchase', 'edit'), (req, res) => {
   res.json({ supplier: updated });
 });
 
-router.post('/suppliers/:id/portal-invite', requirePerm('purchase', 'edit'), (req, res) => {
+router.post('/suppliers/:id/portal-invite', requirePerm('purchase', 'edit'), async (req, res) => {
   const supplier = store.findOne('suppliers', s => s.id === req.params.id && s.orgId === req.org.id);
   if (!supplier) return res.status(404).json({ error: 'Supplier not found' });
   if (!supplier.email) return res.status(400).json({ error: 'Add the supplier email before creating a portal invite' });
@@ -256,13 +257,47 @@ router.post('/suppliers/:id/portal-invite', requirePerm('purchase', 'edit'), (re
   const expiresAt = new Date(Date.now() + 7 * 86400000).toISOString();
   store.find('portalAccess', row => row.orgId === req.org.id && row.supplierId === supplier.id && !row.revokedAt)
     .forEach(row => store.update('portalAccess', row.id, { revokedAt: new Date().toISOString() }));
-  store.insert('portalAccess', {
+  const access = store.insert('portalAccess', {
     orgId: req.org.id, partyType: 'supplier', supplierId: supplier.id, email: supplier.email,
     tokenHash: crypto.createHash('sha256').update(token).digest('hex'), expiresAt, createdBy: req.user.id
   });
   audit(req.org.id, req.user.id, 'create', 'supplier_portal_invite', supplier.id, { email: supplier.email });
   const base = String(process.env.PORTAL_WEB_URL || process.env.PUBLIC_APP_URL || '').replace(/\/$/, '');
-  res.json({ token, expiresAt, inviteUrl: base ? base + '/portal?access=' + encodeURIComponent(token) : '/portal?access=' + encodeURIComponent(token) });
+  const inviteUrl = base ? base + '/portal?access=' + encodeURIComponent(token) : '/portal?access=' + encodeURIComponent(token);
+  let emailStatus = 'not_configured';
+  if (/^https:\/\//.test(inviteUrl)) {
+    try {
+      await sendSystemEmail({
+        to: supplier.email, name: supplier.contactPerson || supplier.name,
+        subject: 'Your secure Tech Defenders supplier portal',
+        text: `Open your secure supplier portal: ${inviteUrl}\nThis invitation expires in 7 days.`,
+        html: `<p>Hello ${String(supplier.contactPerson || supplier.name).replace(/[<>&]/g, '')},</p><p>Your secure Tech Defenders supplier portal is ready.</p><p><a href="${inviteUrl}">Open secure portal</a></p><p>This private invitation expires in 7 days. Do not forward it.</p>`
+      });
+      emailStatus = 'sent';
+      store.insert('portalActivities', { orgId: req.org.id, partyType: 'supplier', partyId: supplier.id, action: 'invite_sent', entityType: 'portal_access', entityId: access.id, detail: supplier.email });
+    } catch (_) { emailStatus = 'failed'; }
+  }
+  res.json({ token, expiresAt, inviteUrl, emailStatus });
+});
+
+router.get('/suppliers/:id/portal-access', requirePerm('purchase', 'view'), (req, res) => {
+  const supplier = store.findOne('suppliers', row => row.id === req.params.id && row.orgId === req.org.id);
+  if (!supplier) return res.status(404).json({ error: 'Supplier not found' });
+  const invites = store.find('portalAccess', row => row.orgId === req.org.id && row.supplierId === supplier.id)
+    .map(({ tokenHash, ...row }) => ({ ...row, active: !row.revokedAt && new Date(row.expiresAt) > new Date() }))
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  res.json({ invites });
+});
+
+router.post('/suppliers/:id/portal-revoke', requirePerm('purchase', 'edit'), (req, res) => {
+  const supplier = store.findOne('suppliers', row => row.id === req.params.id && row.orgId === req.org.id);
+  if (!supplier) return res.status(404).json({ error: 'Supplier not found' });
+  const revokedAt = new Date().toISOString();
+  store.find('portalAccess', row => row.orgId === req.org.id && row.supplierId === supplier.id && !row.revokedAt)
+    .forEach(row => store.update('portalAccess', row.id, { revokedAt, revokedBy: req.user.id }));
+  store.insert('portalActivities', { orgId: req.org.id, partyType: 'supplier', partyId: supplier.id, action: 'access_revoked', entityType: 'supplier', entityId: supplier.id, detail: req.user.name });
+  audit(req.org.id, req.user.id, 'revoke', 'supplier_portal_access', supplier.id, {});
+  res.json({ message: 'Supplier portal access revoked' });
 });
 
 /* ================= GRN (Goods Receipt Note) ================= */
