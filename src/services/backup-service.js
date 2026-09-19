@@ -46,4 +46,23 @@ async function uploadToRemote(snapshot) {
   return {configured:true,uploaded:true,remoteKey:keyName,provider:process.env.BACKUP_S3_PROVIDER||'s3-compatible'};
 }
 async function createAndUpload(orgId,actorId){const snapshot=createEncryptedSnapshot(orgId,actorId);try{const remote=await uploadToRemote(snapshot);return store.update('backupSnapshots',snapshot.id,{storage:remote.uploaded?'local+remote-encrypted':'local-encrypted',remoteKey:remote.remoteKey||null,remoteProvider:remote.provider||null,remoteStatus:remote.uploaded?'uploaded':'not_configured'});}catch(error){return store.update('backupSnapshots',snapshot.id,{status:'remote_upload_failed',remoteStatus:'failed',remoteError:String(error.message).slice(0,300)});}}
-module.exports = { createEncryptedSnapshot, createAndUpload, uploadToRemote, verifySnapshot };
+
+function createPortableSystemExport() {
+  const createdAt = new Date().toISOString();
+  const records = {};
+  for (const name of store.COLLECTIONS) records[name] = store.find(name);
+  const plain = Buffer.from(JSON.stringify({ version: 1, scope: 'system', createdAt, records }));
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv('aes-256-gcm', key(), iv);
+  const encrypted = Buffer.concat([cipher.update(plain), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  const payload = Buffer.concat([Buffer.from('TDOSB1'), iv, tag, encrypted]);
+  return {
+    filename: 'tdos-system-' + createdAt.replace(/[:.]/g, '-') + '.enc',
+    payload,
+    sha256: crypto.createHash('sha256').update(payload).digest('hex'),
+    sizeBytes: payload.length,
+    createdAt
+  };
+}
+\nmodule.exports = { createEncryptedSnapshot, createAndUpload, uploadToRemote, verifySnapshot, createPortableSystemExport };
