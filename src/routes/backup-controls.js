@@ -1,5 +1,6 @@
 'use strict';
-const express=require('express');\nconst crypto=require('crypto');
+const express=require('express');
+const crypto=require('crypto');
 const store=require('../../db/store');
 const {requireAuth,requireSuperAdmin}=require('../middleware');
 const {audit}=require('../util');
