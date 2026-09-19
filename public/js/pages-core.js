@@ -273,7 +273,7 @@ Core.route('crm/customers/:id', async p => {
        ${Core.can('crm', 'edit') ? `<button class="btn btn-outline" onclick="Pages.openCustomerForm('${c.id}')">Edit customer</button>` : ''}
        ${Core.can('crm', 'delete') ? `<button class="btn btn-outline" onclick="Pages.deleteCustomer('${c.id}')">Delete customer</button>` : ''}
        ${Core.can('sales', 'create') ? `<button class="btn btn-gold" onclick="location.hash='#/sales/quotations/new'">New Quotation</button>` : ''}
-       ${Core.can('crm', 'edit') ? `<button class="btn btn-outline" onclick="Pages.createPortalInvite('${c.id}')">Invite to Portal</button>` : ''}`)}
+       ${Core.can('crm', 'edit') ? `<button class="btn btn-outline" onclick="Pages.manageCustomerPortal('${c.id}')">Portal Access</button>` : ''}`)}
     <div class="customer-actionbar" aria-label="Customer quick actions">
       ${phoneDigits ? `<a class="btn btn-outline btn-sm" href="tel:${phoneDigits}">Call</a><a class="btn btn-outline btn-sm" target="_blank" rel="noopener" href="https://wa.me/91${phoneDigits.replace(/^91/, '')}">WhatsApp</a>` : ''}
       ${c.email ? `<a class="btn btn-outline btn-sm" href="mailto:${encodeURIComponent(c.email)}">Email</a>` : ''}
@@ -341,7 +341,19 @@ Pages.deleteCustomerDocument = async function (customerId, documentId) {
   catch (error) { toast('Remove failed', error.message, 'error'); }
 };
 
-Pages.createPortalInvite = async id => { try { const r = await Core.post('/crm/customers/' + id + '/portal-invite', {}); const value = r.inviteUrl || r.token; await navigator.clipboard.writeText(value); toast('Portal invite created', r.inviteUrl ? 'Secure portal link copied.' : 'Access code copied. Set PORTAL_WEB_URL in Render first.', 'success'); } catch (e) { toast('Invite failed', e.message, 'error'); } };
+Pages.createPortalInvite = async id => { try { const r = await Core.post('/crm/customers/' + id + '/portal-invite', {}); const value = r.inviteUrl || r.token; if (value) await navigator.clipboard.writeText(value); toast('Portal invite ready', r.emailStatus === 'sent' ? 'Invitation emailed and secure link copied.' : 'Secure link copied. Email could not be sent automatically.', r.emailStatus === 'sent' ? 'success' : 'warning'); return r; } catch (e) { toast('Invite failed', e.message, 'error'); } };
+Pages.manageCustomerPortal = async id => {
+  try {
+    const data = await Core.get('/crm/customers/' + id + '/portal-access');
+    const active = data.invites.find(row => row.active);
+    const modal = Core.openModal({ title: 'Customer portal access', wide: false,
+      body: active ? `<p><b>Active invitation</b></p><p class="muted">Expires ${Core.fmtDate(active.expiresAt)} · ${Core.esc(active.email || '')}</p><p>Resend creates a fresh secure link and cancels the previous link.</p>` : '<div class="empty-state">No active invitation. Create one to email a secure access link.</div>',
+      footer: `<button class="btn btn-outline" data-cancel>Close</button>${active ? '<button class="btn btn-outline" data-revoke>Revoke</button><button class="btn btn-gold" data-send>Resend invite</button>' : '<button class="btn btn-gold" data-send>Send invite</button>'}` });
+    modal.el.querySelector('[data-cancel]').onclick = modal.close;
+    modal.el.querySelector('[data-send]').onclick = async () => { await Pages.createPortalInvite(id); modal.close(); };
+    if (active) modal.el.querySelector('[data-revoke]').onclick = async () => { await Core.post('/crm/customers/' + id + '/portal-revoke', {}); toast('Portal access revoked', 'The private link can no longer be used.', 'success'); modal.close(); };
+  } catch (error) { toast('Portal access failed', error.message, 'error'); }
+};
 Pages.openCustomerForm = async function (id) {
   const existing = id ? (await Core.get('/crm/customers/' + id)).customer : null;
   Core.formModal({
