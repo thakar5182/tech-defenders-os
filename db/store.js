@@ -43,6 +43,7 @@ const COLLECTIONS = [
   ,'apiKeys', 'apiWebhooks', 'apiRequestLogs', 'customReports'
   ,'communicationSegments', 'communicationConsents', 'templateApprovals', 'inboundCommunications'
   ,'commerceCatalogs', 'commercePrices', 'commerceCarts', 'commerceOrders'
+  ,'aiConversations', 'aiRecommendations', 'aiActionRequests'
 ];
 
 const db = {};

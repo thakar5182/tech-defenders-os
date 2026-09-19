@@ -16,13 +16,14 @@
     "test:operations": "node operations-test.js",
     "test:persistence": "node persistence-test.js",
     "test:google": "node google-auth-test.js",
-    "test": "npm run smoke && npm run test:v3 && npm run test:integrations && npm run test:operations && npm run test:p0 && npm run test:p1 && npm run test:banking && npm run test:quality && npm run test:enterprise && npm run test:hub && npm run test:persistence && npm run test:google",
+    "test": "npm run smoke && npm run test:v3 && npm run test:integrations && npm run test:operations && npm run test:p0 && npm run test:p1 && npm run test:banking && npm run test:quality && npm run test:enterprise && npm run test:hub && npm run test:ai-command && npm run test:persistence && npm run test:google",
     "test:p0": "node p0-test.js",
     "test:p1": "node p1-portal-test.js",
     "test:banking": "node banking-test.js",
     "test:quality": "node quality-test.js",
     "test:enterprise": "node enterprise-controls-test.js",
-    "test:hub": "node business-hub-test.js"
+    "test:hub": "node business-hub-test.js",
+    "test:ai-command": "node ai-command-test.js"
   },
   "dependencies": {
     "@e965/xlsx": "^0.20.3",

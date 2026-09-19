@@ -119,6 +119,7 @@ app.use('/api/finance', require('./src/routes/finance'));
 app.use('/api/finance-controls', require('./src/routes/finance-controls'));
 app.use('/api/enterprise-controls', require('./src/routes/enterprise-controls'));
 app.use('/api/business-hub', require('./src/routes/business-hub'));
+app.use('/api/ai-command', require('./src/routes/ai-command'));
 app.use('/api/reports', require('./src/routes/reports'));
 app.use('/api/report-controls', require('./src/routes/report-controls'));
 app.use('/api/admin', require('./src/routes/admin'));
