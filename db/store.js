@@ -40,6 +40,9 @@ const COLLECTIONS = [
   ,'customerSegments', 'assignmentRules', 'recurringInvoiceProfiles', 'paymentLinks'
   ,'purchaseMatchReviews', 'landedCostAllocations', 'workCenters', 'manufacturingRoutings', 'mrpRuns'
   ,'serviceDispatches', 'technicianTimeLogs', 'knowledgeArticles'
+  ,'apiKeys', 'apiWebhooks', 'apiRequestLogs', 'customReports'
+  ,'communicationSegments', 'communicationConsents', 'templateApprovals', 'inboundCommunications'
+  ,'commerceCatalogs', 'commercePrices', 'commerceCarts', 'commerceOrders'
 ];
 
 const db = {};
