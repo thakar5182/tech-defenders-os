@@ -49,9 +49,11 @@ function customerSession(access, customer) {
   const tickets = match('tickets');
   const billed = invoices.filter(item => !['cancelled', 'credited'].includes(item.status)).reduce((sum, item) => sum + (Number(item.totals?.grandTotal) || 0), 0);
   const paid = invoices.reduce((sum, item) => sum + (Number(item.paidAmount) || 0), 0);
+  const customerSummary = { id: customer.id, name: customer.name, contactPerson: customer.contactPerson, email: customer.email };
   return {
     portal: { partyType: 'customer', expiresAt: access.expiresAt },
-    party: { id: customer.id, name: customer.name, contactPerson: customer.contactPerson, email: customer.email },
+    party: customerSummary,
+    customer: customerSummary,
     summary: { billed: r2(billed), paid: r2(paid), outstanding: r2(billed - paid), openTickets: tickets.filter(item => !['closed', 'resolved'].includes(item.status)).length },
     quotations: match('quotations'), orders: match('salesOrders'), invoices, receipts: match('receipts'),
     projects: match('projects'), tickets, documents: match('customerDocuments').map(safeDocument)
