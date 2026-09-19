@@ -4,7 +4,7 @@ const express = require('express');
 const crypto = require('crypto');
 const PDFDocument = require('pdfkit');
 const store = require('../../db/store');
-const { audit, nextNumber, r2 } = require('../util');
+const { audit, nextNumber, r2, notify } = require('../util');
 const { rateLimit } = require('../middleware');
 
 const router = express.Router();
@@ -14,6 +14,10 @@ const activity = (portal, action, entityType, entityId, detail = '') => store.in
   orgId: portal.access.orgId, partyType: portal.partyType, partyId: portal.partyId,
   action, entityType, entityId, detail: clean(detail, 500)
 });
+const portalNotify = (portal, title, body, link) => {
+  if (!portal.access.createdBy) return;
+  notify(portal.access.orgId, { userId: portal.access.createdBy, title, body: clean(body, 300), type: 'info', link });
+};
 
 function streamPdf(res, title, party, record) {
   const document = new PDFDocument({ size: 'A4', margin: 48 });
@@ -125,6 +129,7 @@ router.post('/quotations/:id/decision', portalAuth, (req, res) => {
   const updated = store.update('quotations', quotation.id, { status: decision, portalDecisionAt: new Date().toISOString(), portalDecisionNote: clean(req.body?.note, 500) });
   audit(quotation.orgId, null, 'portal_decision', 'quotation', quotation.id, { from: quotation.status, to: decision, customerId: req.portal.partyId });
   activity(req.portal, 'decision', 'quotation', quotation.id, `${quotation.number}: ${decision}`);
+  portalNotify(req.portal, `Quotation ${decision}`, `${req.portal.party.name} ${decision} ${quotation.number}`, '#/sales/quotations');
   res.json({ quotation: updated });
 });
 
@@ -159,6 +164,7 @@ router.post('/tickets', portalAuth, (req, res) => {
   });
   audit(ticket.orgId, null, 'portal_create', 'ticket', ticket.id, { customerId: req.portal.partyId, number: ticket.number });
   activity(req.portal, 'create', 'ticket', ticket.id, ticket.number);
+  portalNotify(req.portal, 'New customer portal ticket', `${req.portal.party.name}: ${ticket.subject}`, '#/service/tickets');
   res.status(201).json({ ticket });
 });
 
@@ -173,6 +179,7 @@ router.post('/tickets/:id/replies', portalAuth, (req, res) => {
   const updated = store.update('tickets', ticket.id, { workLog, status: ticket.status === 'waiting_customer' ? 'in_progress' : ticket.status });
   audit(ticket.orgId, null, 'portal_reply', 'ticket', ticket.id, { customerId: req.portal.partyId });
   activity(req.portal, 'reply', 'ticket', ticket.id, ticket.number);
+  portalNotify(req.portal, 'Customer replied to ticket', `${ticket.number}: ${ticket.subject}`, '#/service/tickets');
   res.json({ ticket: updated });
 });
 
@@ -192,6 +199,7 @@ router.post('/rfqs/:id/quote', portalAuth, (req, res) => {
   });
   const updated = store.update('rfqs', rfq.id, { quotes });
   activity(req.portal, 'submit', 'rfq_quote', rfq.id, rfq.number);
+  portalNotify(req.portal, 'Supplier submitted an RFQ quote', `${req.portal.party.name}: ${rfq.number}`, '#/purchase/rfqs');
   audit(rfq.orgId, null, 'portal_quote', 'rfq', rfq.id, { supplierId: req.portal.partyId });
   res.json({ rfq: updated });
 });
@@ -207,6 +215,7 @@ router.post('/purchase-orders/:id/decision', portalAuth, (req, res) => {
     status: `supplier_${decision}`, supplierDecisionAt: new Date().toISOString(), supplierDecisionNote: clean(req.body?.note, 500)
   });
   activity(req.portal, 'decision', 'purchase_order', order.id, `${order.number}: ${decision}`);
+  portalNotify(req.portal, `Purchase order ${decision}`, `${req.portal.party.name} ${decision} ${order.number}`, '#/purchase/orders');
   audit(order.orgId, null, 'supplier_portal_decision', 'purchase_order', order.id, { supplierId: req.portal.partyId, decision });
   res.json({ purchaseOrder: updated });
 });
@@ -223,6 +232,7 @@ router.post('/supplier-documents', portalAuth, (req, res) => {
     contentData, status: 'submitted', reference: clean(req.body?.reference, 100)
   });
   activity(req.portal, 'upload', 'supplier_document', document.id, title);
+  portalNotify(req.portal, 'Supplier uploaded a document', `${req.portal.party.name}: ${title}`, '#/purchase/suppliers');
   audit(document.orgId, null, 'supplier_portal_upload', 'supplier_document', document.id, { supplierId: req.portal.partyId, type });
   res.status(201).json({ document: safeDocument(document) });
 });
