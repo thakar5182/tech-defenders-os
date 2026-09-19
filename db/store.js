@@ -33,7 +33,9 @@ const COLLECTIONS = [
   'automationExecutions', 'whatsappIntegrations',
   'providerWebhooks', 'gstSubmissions', 'aiDrafts', 'authChallenges',
   'savedReports', 'reportSchedules', 'notifications', 'auditEvents', 'backupRestoreRequests',
-  'mobileDevices', 'mobileAttendance', 'mobileCrashReports'
+  'mobileDevices', 'mobileAttendance', 'mobileCrashReports',
+  'attendanceRecords', 'shifts', 'salaryComponents', 'payrollPolicies', 'payrollRuns', 'payslips',
+  'projects', 'projectMilestones', 'workOrders', 'timesheets', 'mentions', 'backupSnapshots'
 ];
 
 const db = {};

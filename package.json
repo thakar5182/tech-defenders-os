@@ -16,7 +16,8 @@
     "test:operations": "node operations-test.js",
     "test:persistence": "node persistence-test.js",
     "test:google": "node google-auth-test.js",
-    "test": "npm run smoke && npm run test:v3 && npm run test:integrations && npm run test:operations && npm run test:persistence && npm run test:google"
+    "test": "npm run smoke && npm run test:v3 && npm run test:integrations && npm run test:operations && npm run test:p0 && npm run test:persistence && npm run test:google",
+    "test:p0": "node p0-test.js"
   },
   "dependencies": {
     "@e965/xlsx": "^0.20.3",

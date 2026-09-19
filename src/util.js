@@ -133,15 +133,15 @@ function stockBalance(orgId, productId, warehouseId) {
 const ROLE_PERMS = {
   super_admin:        { '*': ['*'] },
   admin:              { '*': ['*'] },
-  sales_manager:      { crm: ['*'], sales: ['*'], inventory: ['view'], reports: ['view'], service: ['view'], communication: ['*'], automation: ['view'] },
+  sales_manager:      { crm: ['*'], sales: ['*'], inventory: ['view'], reports: ['view'], service: ['view'], communication: ['*'], automation: ['view'], projects: ['*'], operations: ['view', 'create'] },
   sales_exec:         { crm: ['view', 'create', 'edit'], sales: ['view', 'create', 'edit'], inventory: ['view'], reports: ['view'], communication: ['view', 'create', 'edit'] },
   purchase_manager:   { purchase: ['*'], inventory: ['view', 'create', 'edit'], reports: ['view'] },
   store_manager:      { inventory: ['*'], purchase: ['view', 'edit'], manufacturing: ['view', 'edit'], reports: ['view'] },
   production_manager: { manufacturing: ['*'], inventory: ['view', 'edit'], reports: ['view'] },
   accountant:         { finance: ['*'], sales: ['view', 'edit'], purchase: ['view', 'approve'], reports: ['view'], hr: ['view', 'approve'], communication: ['view', 'create', 'edit'], dataImport: ['view', 'create'] },
-  service_manager:    { service: ['*'], inventory: ['view', 'edit'], crm: ['view'], reports: ['view'], communication: ['view', 'create', 'edit'] },
-  engineer:           { service: ['view', 'edit'], inventory: ['view'] },
-  employee:           { crm: ['view'], tasks: ['view', 'edit'], hr: ['view'] },
+  service_manager:    { service: ['*'], inventory: ['view', 'edit'], crm: ['view'], reports: ['view'], communication: ['view', 'create', 'edit'], projects: ['*'], operations: ['*'] },
+  engineer:           { service: ['view', 'edit'], inventory: ['view'], projects: ['view', 'create', 'edit'], operations: ['view', 'create'] },
+  employee:           { crm: ['view'], tasks: ['view', 'edit'], hr: ['view', 'create', 'edit'], projects: ['view', 'create'], operations: ['view', 'create'] },
   viewer:             { crm: ['view'], sales: ['view'], purchase: ['view'], inventory: ['view'], manufacturing: ['view'], service: ['view'], finance: ['view'], reports: ['view'] }
 };
 
@@ -154,7 +154,9 @@ const MODULES = [
   { key: 'manufacturing', label: 'Manufacturing', description: 'BOMs and job orders' },
   { key: 'service', label: 'Service', description: 'AMC contracts and tickets' },
   { key: 'finance', label: 'Accounts', description: 'Accounts, journals, expenses and P&L' },
-  { key: 'hr', label: 'HR', description: 'Employees and leave requests' },
+  { key: 'hr', label: 'HR', description: 'Employees, attendance, payroll and leave requests' },
+  { key: 'projects', label: 'Projects', description: 'Projects, work orders, milestones and profitability' },
+  { key: 'operations', label: 'Operations Inbox', description: 'My work, approvals, alerts and activity' },
   { key: 'reports', label: 'Reports', description: 'Sales, receivables, stock and service reports' },
   { key: 'communication', label: 'Communication', description: 'Email, WhatsApp and customer communication history' },
   { key: 'automation', label: 'Automations', description: 'Business triggers, conditions, actions and execution history' },

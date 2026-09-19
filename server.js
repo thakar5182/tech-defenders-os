@@ -126,6 +126,7 @@ app.use('/api/integrations', require('./src/routes/integrations'));
 app.use('/api/ops', require('./src/routes/operations'));
 app.use('/api/portal', require('./src/routes/portal'));
 app.use('/api/mobile', require('./src/routes/mobile'));
+app.use('/api/p0', require('./src/routes/p0-operations'));
 const advancedRoutes = require('./src/routes/advanced');
 app.use('/api/v3', advancedRoutes);
 

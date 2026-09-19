@@ -165,7 +165,15 @@ const Core = {
     ]},
     { group: 'HR', items: [
       { path: '#/hr/employees', label: 'Employees', icon: '&#9786;', mod: 'hr' },
+      { path: '#/hr/attendance', label: 'Attendance', icon: '&#9200;', mod: 'hr' },
+      { path: '#/hr/payroll', label: 'Payroll & Payslips', icon: '&#8377;', mod: 'hr' },
       { path: '#/hr/leaves', label: 'Leave Requests', icon: '&#9203;', mod: 'hr' }
+    ]},
+    { group: 'Projects', items: [
+      { path: '#/projects/board', label: 'Projects & Work Orders', icon: '&#128193;', mod: 'projects' }
+    ]},
+    { group: 'Operations', items: [
+      { path: '#/operations/inbox', label: 'Operations Inbox', icon: '&#9889;', mod: 'operations' }
     ]},
     { group: 'Reports', items: [
       { path: '#/reports/command', label: 'Report Centre', icon: '&#128202;', mod: 'reports' },
