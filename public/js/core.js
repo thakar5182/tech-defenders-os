@@ -103,6 +103,7 @@ const Core = {
       { path: '#/my-backup', label: 'My Data Backup', icon: '&#128190;', mod: 'dashboard' }
     ]},
     { group: 'CRM', items: [
+      { path: '#/crm/intelligence', label: 'Customer Intelligence', icon: '&#9673;', mod: 'crm' },
       { path: '#/crm/leads', label: 'Leads', icon: '&#9737;', mod: 'crm' },
       { path: '#/crm/intelligence', label: 'Lead Intelligence', icon: '&#10024;', mod: 'crm' },
       { path: '#/crm/customers', label: 'Customers', icon: '&#9823;', mod: 'crm' },
@@ -114,6 +115,7 @@ const Core = {
       { path: '#/crm/late-payments', label: 'Late Payments', icon: '&#9888;', mod: 'crm' }
     ]},
     { group: 'Sales', items: [
+      { path: '#/sales/recurring', label: 'Recurring & Payments', icon: '&#8635;', mod: 'sales' },
       { path: '#/sales/quotations', label: 'Quotations', icon: '&#9998;', mod: 'sales' },
       { path: '#/sales/ai-quote', label: 'AI Quote Draft', icon: '&#10022;', mod: 'sales' },
       { path: '#/sales/documents', label: 'Sales Documents', icon: '&#9636;', mod: 'sales' },
@@ -133,6 +135,7 @@ const Core = {
       { path: '#/purchase/grns', label: 'GRN / Receipts', icon: '&#10515;', mod: 'purchase' },
       { path: '#/purchase/suppliers', label: 'Suppliers', icon: '&#9881;', mod: 'purchase' }
       ,{ path: '#/purchase/billing', label: 'Vendor Billing', icon: '&#8377;', mod: 'purchase' }
+      ,{ path: '#/purchase/matching', label: '3-Way Match & Landed Cost', icon: '&#8801;', mod: 'purchase' }
     ]},
     { group: 'Inventory', items: [
       { path: '#/inventory/products', label: 'Products', icon: '&#9635;', mod: 'inventory' },
@@ -145,10 +148,12 @@ const Core = {
       ,{ path: '#/inventory/quality', label: 'Quality & Traceability', icon: '&#10003;', mod: 'inventory' }
     ]},
     { group: 'Manufacturing', items: [
+      { path: '#/manufacturing/planning', label: 'MRP & Work Centres', icon: '&#9881;', mod: 'manufacturing' },
       { path: '#/manufacturing/boms', label: 'BOMs', icon: '&#8981;', mod: 'manufacturing' },
       { path: '#/manufacturing/jobs', label: 'Job Orders', icon: '&#9883;', mod: 'manufacturing' }
     ]},
     { group: 'Service', items: [
+      { path: '#/service/dispatch', label: 'Dispatch & Knowledge', icon: '&#9992;', mod: 'service' },
       { path: '#/service/amc', label: 'AMC Contracts', icon: '&#9742;', mod: 'service' },
       { path: '#/service/tickets', label: 'Service Tickets', icon: '&#9873;', mod: 'service' },
       { path: '#/service/sla-control', label: 'SLA & Technician Control', icon: '&#9201;', mod: 'service' }
