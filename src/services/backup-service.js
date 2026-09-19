@@ -65,4 +65,4 @@ function createPortableSystemExport() {
     createdAt
   };
 }
-\nmodule.exports = { createEncryptedSnapshot, createAndUpload, uploadToRemote, verifySnapshot, createPortableSystemExport };
+module.exports = { createEncryptedSnapshot, createAndUpload, uploadToRemote, verifySnapshot, createPortableSystemExport };
