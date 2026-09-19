@@ -37,6 +37,9 @@ const COLLECTIONS = [
   'mobileDevices', 'mobileAttendance', 'mobileCrashReports',
   'attendanceRecords', 'shifts', 'salaryComponents', 'payrollPolicies', 'payrollRuns', 'payslips',
   'projects', 'projectMilestones', 'workOrders', 'timesheets', 'mentions', 'backupSnapshots'
+  ,'customerSegments', 'assignmentRules', 'recurringInvoiceProfiles', 'paymentLinks'
+  ,'purchaseMatchReviews', 'landedCostAllocations', 'workCenters', 'manufacturingRoutings', 'mrpRuns'
+  ,'serviceDispatches', 'technicianTimeLogs', 'knowledgeArticles'
 ];
 
 const db = {};
