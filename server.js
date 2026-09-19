@@ -139,6 +139,7 @@ app.use(express.static(PUBLIC_DIR, { index: false }));
 app.get('/', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'landing-v2.html')));
 app.get('/login', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'index.html')));
 app.get('/app', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'app.html')));
+app.get('/portal', (req, res) => res.sendFile(path.join(PUBLIC_DIR, 'portal.html')));
 
 /* global error handler - never leak stack traces */
 app.use((err, req, res, next) => { // eslint-disable-line no-unused-vars
@@ -210,4 +211,3 @@ if (process.env.NODE_ENV !== 'test') {
 
 app.ready = bootReady;
 module.exports = app;
-
