@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Tech Defenders Secure Portal</title>
+  <link rel="icon" type="image/webp" href="/assets/tech-defenders-logo.webp">
+  <style>
+    :root{--gold:#e6b91e;--ink:#090909;--panel:#171610;--line:#393522;--muted:#aaa58f;--ok:#62d394;--bad:#ff7a7a}
+    *{box-sizing:border-box}body{margin:0;background:#0b0b09;color:#f8f5e8;font:15px/1.5 Inter,Segoe UI,sans-serif}
+    button,input,textarea,select{font:inherit}.shell{max-width:1180px;margin:auto;padding:22px}.top{display:flex;align-items:center;gap:14px;padding:12px 0 28px}
+    .top img{width:48px;height:48px;border-radius:12px}.top b{font-size:18px;letter-spacing:.05em}.top small{display:block;color:var(--gold)}
+    .hero,.card{border:1px solid var(--line);background:linear-gradient(145deg,#1b1a13,#11110d);border-radius:20px}.hero{padding:28px;margin-bottom:18px}
+    .hero h1{margin:0 0 6px;font-size:clamp(26px,5vw,44px)}.muted{color:var(--muted)}.grid{display:grid;gap:14px}.kpis{grid-template-columns:repeat(4,1fr);margin:18px 0}
+    .kpi,.card{padding:18px}.kpi{border:1px solid var(--line);border-radius:16px;background:#15140f}.kpi b{display:block;font-size:23px;color:var(--gold)}.cols{grid-template-columns:repeat(2,1fr)}
+    h2{font-size:18px;margin:0 0 14px}.item{padding:13px 0;border-top:1px solid #2e2b1d;display:flex;gap:12px;justify-content:space-between;align-items:center}.item:first-of-type{border-top:0}
+    .badge{padding:3px 9px;border-radius:20px;border:1px solid #554b20;color:#f4cd40;font-size:12px}.btn{border:0;border-radius:10px;padding:9px 13px;cursor:pointer;font-weight:700}.gold{background:var(--gold);color:#151100}.outline{background:transparent;color:#fff;border:1px solid #4d4938}
+    form{display:grid;gap:10px}input,textarea,select{width:100%;background:#0d0d0b;color:#fff;border:1px solid #494532;border-radius:10px;padding:11px}textarea{min-height:90px}.error{color:var(--bad);padding:12px;border:1px solid #6d3030;border-radius:12px}.hidden{display:none!important}
+    @media(max-width:760px){.kpis,.cols{grid-template-columns:1fr 1fr}.shell{padding:14px}}@media(max-width:480px){.kpis,.cols{grid-template-columns:1fr}.hero{padding:20px}}
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header class="top"><img src="/assets/tech-defenders-logo.webp" alt=""><div><b>TECH DEFENDERS</b><small>SECURE BUSINESS PORTAL</small></div></header>
+    <section id="loading" class="hero"><h1>Opening your secure workspace…</h1><p class="muted">Verifying the private access link.</p></section>
+    <section id="error" class="hero hidden"><h1>Link unavailable</h1><p class="error" id="error-text"></p><p class="muted">Ask Tech Defenders for a new portal invitation.</p></section>
+    <div id="portal" class="hidden"></div>
+  </main>
+  <script src="/js/portal.js"></script>
+</body>
+</html>
