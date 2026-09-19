@@ -8,6 +8,7 @@ const crypto = require('crypto');
 const store = require('../../db/store');
 const { requireAuth, requirePerm } = require('../middleware');
 const { audit, notify, r2 } = require('../util');
+const { sendSystemEmail } = require('../services/integrations');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -187,7 +188,7 @@ router.delete('/customers/:id/documents/:documentId', requirePerm('crm', 'edit')
 });
 
 /* Customer portal invitation: only a token hash is stored. */
-router.post('/customers/:id/portal-invite', requirePerm('crm', 'edit'), (req, res) => {
+router.post('/customers/:id/portal-invite', requirePerm('crm', 'edit'), async (req, res) => {
   const customer = store.findOne('customers', c => c.id === req.params.id && c.orgId === req.org.id);
   if (!customer) return res.status(404).json({ error: 'Customer not found' });
   if (!customer.email) return res.status(400).json({ error: 'Add the customer email before creating a portal invite' });
@@ -195,10 +196,44 @@ router.post('/customers/:id/portal-invite', requirePerm('crm', 'edit'), (req, re
   const expiresAt = new Date(Date.now() + 7 * 86400000).toISOString();
   store.find('portalAccess', row => row.orgId === req.org.id && row.customerId === customer.id && !row.revokedAt)
     .forEach(row => store.update('portalAccess', row.id, { revokedAt: new Date().toISOString() }));
-  store.insert('portalAccess', { orgId: req.org.id, partyType: 'customer', customerId: customer.id, email: customer.email, tokenHash: crypto.createHash('sha256').update(token).digest('hex'), expiresAt, createdBy: req.user.id });
+  const access = store.insert('portalAccess', { orgId: req.org.id, partyType: 'customer', customerId: customer.id, email: customer.email, tokenHash: crypto.createHash('sha256').update(token).digest('hex'), expiresAt, createdBy: req.user.id });
   audit(req.org.id, req.user.id, 'create', 'portal_invite', customer.id, { email: customer.email });
   const base = String(process.env.PORTAL_WEB_URL || process.env.PUBLIC_APP_URL || '').replace(/\/$/, '');
-  res.json({ token, expiresAt, inviteUrl: base ? base + '/portal?access=' + encodeURIComponent(token) : '/portal?access=' + encodeURIComponent(token) });
+  const inviteUrl = base ? base + '/portal?access=' + encodeURIComponent(token) : '/portal?access=' + encodeURIComponent(token);
+  let emailStatus = 'not_configured';
+  if (/^https:\/\//.test(inviteUrl)) {
+    try {
+      await sendSystemEmail({
+        to: customer.email, name: customer.contactPerson || customer.name,
+        subject: 'Your secure Tech Defenders customer portal',
+        text: `Open your secure customer portal: ${inviteUrl}\nThis invitation expires in 7 days.`,
+        html: `<p>Hello ${String(customer.contactPerson || customer.name).replace(/[<>&]/g, '')},</p><p>Your secure Tech Defenders customer portal is ready.</p><p><a href="${inviteUrl}">Open secure portal</a></p><p>This private invitation expires in 7 days. Do not forward it.</p>`
+      });
+      emailStatus = 'sent';
+      store.insert('portalActivities', { orgId: req.org.id, partyType: 'customer', partyId: customer.id, action: 'invite_sent', entityType: 'portal_access', entityId: access.id, detail: customer.email });
+    } catch (_) { emailStatus = 'failed'; }
+  }
+  res.json({ token, expiresAt, inviteUrl, emailStatus });
+});
+
+router.get('/customers/:id/portal-access', requirePerm('crm', 'view'), (req, res) => {
+  const customer = store.findOne('customers', row => row.id === req.params.id && row.orgId === req.org.id);
+  if (!customer) return res.status(404).json({ error: 'Customer not found' });
+  const invites = store.find('portalAccess', row => row.orgId === req.org.id && row.customerId === customer.id)
+    .map(({ tokenHash, ...row }) => ({ ...row, active: !row.revokedAt && new Date(row.expiresAt) > new Date() }))
+    .sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  res.json({ invites });
+});
+
+router.post('/customers/:id/portal-revoke', requirePerm('crm', 'edit'), (req, res) => {
+  const customer = store.findOne('customers', row => row.id === req.params.id && row.orgId === req.org.id);
+  if (!customer) return res.status(404).json({ error: 'Customer not found' });
+  const revokedAt = new Date().toISOString();
+  store.find('portalAccess', row => row.orgId === req.org.id && row.customerId === customer.id && !row.revokedAt)
+    .forEach(row => store.update('portalAccess', row.id, { revokedAt, revokedBy: req.user.id }));
+  store.insert('portalActivities', { orgId: req.org.id, partyType: 'customer', partyId: customer.id, action: 'access_revoked', entityType: 'customer', entityId: customer.id, detail: req.user.name });
+  audit(req.org.id, req.user.id, 'revoke', 'portal_access', customer.id, {});
+  res.json({ message: 'Customer portal access revoked' });
 });
 router.patch('/customers/:id', requirePerm('crm', 'edit'), (req, res) => {
   const c = store.findOne('customers', x => x.id === req.params.id && x.orgId === req.org.id);
