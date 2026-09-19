@@ -183,6 +183,7 @@ const Core = {
       { path: '#/operations/inbox', label: 'Operations Inbox', icon: '&#9889;', mod: 'operations' }
     ]},
     { group: 'Reports', items: [
+      { path: '#/reports/builder', label: 'Custom Report Builder', icon: '&#9881;', mod: 'reports' },
       { path: '#/reports/command', label: 'Report Centre', icon: '&#128202;', mod: 'reports' },
       { path: '#/reports/sales', label: 'Sales Report', icon: '&#8613;', mod: 'reports' },
       { path: '#/reports/receivables', label: 'Receivable Aging', icon: '&#8987;', mod: 'reports' },
@@ -191,6 +192,7 @@ const Core = {
       { path: '#/reports/service', label: 'Service Summary', icon: '&#9889;', mod: 'reports' }
     ]},
     { group: 'Communication', items: [
+      { path: '#/communication/governance', label: 'Consent & Segments', icon: '&#10003;', mod: 'communication' },
       { path: '#/communication/email', label: 'Email Center', icon: '&#9993;', mod: 'communication' },
       { path: '#/communication/history', label: 'Communication History', icon: '&#8635;', mod: 'communication' },
       { path: '#/communication/analytics', label: 'Delivery Analytics', icon: '&#9636;', mod: 'communication' }
@@ -204,6 +206,8 @@ const Core = {
       { path: '#/client-documents', label: 'Client Documents', icon: '&#9636;', mod: 'dataImport' }
     ]},
     { group: 'Administration', items: [
+      { path: '#/admin/api-hub', label: 'API & Integration Hub', icon: '&#8644;', mod: 'admin' },
+      { path: '#/sales/b2b-commerce', label: 'B2B Commerce', icon: '&#128722;', mod: 'sales' },
       { path: '#/admin/subscription', label: 'Plan & Subscription', icon: '&#128179;', mod: 'admin' },
       { path: '#/admin/subscription-manager', label: 'Subscription Manager', icon: '&#128179;', mod: 'admin' },
       { path: '#/admin/platform', label: 'Platform Control', icon: '&#9733;', mod: 'admin', superOnly: true },
