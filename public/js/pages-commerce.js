@@ -898,14 +898,18 @@ Pages.createSupplierPortalInvite = async id => {
 
 Pages.manageSupplierPortal = async id => {
   try {
-    const data = await Core.get('/purchase/suppliers/' + id + '/portal-access');
+    const [data, workspace] = await Promise.all([Core.get('/purchase/suppliers/' + id + '/portal-access'), Core.get('/purchase/suppliers/' + id + '/portal-workspace')]);
     const active = data.invites.find(row => row.active);
-    const modal = Core.openModal({ title: 'Supplier portal access', wide: false,
-      body: active ? `<p><b>Active invitation</b></p><p class="muted">Expires ${Core.fmtDate(active.expiresAt)} · ${Core.esc(active.email || '')}</p><p>Resend creates a fresh secure link and cancels the previous link.</p>` : '<div class="empty-state">No active invitation. Create one to email a secure access link.</div>',
+    const documents = workspace.documents.length ? `<div class="table-wrap"><table class="tbl"><thead><tr><th>Document</th><th>Status</th><th>Review</th></tr></thead><tbody>${workspace.documents.map(doc => `<tr><td><b>${Core.esc(doc.title)}</b><br><small class="muted">${Core.esc(doc.type)} · ${Core.fmtDate(doc.createdAt)}</small><br><a class="link" href="/api/purchase/suppliers/${id}/portal-documents/${doc.id}/download">Download</a></td><td>${Core.badge(doc.status)}</td><td><select data-doc-review="${doc.id}"><option value="">Choose…</option><option value="under_review">Under review</option><option value="approved">Approve</option><option value="rejected">Reject</option></select></td></tr>`).join('')}</tbody></table></div>` : '<div class="empty-state">No supplier documents uploaded yet.</div>';
+    const activity = workspace.activity.length ? `<ul class="timeline" style="padding:10px 0">${workspace.activity.slice(0,10).map(row => `<li><b>${Core.esc(String(row.action).replace(/_/g,' '))}</b><small>${Core.esc(row.detail || row.entityType)} · ${Core.fmtDate(row.createdAt)}</small></li>`).join('')}</ul>` : '<p class="muted">No portal activity yet.</p>';
+    const accessHtml = active ? `<p><b>Active invitation</b></p><p class="muted">Expires ${Core.fmtDate(active.expiresAt)} · ${Core.esc(active.email || '')}</p><p>Resend creates a fresh secure link and cancels the previous link.</p>` : '<div class="empty-state">No active invitation. Create one to email a secure access link.</div>';
+    const modal = Core.openModal({ title: 'Supplier portal control', wide: true,
+      body: `${accessHtml}<div class="grid-even" style="margin-top:18px"><section><div class="card-head"><h3>Submitted documents</h3></div>${documents}</section><section><div class="card-head"><h3>Recent portal activity</h3></div>${activity}</section></div>`,
       footer: `<button class="btn btn-outline" data-cancel>Close</button>${active ? '<button class="btn btn-outline" data-revoke>Revoke</button><button class="btn btn-gold" data-send>Resend invite</button>' : '<button class="btn btn-gold" data-send>Send invite</button>'}` });
     modal.el.querySelector('[data-cancel]').onclick = modal.close;
     modal.el.querySelector('[data-send]').onclick = async () => { await Pages.createSupplierPortalInvite(id); modal.close(); };
     if (active) modal.el.querySelector('[data-revoke]').onclick = async () => { await Core.post('/purchase/suppliers/' + id + '/portal-revoke', {}); toast('Portal access revoked', 'The private link can no longer be used.', 'success'); modal.close(); };
+    modal.el.querySelectorAll('[data-doc-review]').forEach(select => { select.onchange = async () => { if (!select.value) return; try { const note = select.value === 'rejected' ? (prompt('Reason for rejection (optional)') || '') : ''; await Core.patch('/purchase/suppliers/' + id + '/portal-documents/' + select.dataset.docReview, { status: select.value, reviewNote: note }); toast('Document reviewed', 'Supplier document status updated.', 'success'); modal.close(); Pages.manageSupplierPortal(id); } catch (error) { toast('Review failed', error.message, 'error'); } }; });
   } catch (error) { toast('Portal access failed', error.message, 'error'); }
 };
 
