@@ -1,10 +1,27 @@
 'use strict';
-const express=require('express');
+const express=require('express');\nconst crypto=require('crypto');
 const store=require('../../db/store');
 const {requireAuth,requireSuperAdmin}=require('../middleware');
 const {audit}=require('../util');
 const backups=require('../services/backup-service');
-const router=express.Router();router.use(requireAuth);
+const router=express.Router();
+router.get('/agent/export',async (req,res)=>{
+  const configured=String(process.env.BACKUP_AGENT_TOKEN||'');
+  const supplied=String(req.get('X-Backup-Agent-Token')||'');
+  const allowed=configured.length>=32&&supplied.length===configured.length&&crypto.timingSafeEqual(Buffer.from(supplied),Buffer.from(configured));
+  if(!allowed)return res.status(404).json({error:'Not found'});
+  try{
+    await store.flush();
+    const archive=backups.createPortableSystemExport();
+    res.setHeader('Cache-Control','no-store');
+    res.setHeader('Content-Type','application/octet-stream');
+    res.setHeader('Content-Length',String(archive.sizeBytes));
+    res.setHeader('Content-Disposition','attachment; filename="'+archive.filename+'"');
+    res.setHeader('X-Backup-SHA256',archive.sha256);
+    res.send(archive.payload);
+  }catch(error){res.status(503).json({error:'Encrypted backup unavailable'});}
+});
+router.use(requireAuth);
 const canManage=req=>['admin','super_admin'].includes(req.user.role);
 router.get('/my-data',(req,res)=>{const tasks=store.find('tasks',x=>x.orgId===req.org.id&&(x.assignedTo===req.user.id||x.createdBy===req.user.id));const files=store.find('clientDocuments',x=>x.orgId===req.org.id&&x.uploadedBy===req.user.id).map(x=>({id:x.id,name:x.name||x.fileName,createdAt:x.createdAt}));audit(req.org.id,req.user.id,'export_personal_backup','user_backup',req.user.id,{tasks:tasks.length,files:files.length});res.setHeader('Content-Disposition','attachment; filename="my-tech-defenders-backup.json"');res.json({version:1,exportedAt:new Date().toISOString(),scope:'personal',tasks,files});});
 router.get('/status',(req,res)=>{if(!canManage(req))return res.status(403).json({error:'Administrator access required'});res.json({encryptionConfigured:String(process.env.BACKUP_ENCRYPTION_KEY||'').length>=32,remoteStorageConfigured:['BACKUP_S3_ACCESS_KEY_ID','BACKUP_S3_SECRET_ACCESS_KEY','BACKUP_S3_BUCKET'].every(name=>String(process.env[name]||'').trim()),snapshots:store.find('backupSnapshots',x=>x.orgId===req.org.id).slice(-50).reverse()});});
