@@ -13,8 +13,8 @@ const {
   signToken, sessionCookieOptions
 } = require('../middleware');
 const {
-  audit, notify, MODULES, DASHBOARD_WIDGETS, effectiveAccess,
-  effectiveDashboardWidgets, stockBalance, r2
+  audit, notify, MODULES, APP_CATALOG, DASHBOARD_WIDGETS, effectiveAccess,
+  effectiveAppAccess, effectiveDashboardWidgets, stockBalance, r2
 } = require('../util');
 
 const router = express.Router();
@@ -45,6 +45,7 @@ function globalUserView(user) {
     ...safeUser(user),
     organization: org ? { id: org.id, name: org.name, legalName: org.legalName || '', email: org.email || '' } : null,
     effectiveAccess: effectiveAccess(user),
+    effectiveAppAccess: effectiveAppAccess(user),
     effectiveDashboardWidgets: effectiveDashboardWidgets(user)
   };
 }
@@ -148,6 +149,7 @@ router.get('/global/users', requireSuperAdmin, (req, res) => {
     users,
     roles: SUPER_ADMIN_ASSIGNABLE_ROLES,
     modules: MODULES,
+    apps: APP_CATALOG,
     dashboardWidgets: DASHBOARD_WIDGETS,
     organizations
   });
@@ -221,12 +223,18 @@ router.patch('/global/users/:id/access', requireSuperAdmin, (req, res) => {
   if (!target) return res.status(404).json({ error: 'User not found' });
   if (target.id === req.user.id || target.role === 'super_admin') return res.status(403).json({ error: 'Super Admin accounts are platform-protected' });
   const nextModules = { ...(target.moduleAccess || {}) };
+  const nextApps = { ...(target.appAccess || {}) };
   const nextWidgets = { ...(target.dashboardWidgets || {}) };
   const incomingModules = req.body && req.body.moduleAccess;
+  const incomingApps = req.body && req.body.appAccess;
   const incomingWidgets = req.body && req.body.dashboardWidgets;
   if ((!incomingModules || typeof incomingModules !== 'object' || Array.isArray(incomingModules)) &&
+      (!incomingApps || typeof incomingApps !== 'object' || Array.isArray(incomingApps)) &&
       (!incomingWidgets || typeof incomingWidgets !== 'object' || Array.isArray(incomingWidgets))) {
-    return res.status(400).json({ error: 'moduleAccess or dashboardWidgets object is required' });
+    return res.status(400).json({ error: 'moduleAccess, appAccess or dashboardWidgets object is required' });
+  }
+  if (incomingApps && typeof incomingApps === 'object' && !Array.isArray(incomingApps)) {
+    for (const app of APP_CATALOG) if (typeof incomingApps[app.key] === 'boolean') nextApps[app.key] = incomingApps[app.key];
   }
   if (incomingModules && typeof incomingModules === 'object' && !Array.isArray(incomingModules)) {
     for (const module of MODULES) if (typeof incomingModules[module.key] === 'boolean') nextModules[module.key] = incomingModules[module.key];
@@ -236,16 +244,19 @@ router.patch('/global/users/:id/access', requireSuperAdmin, (req, res) => {
   }
   const updated = store.update('users', target.id, {
     moduleAccess: nextModules,
+    appAccess: nextApps,
     dashboardWidgets: nextWidgets,
     tokenVersion: (target.tokenVersion || 0) + 1
   });
   audit(target.orgId, req.user.id, 'global_dashboard_access_update', 'user', target.id, {
     moduleAccess: nextModules,
+    appAccess: nextApps,
     dashboardWidgets: nextWidgets
   });
   res.json({
     user: globalUserView(updated),
     effectiveAccess: effectiveAccess(updated),
+    effectiveAppAccess: effectiveAppAccess(updated),
     effectiveDashboardWidgets: effectiveDashboardWidgets(updated)
   });
 });
@@ -389,9 +400,10 @@ router.get('/access-control', requirePerm('admin', 'view'), (req, res) => {
     .sort((a, b) => a.name.localeCompare(b.name))
     .map(u => ({
       ...safeUser(u),
-      effectiveAccess: effectiveAccess(u)
+      effectiveAccess: effectiveAccess(u),
+      effectiveAppAccess: effectiveAppAccess(u)
     }));
-  res.json({ users, modules: MODULES });
+  res.json({ users, modules: MODULES, apps: APP_CATALOG });
 });
 
 router.patch('/users/:id/access', requirePerm('admin', 'edit'), (req, res) => {
@@ -400,12 +412,18 @@ router.patch('/users/:id/access', requirePerm('admin', 'edit'), (req, res) => {
   const targetError = managementError(req.user, target);
   if (targetError) return res.status(403).json({ error: targetError });
   const incoming = req.body && req.body.moduleAccess;
-  if (!incoming || typeof incoming !== 'object' || Array.isArray(incoming)) {
-    return res.status(400).json({ error: 'moduleAccess object is required' });
+  const incomingApps = req.body && req.body.appAccess;
+  if ((!incoming || typeof incoming !== 'object' || Array.isArray(incoming)) &&
+      (!incomingApps || typeof incomingApps !== 'object' || Array.isArray(incomingApps))) {
+    return res.status(400).json({ error: 'moduleAccess or appAccess object is required' });
   }
   const next = { ...(target.moduleAccess || {}) };
+  const nextApps = { ...(target.appAccess || {}) };
   for (const { key } of MODULES) {
-    if (typeof incoming[key] === 'boolean') next[key] = incoming[key];
+    if (incoming && typeof incoming[key] === 'boolean') next[key] = incoming[key];
+  }
+  if (incomingApps && typeof incomingApps === 'object' && !Array.isArray(incomingApps)) {
+    for (const app of APP_CATALOG) if (typeof incomingApps[app.key] === 'boolean') nextApps[app.key] = incomingApps[app.key];
   }
   if (target.id === req.user.id && next.admin === false) {
     return res.status(400).json({ error: 'You cannot disable your own Administration access' });
@@ -415,10 +433,11 @@ router.patch('/users/:id/access', requirePerm('admin', 'edit'), (req, res) => {
   }
   const updated = store.update('users', target.id, {
     moduleAccess: next,
+    appAccess: nextApps,
     tokenVersion: target.id === req.user.id ? (target.tokenVersion || 0) : (target.tokenVersion || 0) + 1
   });
-  audit(req.org.id, req.user.id, 'access_control_update', 'user', target.id, { moduleAccess: next });
-  res.json({ user: safeUser(updated), effectiveAccess: effectiveAccess(updated) });
+  audit(req.org.id, req.user.id, 'access_control_update', 'user', target.id, { moduleAccess: next, appAccess: nextApps });
+  res.json({ user: safeUser(updated), effectiveAccess: effectiveAccess(updated), effectiveAppAccess: effectiveAppAccess(updated) });
 });
 
 /* ================= SEQUENCES ================= */

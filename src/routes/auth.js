@@ -385,12 +385,13 @@ router.post('/reset', (req, res) => {
 });
 
 router.get('/me', requireAuth, (req, res) => {
-  const { permsForRole } = require('../util');
+  const { permsForRole, effectiveAppAccess } = require('../util');
   res.json({
     user: req.user,
     org: req.org,
     permissions: permsForRole(req.user.role),
     moduleAccess: effectiveAccess(req.user),
+    appAccess: effectiveAppAccess(req.user),
     isSuperAdmin: req.user.role === 'super_admin'
   });
 });

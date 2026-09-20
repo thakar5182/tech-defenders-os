@@ -164,6 +164,26 @@ const MODULES = [
   { key: 'admin', label: 'Administration', description: 'Users, company settings and audit log' }
 ];
 
+const appGroup = (module, entries) => entries.map(([key, label]) => ({ key, label, module }));
+const APP_CATALOG = [
+  ...appGroup('dashboard', [['dashboard','Dashboard'],['ai/command-centre','AI Command Centre'],['my-plan','My Plan'],['apps','All Apps'],['onboarding','Get Started'],['my-backup','My Data Backup']]),
+  ...appGroup('crm', [['crm/intelligence','Customer Intelligence'],['crm/leads','Leads'],['crm/customers','Customers'],['crm/contacts','Contacts'],['crm/deals','Deals Pipeline'],['crm/tasks','Tasks & Follow-ups'],['crm/meetings','Meetings'],['crm/daily-work','Daily Work Centre'],['crm/late-payments','Late Payments']]),
+  ...appGroup('sales', [['sales/recurring','Recurring & Payments'],['sales/quotations','Quotations'],['sales/ai-quote','AI Quote Draft'],['sales/documents','Sales Documents'],['sales/orders','Sales Orders'],['sales/invoices','GST Invoices'],['sales/receipts','Receipts'],['sales/credit-notes','Credit Notes'],['sales/visits','Sales Visits'],['sales/dispatches','Dispatch'],['sales/gate-passes','Gate Passes'],['sales/collections','Collections Centre'],['sales/b2b-commerce','B2B Commerce']]),
+  ...appGroup('purchase', [['purchase/requisitions','Requisitions'],['purchase/rfqs','RFQs & Quotes'],['purchase/orders','Purchase Orders'],['purchase/grns','GRN / Receipts'],['purchase/suppliers','Suppliers'],['purchase/billing','Vendor Billing'],['purchase/matching','3-Way Match & Landed Cost']]),
+  ...appGroup('inventory', [['inventory/products','Products'],['inventory/summary','Stock Summary'],['inventory/ledger','Stock Ledger'],['inventory/reservations','Reservations'],['inventory/price-lists','Price Lists'],['inventory/assets','Assets'],['inventory/damage-loss','Damage / Loss'],['inventory/quality','Quality & Traceability']]),
+  ...appGroup('manufacturing', [['manufacturing/planning','MRP & Work Centres'],['manufacturing/boms','BOMs'],['manufacturing/jobs','Job Orders']]),
+  ...appGroup('service', [['service/dispatch','Dispatch & Knowledge'],['service/amc','AMC Contracts'],['service/tickets','Service Tickets'],['service/sla-control','SLA & Technician Control']]),
+  ...appGroup('finance', [['finance/accounts','Chart of Accounts'],['finance/journals','Journal Entries'],['finance/expenses','Expenses'],['finance/banking','Banking & Reconciliation'],['finance/petty-cash','Petty Cash'],['finance/cost-centers','Cost Centres'],['finance/cheques','Cheque Status'],['finance/gst-dashboard','GST Dashboard'],['finance/pnl','Profit & Loss'],['finance/ledgers','Ledgers & Statements']]),
+  ...appGroup('hr', [['hr/employees','Employees'],['hr/attendance','Attendance'],['hr/payroll','Payroll & Payslips'],['hr/leaves','Leave Requests']]),
+  ...appGroup('projects', [['projects/board','Projects & Work Orders']]),
+  ...appGroup('operations', [['operations/inbox','Operations Inbox']]),
+  ...appGroup('reports', [['reports/builder','Report Builder'],['reports/command','Reports Command Centre'],['reports/sales','Sales Report'],['reports/receivables','Receivables'],['reports/stock','Stock Report'],['reports/funnel','Lead Funnel'],['reports/service','Service Report']]),
+  ...appGroup('communication', [['communication/governance','Consent & Segmentation'],['communication/email','Email Centre'],['communication/history','Communication History'],['communication/analytics','Delivery Analytics']]),
+  ...appGroup('automation', [['automation/builder','Automation Builder']]),
+  ...appGroup('dataImport', [['data-package','Data Package Studio'],['data-import','Import Centre'],['client-documents','Client Documents']]),
+  ...appGroup('admin', [['admin/api-hub','API & Integration Hub'],['admin/subscription','Plan & Subscription'],['admin/subscription-manager','Subscription Manager'],['admin/platform','Platform Control'],['admin/users','Users & Roles'],['admin/approvals','Approval Center'],['admin/integrations','Live Integrations'],['admin/branches','Branches'],['admin/settings','Company Settings'],['admin/sequences','Numbering Series'],['admin/audit','Audit Log']])
+];
+
 const DASHBOARD_WIDGETS = [
   { key: 'crmOverview', label: 'CRM Overview', description: 'Open leads, pipeline value and weighted forecast', requiredModule: 'crm' },
   { key: 'receivables', label: 'Receivables', description: 'Outstanding and overdue customer balances', requiredModule: 'sales' },
@@ -202,6 +222,18 @@ function effectiveAccess(user) {
   return Object.fromEntries(MODULES.map(m => [m.key, can(user, m.key, 'view')]));
 }
 
+function canUseApp(user, key) {
+  const app = APP_CATALOG.find(item => item.key === key);
+  if (!app) return true;
+  if (!can(user, app.module, 'view')) return false;
+  if (user && user.role === 'super_admin') return true;
+  return !user || !user.appAccess || user.appAccess[key] !== false;
+}
+
+function effectiveAppAccess(user) {
+  return Object.fromEntries(APP_CATALOG.map(app => [app.key, canUseApp(user, app.key)]));
+}
+
 function canSeeDashboardWidget(user, key) {
   const widget = DASHBOARD_WIDGETS.find(item => item.key === key);
   if (!widget || !can(user, 'dashboard', 'view') || !can(user, widget.requiredModule, 'view')) return false;
@@ -215,6 +247,6 @@ function effectiveDashboardWidgets(user) {
 
 module.exports = {
   r2, fyOf, SEQ_PREFIX, nextNumber, peekNumber, computeDoc, audit, notify,
-  postStock, stockBalance, ROLE_PERMS, MODULES, DASHBOARD_WIDGETS, can,
-  permsForRole, effectiveAccess, canSeeDashboardWidget, effectiveDashboardWidgets
+  postStock, stockBalance, ROLE_PERMS, MODULES, APP_CATALOG, DASHBOARD_WIDGETS, can,
+  permsForRole, effectiveAccess, canUseApp, effectiveAppAccess, canSeeDashboardWidget, effectiveDashboardWidgets
 };

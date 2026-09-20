@@ -89,7 +89,7 @@ async function run() {
     check('optimized logo asset is served', response.status === 200 && String(response.headers['content-type']).includes('image/webp'));
     response = await req('GET', '/js/pages-ops.js');
     check('Super Admin global account and dashboard-control UI is bundled',
-      response.status === 200 && response.raw.includes('/admin/global/users') && response.raw.includes('data-global-widget'));
+      response.status === 200 && response.raw.includes('/admin/global/users') && response.raw.includes('data-global-widget') && response.raw.includes('data-global-app'));
     response = await req('GET', '/js/pages-core.js');
     check('user dashboard renderer follows widget policy and includes the permission-aware app launcher',
       response.status === 200 && response.raw.includes('widgets.salesTrend') && response.raw.includes('Core.appLauncher()'));
@@ -110,7 +110,7 @@ async function run() {
     const platformOrgs = await req('GET', '/api/admin/organizations', null, superCookie);
     check('Super Admin can view platform organizations', platformOrgs.status === 200 && platformOrgs.json.organizations.length === 1);
     const initialGlobalUsers = await req('GET', '/api/admin/global/users', null, superCookie);
-    check('Super Admin global account index loads every seeded account', initialGlobalUsers.status === 200 && initialGlobalUsers.json.users.length === 9);
+    check('Super Admin global account index loads every seeded account', initialGlobalUsers.status === 200 && initialGlobalUsers.json.users.length === 9 && initialGlobalUsers.json.apps.length > 80);
     response = await req('GET', '/api/admin/global/users', null, adminCookie);
     check('regular admin cannot open global account index', response.status === 403);
     response = await req('GET', '/api/admin/organizations', null, adminCookie);
@@ -323,11 +323,14 @@ async function run() {
     response = await req('GET', `/api/admin/global/users/${otherOwner.id}/dashboard-preview`, null, superCookie);
     check('Super Admin can preview a user dashboard', response.status === 200 && response.json.widgets.length === 10);
     response = await req('PATCH', `/api/admin/global/users/${otherOwner.id}/access`, {
-      dashboardWidgets: { crmOverview: false }, moduleAccess: { service: false }
+      dashboardWidgets: { crmOverview: false }, moduleAccess: { service: true }, appAccess: { 'service/tickets': false }
     }, superCookie);
-    check('Super Admin can manage dashboard modules and widgets across organizations',
-      response.status === 200 && response.json.effectiveDashboardWidgets.crmOverview === false && response.json.effectiveAccess.service === false);
+    check('Super Admin can manage modules, apps and widgets across organizations',
+      response.status === 200 && response.json.effectiveDashboardWidgets.crmOverview === false && response.json.effectiveAccess.service === true &&
+      response.json.effectiveAppAccess['service/tickets'] === false && response.json.effectiveAppAccess['service/amc'] === true);
     const otherOwnerLogin = await req('POST', '/api/auth/login', { email: otherOwner.email, password: 'Password1!' });
+    const controlledSession = await req('GET', '/api/auth/me', null, otherOwnerLogin.cookie);
+    check('app policy is exposed to the controlled user session', controlledSession.status === 200 && controlledSession.json.appAccess['service/tickets'] === false);
     const controlledDashboard = await req('GET', '/api/dashboard/summary', null, otherOwnerLogin.cookie);
     check('dashboard widget policy is enforced in the actual user dashboard',
       controlledDashboard.status === 200 && controlledDashboard.json.widgets.crmOverview === false && controlledDashboard.json.kpis.openLeads === null);

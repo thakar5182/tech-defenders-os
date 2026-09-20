@@ -5,7 +5,7 @@
 'use strict';
 
 const Core = {
-  state: { user: null, org: null, perms: {}, moduleAccess: {}, organizations: [], openNavGroup: null, lastNavHash: null, openDashboardApp: null },
+  state: { user: null, org: null, perms: {}, moduleAccess: {}, appAccess: {}, organizations: [], openNavGroup: null, lastNavHash: null, openDashboardApp: null },
   routes: [],
 
   /* ---------------- API ---------------- */
@@ -61,6 +61,19 @@ const Core = {
     return !!acts && (acts.includes('*') || acts.includes(action));
   },
 
+  appKeyForHash(hash) {
+    const path = String(hash || '').replace(/^#\//, '').split('?')[0].replace(/\/$/, '');
+    const keys = [...new Set(this.NAV.flatMap(group => group.items.map(item => item.path.replace(/^#\//, ''))))]
+      .sort((a, b) => b.length - a.length);
+    return keys.find(key => path === key || path.startsWith(key + '/')) || null;
+  },
+
+  canApp(hashOrPath) {
+    if (this.state.user?.role === 'super_admin') return true;
+    const key = this.appKeyForHash(String(hashOrPath).startsWith('#/') ? hashOrPath : '#/' + hashOrPath);
+    return !key || (this.state.appAccess || {})[key] !== false;
+  },
+
   /* ---------------- boot ---------------- */
   async boot() {
     try {
@@ -69,6 +82,7 @@ const Core = {
       this.state.org = me.org;
       this.state.perms = me.permissions || {};
       this.state.moduleAccess = me.moduleAccess || {};
+      this.state.appAccess = me.appAccess || {};
       if (me.isSuperAdmin) {
         const platform = await this.get('/admin/organizations');
         this.state.organizations = platform.organizations || [];
@@ -82,7 +96,7 @@ const Core = {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); document.getElementById('global-search').focus(); }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') { e.preventDefault(); this.toggleCollapse(); }
     });
-    if (!location.hash || !this.can(this.moduleForHash(location.hash), 'view')) location.hash = this.defaultRoute();
+    if (!location.hash || !this.can(this.moduleForHash(location.hash), 'view') || !this.canApp(location.hash)) location.hash = this.defaultRoute();
     this.render();
     if (this.state.user.mustChangePassword) this.forcePasswordChange();
   },
@@ -241,7 +255,7 @@ const Core = {
     for (const g of groups) {
       const visible = g.items.filter(it =>
         (!it.superOnly || this.state.user.role === 'super_admin') &&
-        (!it.mod || this.can(it.mod, 'view'))
+        (!it.mod || this.can(it.mod, 'view')) && this.canApp(it.path)
       );
       if (!visible.length) continue;
       const key = this.navGroupKey(g.group);
@@ -280,7 +294,7 @@ const Core = {
   visibleNavGroups() {
     return this.NAV.map(group => ({ ...group, items: group.items.filter(item =>
       (!item.superOnly || this.state.user.role === 'super_admin') &&
-      (!item.mod || this.can(item.mod, 'view'))
+      (!item.mod || this.can(item.mod, 'view')) && this.canApp(item.path)
     ) })).filter(group => group.items.length);
   },
 
@@ -447,7 +461,7 @@ const Core = {
   async render() {
     const hash = location.hash || '#/dashboard';
     const module = this.moduleForHash(hash);
-    if (!this.can(module, 'view')) {
+    if (!this.can(module, 'view') || !this.canApp(hash)) {
       const fallback = this.defaultRoute();
       if (hash !== fallback) { location.hash = fallback; return; }
     }
@@ -520,7 +534,7 @@ const Core = {
     for (const group of this.NAV) {
       const item = group.items.find(candidate =>
         (!candidate.superOnly || this.state.user.role === 'super_admin') &&
-        (!candidate.mod || this.can(candidate.mod, 'view'))
+        (!candidate.mod || this.can(candidate.mod, 'view')) && this.canApp(candidate.path)
       );
       if (item) return item.path;
     }
