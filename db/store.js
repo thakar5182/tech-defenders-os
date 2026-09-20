@@ -32,11 +32,11 @@ const COLLECTIONS = [
   'clientDocuments', 'customerDocuments', 'supplierDocuments', 'portalAccess', 'portalActivities',
   'emailTemplates', 'emailCampaigns', 'emailQueue', 'emailSuppressions', 'communicationLogs',
   'automationExecutions', 'whatsappIntegrations',
-  'providerWebhooks', 'gstSubmissions', 'aiDrafts', 'authChallenges',
+  'providerWebhooks', 'gstSubmissions', 'aiDrafts', 'authChallenges', 'authSessions', 'securityEvents',
   'savedReports', 'reportSchedules', 'notifications', 'auditEvents', 'backupRestoreRequests',
   'mobileDevices', 'mobileAttendance', 'mobileCrashReports',
   'attendanceRecords', 'shifts', 'salaryComponents', 'payrollPolicies', 'payrollRuns', 'payslips',
-  'projects', 'projectMilestones', 'workOrders', 'timesheets', 'mentions', 'backupSnapshots'
+  'projects', 'projectMilestones', 'workOrders', 'timesheets', 'mentions', 'backupSnapshots', 'backupPolicies', 'backupAgentHeartbeats', 'disasterRecoveryLogs'
   ,'customerSegments', 'assignmentRules', 'recurringInvoiceProfiles', 'paymentLinks'
   ,'purchaseMatchReviews', 'landedCostAllocations', 'workCenters', 'manufacturingRoutings', 'mrpRuns'
   ,'serviceDispatches', 'technicianTimeLogs', 'knowledgeArticles'

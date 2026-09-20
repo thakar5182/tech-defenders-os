@@ -9,7 +9,7 @@
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const store = require('../db/store');
-const { can } = require('./util');
+const { can, canUseApp } = require('./util');
 
 const configuredSecret = String(process.env.JWT_SECRET || '');
 if (process.env.NODE_ENV === 'production' && configuredSecret.length < 32) {
@@ -21,7 +21,7 @@ const SECRET = configuredSecret.length >= 32
 
 function safeUser(user) {
   if (!user) return null;
-  const { passwordHash, resetToken, resetTokenHash, resetTokenAt, tempPassword, googleSub, ...safe } = user;
+  const { passwordHash, resetToken, resetTokenHash, resetTokenAt, tempPassword, googleSub, mfaSecret, ...safe } = user;
   return {
     ...safe,
     moduleAccess: { ...(safe.moduleAccess || {}) },
@@ -29,10 +29,10 @@ function safeUser(user) {
   };
 }
 
-function signToken(user, activeOrgId) {
+function signToken(user, activeOrgId, sessionId) {
   const selectedOrgId = user.role === 'super_admin' && activeOrgId ? activeOrgId : user.orgId;
   return jwt.sign(
-    { uid: user.id, orgId: user.orgId, activeOrgId: selectedOrgId, role: user.role, tv: user.tokenVersion || 0 },
+    { uid: user.id, orgId: user.orgId, activeOrgId: selectedOrgId, role: user.role, tv: user.tokenVersion || 0, sid: sessionId || null },
     SECRET,
     { expiresIn: (process.env.SESSION_DAYS || '7') + 'd' }
   );
@@ -49,6 +49,11 @@ function attachUser(req, res, next) {
     const user = store.byId('users', payload.uid);
     if (!user || !user.active) return next();
     if ((user.tokenVersion || 0) !== (payload.tv || 0)) return next(); // revoked
+    if (payload.sid) {
+      const session = store.findOne('authSessions', row => row.id === payload.sid && row.userId === user.id && !row.revokedAt);
+      if (!session || (session.expiresAt && new Date(session.expiresAt) <= new Date())) return next();
+      req.authSession = session;
+    }
     req.user = safeUser(user);
     const activeOrgId = user.role === 'super_admin' && payload.activeOrgId
       ? payload.activeOrgId
@@ -65,6 +70,14 @@ function requireAuth(req, res, next) {
   const trialExpired = subscription && subscription.status === 'trial' && subscription.trialEndsAt && new Date(subscription.trialEndsAt) < new Date();
   const blocked = subscription && ['suspended', 'cancelled'].includes(subscription.status);
   const path = req.originalUrl.split('?')[0];
+  const mfaVerificationRequired = req.user.mfaEnabled && req.authSession && !req.authSession.mfaVerified;
+  if (mfaVerificationRequired && !['/api/auth/me', '/api/auth/logout', '/api/security/2fa/verify'].includes(path)) {
+    return res.status(403).json({ error: 'Authenticator verification required', code: 'MFA_REQUIRED' });
+  }
+  const adminMfaRequired = process.env.NODE_ENV === 'production' && process.env.REQUIRE_ADMIN_2FA !== 'false' && ['admin', 'super_admin'].includes(req.user.role) && !req.user.mfaEnabled;
+  if (adminMfaRequired && !['/api/auth/me', '/api/auth/logout', '/api/security/2fa/setup', '/api/security/2fa/enable', '/api/security/reconfirm'].includes(path)) {
+    return res.status(403).json({ error: 'Authenticator 2FA setup is required for administrator accounts', code: 'MFA_SETUP_REQUIRED' });
+  }
   if (req.user.role !== 'super_admin' && (trialExpired || blocked) && !['/api/auth/me', '/api/auth/logout', '/api/subscription/current'].includes(path)) {
     return res.status(402).json({ error: trialExpired ? 'Trial expired. Contact Tech Defenders to renew access.' : 'Workspace access is suspended. Contact Tech Defenders to renew.', code: trialExpired ? 'TRIAL_EXPIRED' : 'SUBSCRIPTION_SUSPENDED' });
   }
@@ -92,6 +105,23 @@ function requireModule(module) {
     if (!can(req.user, module, 'view')) return res.status(403).json({ error: `Section access disabled: ${module}` });
     next();
   };
+}
+
+const APP_API_RULES = [
+  [/^\/api\/ai-command(?:\/|$)/, 'ai/command-centre'], [/^\/api\/customer-tools(?:\/|$)/, 'crm/intelligence'],
+  [/^\/api\/collections(?:\/|$)/, 'sales/collections'], [/^\/api\/inventory-controls(?:\/|$)/, 'inventory/quality'],
+  [/^\/api\/p0\/attendance(?:\/|$)/, 'hr/attendance'], [/^\/api\/p0\/shifts(?:\/|$)/, 'hr/attendance'], [/^\/api\/p0\/(?:salary-components|payroll-policy|payroll-runs|my\/payslips)(?:\/|$)/, 'hr/payroll'],
+  [/^\/api\/finance-controls\/bank(?:-|\/|$)/, 'finance/banking'], [/^\/api\/finance-controls\/gst(?:-|\/|$)/, 'finance/gst-dashboard'],
+  [/^\/api\/enterprise-controls\/sales\/recurring(?:\/|$)/, 'sales/recurring'], [/^\/api\/enterprise-controls\/purchase(?:\/|$)/, 'purchase/matching'],
+  [/^\/api\/enterprise-controls\/manufacturing(?:\/|$)/, 'manufacturing/planning'], [/^\/api\/enterprise-controls\/service(?:\/|$)/, 'service/dispatch'],
+  [/^\/api\/report-controls(?:\/|$)/, 'reports/builder'], [/^\/api\/business-hub\/api(?:\/|$)/, 'admin/api-hub'],
+  [/^\/api\/business-hub\/communication(?:\/|$)/, 'communication/governance'], [/^\/api\/business-hub\/commerce(?:\/|$)/, 'sales/b2b-commerce']
+];
+function enforceAppAccess(req, res, next) {
+  if (!req.user) return next();
+  const rule = APP_API_RULES.find(([pattern]) => pattern.test(req.path));
+  if (rule && !canUseApp(req.user, rule[1])) return res.status(403).json({ error: `App access disabled: ${rule[1]}`, code: 'APP_ACCESS_DISABLED' });
+  next();
 }
 
 function requireSuperAdmin(req, res, next) {
@@ -135,5 +165,5 @@ function loginLimiter(req, res, next) {
 
 module.exports = {
   signToken, SECRET, safeUser, attachUser, requireAuth, requirePerm, requireModule,
-  requireSuperAdmin, sessionCookieOptions, clearSessionCookieOptions, rateLimit, loginLimiter
+  requireSuperAdmin, enforceAppAccess, sessionCookieOptions, clearSessionCookieOptions, rateLimit, loginLimiter
 };

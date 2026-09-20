@@ -23,6 +23,11 @@ try {
     -UseBasicParsing
   if ((Get-Item -LiteralPath $temp).Length -lt 64) { throw 'Downloaded backup is unexpectedly small.' }
   Move-Item -LiteralPath $temp -Destination $target -Force
+  $saved = Get-Item -LiteralPath $target
+  Invoke-RestMethod -Method Post -Uri ($BaseUrl.TrimEnd('/') + '/api/backups/agent/heartbeat') `
+    -Headers @{ 'X-Backup-Agent-Token' = $token } `
+    -ContentType 'application/json' `
+    -Body (@{ status = 'success'; fileName = $saved.Name; sizeBytes = $saved.Length } | ConvertTo-Json) | Out-Null
   Write-Host ('Encrypted backup saved: ' + $target) -ForegroundColor Green
 } finally {
   if (Test-Path -LiteralPath $temp) { Remove-Item -LiteralPath $temp -Force }

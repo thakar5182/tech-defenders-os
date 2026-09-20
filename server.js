@@ -17,7 +17,7 @@ const express = require('express');
 const cookieParser = require('cookie-parser');
 
 const store = require('./db/store');
-const { attachUser } = require('./src/middleware');
+const { attachUser, enforceAppAccess } = require('./src/middleware');
 
 /* Load durable storage before serving requests. JSON remains available for
  * local development/tests; production can require PostgreSQL explicitly. */
@@ -90,6 +90,7 @@ app.use((req, res, next) => {
 
 /* attach authenticated user (if any) to every request */
 app.use(attachUser);
+app.use(enforceAppAccess);
 
 /* ---------------- API routes ---------------- */
 app.get('/api/health', (req, res) => {
@@ -104,6 +105,7 @@ app.get('/api/health', (req, res) => {
   });
 });
 app.use('/api/auth', require('./src/routes/auth'));
+app.use('/api/security', require('./src/routes/security'));
 app.use('/api/dashboard', require('./src/routes/dashboard'));
 app.use('/api/crm', require('./src/routes/crm'));
 app.use('/api/customer-tools', require('./src/routes/customer-tools'));
@@ -135,6 +137,9 @@ app.use('/api/v3', advancedRoutes);
 
 /* API 404 */
 app.use('/api', (req, res) => res.status(404).json({ error: 'API endpoint not found' }));
+
+const backupPolicyTimer = setInterval(() => require('./src/services/backup-service').runDuePolicies().catch(error => console.error('[backup-scheduler]', error.message)), 60_000);
+backupPolicyTimer.unref();
 
 /* ---------------- static frontend ---------------- */
 const PUBLIC_DIR = path.join(__dirname, 'public');

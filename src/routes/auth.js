@@ -33,6 +33,28 @@ function publicUser(u) {
   return safeUser(u);
 }
 
+function createLoginSession(req, user, method) {
+  const now = new Date();
+  const expiresAt = new Date(now.getTime() + (Number(process.env.SESSION_DAYS) || 7) * 86400000).toISOString();
+  const forwarded = String(req.get('X-Forwarded-For') || '').split(',')[0].trim();
+  return store.insert('authSessions', {
+    orgId: user.orgId, userId: user.id, method, ip: forwarded || req.ip || req.socket.remoteAddress || '',
+    userAgent: String(req.get('User-Agent') || '').slice(0, 300), createdAt: now.toISOString(), lastSeenAt: now.toISOString(),
+    expiresAt, revokedAt: null, mfaVerified: !user.mfaEnabled
+  });
+}
+
+function issueLogin(req, res, user, payload, method, activeOrgId) {
+  const session = createLoginSession(req, user, method);
+  const token = signToken(user, activeOrgId, session.id);
+  res.cookie('td_token', token, sessionCookieOptions());
+  return res.json(sessionResponse(req, { ...payload, mfaRequired: !!user.mfaEnabled }, token));
+}
+
+function recordSecurityEvent(req, details) {
+  return store.insert('securityEvents', { orgId: details.orgId || null, userId: details.userId || null, type: details.type, severity: details.severity || 'info', email: normEmail(details.email), ip: String(req.get('X-Forwarded-For') || req.ip || '').split(',')[0].trim(), userAgent: String(req.get('User-Agent') || '').slice(0, 300), createdAt: new Date().toISOString(), details: details.details || '' });
+}
+
 const OTP_TTL_MS = Math.max(5, Math.min(Number(process.env.EMAIL_OTP_TTL_MINUTES) || 10, 30)) * 60_000;
 const OTP_MAX_ATTEMPTS = 5;
 const normEmail = value => String(value || '').trim().toLowerCase();
@@ -219,10 +241,7 @@ router.post('/register/verify-otp', loginLimiter, async (req, res) => {
   if (!registration || store.findOne('users', user => user.email === registration.email)) return res.status(409).json({ error: 'This email is already registered' });
   const { org, user } = createOrganization(registration);
   await store.flush();
-  const token = signToken(user);
-  res.cookie('td_token', token, sessionCookieOptions());
-  // Mobile clients store this bearer token in Expo SecureStore; browser sessions still use the cookie.
-  res.json(sessionResponse(req, { user: publicUser(user), org }, token));
+  return issueLogin(req, res, user, { user: publicUser(user), org }, 'signup');
 });
 
 router.post('/register', (_req, res) => res.status(409).json({
@@ -234,14 +253,16 @@ router.post('/login', loginLimiter, (req, res) => {
   if (!email || !password) return res.status(400).json({ error: 'Email and password are required' });
   const user = store.findOne('users', u => u.email === String(email).trim().toLowerCase());
   if (!user || typeof user.passwordHash !== 'string' || !bcrypt.compareSync(String(password), user.passwordHash)) {
+    const failed = recordSecurityEvent(req, { type: 'login_failed', severity: 'warning', email });
+    const recent = store.find('securityEvents', row => row.type === 'login_failed' && row.email === normEmail(email) && Date.now() - new Date(row.createdAt).getTime() < 15 * 60_000);
+    if (recent.length >= 5 && user) { recordSecurityEvent(req, { orgId: user.orgId, userId: user.id, type: 'suspicious_login', severity: 'danger', email, details: `${recent.length} failed attempts in 15 minutes` }); audit(user.orgId, null, 'suspicious_login', 'user', user.id, { ip: failed.ip, attempts: recent.length }); }
     return res.status(401).json({ error: 'Invalid email or password' });
   }
   if (!user.active) return res.status(403).json({ error: 'Account deactivated. Contact your administrator.' });
   store.update('users', user.id, { lastLoginAt: new Date().toISOString() });
+  recordSecurityEvent(req, { orgId: user.orgId, userId: user.id, type: 'login_success', email: user.email });
   audit(user.orgId, user.id, 'login', 'user', user.id);
-  const token = signToken(user);
-  res.cookie('td_token', token, sessionCookieOptions());
-  res.json(sessionResponse(req, { user: publicUser(user) }, token));
+  return issueLogin(req, res, user, { user: publicUser(user) }, 'password');
 });
 
 router.get('/google/config', (_req, res) => {
@@ -297,9 +318,7 @@ router.post('/google', loginLimiter, async (req, res) => {
     }
 
     await store.flush();
-    const token = signToken(user);
-    res.cookie('td_token', token, sessionCookieOptions());
-    return res.json(sessionResponse(req, { user: publicUser(user), org }, token));
+    return issueLogin(req, res, user, { user: publicUser(user), org }, 'google');
   } catch (error) {
     const status = error.code === 'GOOGLE_AUTH_NOT_CONFIGURED' ? 503 : 401;
     return res.status(status).json({ error: status === 503 ? error.message : 'Google sign-in could not be verified', code: error.code || 'GOOGLE_AUTH_FAILED' });
@@ -330,9 +349,7 @@ router.post('/login/verify-otp', loginLimiter, (req, res) => {
   if (!user || !user.active) return res.status(401).json({ error: 'Verification code is invalid' });
   store.update('users', user.id, { lastLoginAt: new Date().toISOString() });
   audit(user.orgId, user.id, 'login_otp', 'user', user.id);
-  const token = signToken(user);
-  res.cookie('td_token', token, sessionCookieOptions());
-  res.json(sessionResponse(req, { user: publicUser(user) }, token));
+  return issueLogin(req, res, user, { user: publicUser(user) }, 'email_otp');
 });
 
 router.post('/forgot', loginLimiter, async (req, res) => {
@@ -392,6 +409,8 @@ router.get('/me', requireAuth, (req, res) => {
     permissions: permsForRole(req.user.role),
     moduleAccess: effectiveAccess(req.user),
     appAccess: effectiveAppAccess(req.user),
+    mfaSetupRequired: process.env.NODE_ENV === 'production' && process.env.REQUIRE_ADMIN_2FA !== 'false' && ['admin', 'super_admin'].includes(req.user.role) && !req.user.mfaEnabled,
+    mfaVerificationRequired: !!(req.user.mfaEnabled && req.authSession && !req.authSession.mfaVerified),
     isSuperAdmin: req.user.role === 'super_admin'
   });
 });
@@ -415,15 +434,13 @@ router.post('/change-password', requireAuth, (req, res) => {
   });
   delete updated.tempPassword;
   audit(stored.orgId, stored.id, 'password_changed', 'user', stored.id);
-  res.cookie('td_token', signToken(updated, req.org.id), sessionCookieOptions());
+  const session = createLoginSession(req, updated, 'password_change');
+  res.cookie('td_token', signToken(updated, req.org.id, session.id), sessionCookieOptions());
   res.json({ message: 'Password changed successfully', user: publicUser(updated) });
 });
 
 router.post('/logout', (req, res) => {
-  if (req.user) {
-    const stored = store.byId('users', req.user.id);
-    if (stored) store.update('users', stored.id, { tokenVersion: (stored.tokenVersion || 0) + 1 });
-  }
+  if (req.authSession) store.update('authSessions', req.authSession.id, { revokedAt: new Date().toISOString(), revokedBy: req.user?.id || null });
   res.clearCookie('td_token', clearSessionCookieOptions());
   res.json({ message: 'Signed out' });
 });

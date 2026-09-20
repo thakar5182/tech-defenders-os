@@ -181,7 +181,7 @@ const APP_CATALOG = [
   ...appGroup('communication', [['communication/governance','Consent & Segmentation'],['communication/email','Email Centre'],['communication/history','Communication History'],['communication/analytics','Delivery Analytics']]),
   ...appGroup('automation', [['automation/builder','Automation Builder']]),
   ...appGroup('dataImport', [['data-package','Data Package Studio'],['data-import','Import Centre'],['client-documents','Client Documents']]),
-  ...appGroup('admin', [['admin/api-hub','API & Integration Hub'],['admin/subscription','Plan & Subscription'],['admin/subscription-manager','Subscription Manager'],['admin/platform','Platform Control'],['admin/users','Users & Roles'],['admin/approvals','Approval Center'],['admin/integrations','Live Integrations'],['admin/branches','Branches'],['admin/settings','Company Settings'],['admin/sequences','Numbering Series'],['admin/audit','Audit Log']])
+  ...appGroup('admin', [['admin/api-hub','API & Integration Hub'],['admin/security','Security Centre'],['admin/subscription','Plan & Subscription'],['admin/subscription-manager','Subscription Manager'],['admin/platform','Platform Control'],['admin/users','Users & Roles'],['admin/approvals','Approval Center'],['admin/integrations','Live Integrations'],['admin/branches','Branches'],['admin/settings','Company Settings'],['admin/sequences','Numbering Series'],['admin/audit','Audit Log']])
 ];
 
 const DASHBOARD_WIDGETS = [

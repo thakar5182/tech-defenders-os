@@ -33,6 +33,14 @@ function verifySnapshot(snapshot) {
   const parsed = JSON.parse(Buffer.concat([decipher.update(body), decipher.final()]).toString('utf8'));
   return { orgId: parsed.orgId, createdAt: parsed.createdAt, collections: Object.keys(parsed.records).length };
 }
+function applyRetention(orgId, policy = {}) {
+  const snapshots = store.find('backupSnapshots', row => row.orgId === orgId).sort((a,b) => String(b.createdAt).localeCompare(String(a.createdAt)));
+  const keep = new Set(), daily = new Set(), weekly = new Set(), monthly = new Set();
+  const dailyMax = Math.max(1, Number(policy.keepDaily) || 7), weeklyMax = Math.max(0, Number(policy.keepWeekly) || 4), monthlyMax = Math.max(0, Number(policy.keepMonthly) || 6);
+  for (const row of snapshots) { const date = new Date(row.createdAt), day = row.createdAt.slice(0,10), week = `${date.getUTCFullYear()}-${Math.floor((date - new Date(Date.UTC(date.getUTCFullYear(),0,1))) / 604800000)}`, month = row.createdAt.slice(0,7); if (daily.size < dailyMax && !daily.has(day)) { daily.add(day); keep.add(row.id); } if (weekly.size < weeklyMax && !weekly.has(week)) { weekly.add(week); keep.add(row.id); } if (monthly.size < monthlyMax && !monthly.has(month)) { monthly.add(month); keep.add(row.id); } }
+  let removed = 0; for (const row of snapshots) if (!keep.has(row.id)) { try { const file = path.join(safeDir(), row.filename); if (fs.existsSync(file)) fs.unlinkSync(file); } catch (_) {} store.remove('backupSnapshots', row.id); removed++; }
+  return { removed, retained: keep.size };
+}
 async function uploadToRemote(snapshot) {
   const accessKey=String(process.env.BACKUP_S3_ACCESS_KEY_ID||'').trim(), secret=String(process.env.BACKUP_S3_SECRET_ACCESS_KEY||'').trim(), bucket=String(process.env.BACKUP_S3_BUCKET||'').trim();
   if (!accessKey || !secret || !bucket) return { configured:false, uploaded:false };
@@ -46,6 +54,20 @@ async function uploadToRemote(snapshot) {
   return {configured:true,uploaded:true,remoteKey:keyName,provider:process.env.BACKUP_S3_PROVIDER||'s3-compatible'};
 }
 async function createAndUpload(orgId,actorId){const snapshot=createEncryptedSnapshot(orgId,actorId);try{const remote=await uploadToRemote(snapshot);return store.update('backupSnapshots',snapshot.id,{storage:remote.uploaded?'local+remote-encrypted':'local-encrypted',remoteKey:remote.remoteKey||null,remoteProvider:remote.provider||null,remoteStatus:remote.uploaded?'uploaded':'not_configured'});}catch(error){return store.update('backupSnapshots',snapshot.id,{status:'remote_upload_failed',remoteStatus:'failed',remoteError:String(error.message).slice(0,300)});}}
+async function runDuePolicies() {
+  const now = new Date();
+  for (const policy of store.find('backupPolicies', row => row.enabled)) {
+    const org = store.byId('organizations', policy.orgId), timezone = org?.timezone || 'Asia/Kolkata';
+    const localParts = new Intl.DateTimeFormat('en-CA', { timeZone: timezone, year:'numeric', month:'2-digit', day:'2-digit', hour:'2-digit', minute:'2-digit', hourCycle:'h23' }).formatToParts(now);
+    const part = type => localParts.find(item => item.type === type)?.value;
+    const day = `${part('year')}-${part('month')}-${part('day')}`, hhmm = `${part('hour')}:${part('minute')}`;
+    if (policy.time !== hhmm || policy.lastRunDate === day) continue;
+    const date = new Date(day + 'T00:00:00Z'), due = policy.frequency === 'daily' || (policy.frequency === 'weekly' && date.getUTCDay() === 0) || (policy.frequency === 'monthly' && date.getUTCDate() === 1);
+    if (!due) continue;
+    try { const snapshot = await createAndUpload(policy.orgId, policy.updatedBy || null); const retention = applyRetention(policy.orgId, policy); store.update('backupPolicies', policy.id, { lastRunDate: day, lastRunAt: new Date().toISOString(), lastStatus: 'success' }); store.insert('notifications', { orgId: policy.orgId, title: 'Automatic backup completed', body: `${snapshot.filename} created; ${retention.retained} retained`, type: 'success', read: false }); }
+    catch (error) { store.update('backupPolicies', policy.id, { lastRunDate: day, lastRunAt: new Date().toISOString(), lastStatus: 'failed', lastError: String(error.message).slice(0,300) }); store.insert('notifications', { orgId: policy.orgId, title: 'Automatic backup failed', body: String(error.message).slice(0,240), type: 'danger', read: false }); }
+  }
+}
 
 function createPortableSystemExport() {
   const createdAt = new Date().toISOString();
@@ -65,4 +87,4 @@ function createPortableSystemExport() {
     createdAt
   };
 }
-module.exports = { createEncryptedSnapshot, createAndUpload, uploadToRemote, verifySnapshot, createPortableSystemExport };
+module.exports = { createEncryptedSnapshot, createAndUpload, uploadToRemote, verifySnapshot, applyRetention, runDuePolicies, createPortableSystemExport };
