@@ -189,7 +189,7 @@ const Core = {
       { path: '#/finance/journals', label: 'Journal Entries', icon: '&#8776;', mod: 'finance' },
       { path: '#/finance/expenses', label: 'Expenses', icon: '&#8364;', mod: 'finance' },
       { path: '#/finance/banking', label: 'Banking & Reconciliation', icon: '&#127974;', mod: 'finance' },
-      { path: '#/finance/banking', label: 'Banking & Reconciliation', icon: '&#127974;', mod: 'finance' },
+      { path: '#/finance/production-controls', label: 'Production Controls', icon: '&#128274;', mod: 'finance' },
       { path: '#/finance/petty-cash', label: 'Petty Cash', icon: '&#128181;', mod: 'finance' },
       { path: '#/finance/cost-centers', label: 'Cost Centres', icon: '&#9678;', mod: 'finance' },
       { path: '#/finance/cheques', label: 'Cheque Status', icon: '&#9745;', mod: 'finance' },

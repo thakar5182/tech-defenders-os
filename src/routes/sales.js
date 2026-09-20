@@ -11,6 +11,7 @@ const express = require('express');
 const store = require('../../db/store');
 const { requireAuth, requirePerm } = require('../middleware');
 const { r2, nextNumber, computeDoc, audit, notify, postStock, stockBalance } = require('../util');
+const { assertOpen } = require('../services/finance-periods');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -262,6 +263,7 @@ router.post('/sales-orders/:id/invoice', requirePerm('sales', 'edit'), (req, res
   }
   const doc = computeDoc(outLines, req.org.stateCode, so.placeOfSupply || customer.stateCode);
   const today = new Date().toISOString().slice(0, 10);
+  assertOpen(req.org.id, today);
   const termsDays = Number(customer.paymentTermsDays) || 30;
   const due = new Date(); due.setDate(due.getDate() + termsDays);
 
@@ -317,6 +319,7 @@ router.post('/invoices', requirePerm('sales', 'create'), (req, res) => {
   const today = new Date().toISOString().slice(0, 10);
   const invoiceDate = b.date || today;
   if (!validDate(invoiceDate)) return res.status(400).json({ error: 'Invoice date must be a valid YYYY-MM-DD date' });
+  assertOpen(req.org.id, invoiceDate);
   const dueDate = b.dueDate || dueDateFrom(invoiceDate, customer.paymentTermsDays);
   if (!validDate(dueDate)) return res.status(400).json({ error: 'Due date must be a valid YYYY-MM-DD date' });
   if (dueDate < invoiceDate) return res.status(400).json({ error: 'Due date cannot be before the invoice date' });
@@ -593,6 +596,7 @@ router.get('/receipts', requirePerm('sales', 'view'), (req, res) => {
 
 router.post('/receipts', requirePerm('sales', 'edit'), (req, res) => {
   const b = req.body || {};
+  assertOpen(req.org.id, b.date || new Date().toISOString().slice(0, 10));
   const customer = b.customerId ? store.findOne('customers', c => c.id === b.customerId && c.orgId === req.org.id) : null;
   if (!customer) return res.status(400).json({ error: 'Valid customerId is required' });
   const amount = r2(Number(b.amount) || 0);

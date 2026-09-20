@@ -11,6 +11,7 @@ const store = require('../../db/store');
 const { requireAuth, requirePerm } = require('../middleware');
 const { sendSystemEmail } = require('../services/integrations');
 const { r2, nextNumber, audit, notify, postStock } = require('../util');
+const { assertOpen } = require('../services/finance-periods');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -351,6 +352,7 @@ router.get('/grns', requirePerm('purchase', 'view'), (req, res) => {
 
 /* create GRN against a PO: accepted qty posts stock + inventory/AP journal */
 router.post('/grns', requirePerm('inventory', 'edit'), (req, res) => {
+  assertOpen(req.org.id, new Date().toISOString().slice(0, 10));
   const b = req.body || {};
   const po = store.findOne('purchaseOrders', p => p.id === b.poId && p.orgId === req.org.id);
   if (!po) return res.status(404).json({ error: 'PO not found' });
