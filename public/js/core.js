@@ -5,7 +5,7 @@
 'use strict';
 
 const Core = {
-  state: { user: null, org: null, perms: {}, moduleAccess: {}, organizations: [], openNavGroup: null, lastNavHash: null, openDashboardApp: null },
+  state: { user: null, org: null, perms: {}, moduleAccess: {}, appAccess: {}, organizations: [], openNavGroup: null, lastNavHash: null, openDashboardApp: null },
   routes: [],
 
   /* ---------------- API ---------------- */
@@ -61,6 +61,19 @@ const Core = {
     return !!acts && (acts.includes('*') || acts.includes(action));
   },
 
+  appKeyForHash(hash) {
+    const path = String(hash || '').replace(/^#\//, '').split('?')[0].replace(/\/$/, '');
+    const keys = [...new Set(this.NAV.flatMap(group => group.items.map(item => item.path.replace(/^#\//, ''))))]
+      .sort((a, b) => b.length - a.length);
+    return keys.find(key => path === key || path.startsWith(key + '/')) || null;
+  },
+
+  canApp(hashOrPath) {
+    if (this.state.user?.role === 'super_admin') return true;
+    const key = this.appKeyForHash(String(hashOrPath).startsWith('#/') ? hashOrPath : '#/' + hashOrPath);
+    return !key || (this.state.appAccess || {})[key] !== false;
+  },
+
   /* ---------------- boot ---------------- */
   async boot() {
     try {
@@ -69,6 +82,7 @@ const Core = {
       this.state.org = me.org;
       this.state.perms = me.permissions || {};
       this.state.moduleAccess = me.moduleAccess || {};
+      this.state.appAccess = me.appAccess || {};
       if (me.isSuperAdmin) {
         const platform = await this.get('/admin/organizations');
         this.state.organizations = platform.organizations || [];
@@ -82,7 +96,7 @@ const Core = {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); document.getElementById('global-search').focus(); }
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'b') { e.preventDefault(); this.toggleCollapse(); }
     });
-    if (!location.hash || !this.can(this.moduleForHash(location.hash), 'view')) location.hash = this.defaultRoute();
+    if (!location.hash || !this.can(this.moduleForHash(location.hash), 'view') || !this.canApp(location.hash)) location.hash = this.defaultRoute();
     this.render();
     if (this.state.user.mustChangePassword) this.forcePasswordChange();
   },
@@ -91,7 +105,6 @@ const Core = {
   NAV: [
     { group: 'Overview', items: [
       { path: '#/dashboard', label: 'Dashboard', icon: '&#9636;', mod: 'dashboard' },
-      { path: '#/ai/command-centre', label: 'AI Command Centre', icon: '&#10022;', mod: 'dashboard' },
       { path: '#/my-plan', label: 'My Plan', icon: '&#128179;', mod: 'dashboard' },
       { path: '#/apps', label: 'All Apps', icon: '&#9638;', mod: 'dashboard' },
       { path: '#/onboarding', label: 'Get Started', icon: '&#10024;', mod: 'dashboard' }
@@ -104,7 +117,6 @@ const Core = {
       { path: '#/my-backup', label: 'My Data Backup', icon: '&#128190;', mod: 'dashboard' }
     ]},
     { group: 'CRM', items: [
-      { path: '#/crm/intelligence', label: 'Customer Intelligence', icon: '&#9673;', mod: 'crm' },
       { path: '#/crm/leads', label: 'Leads', icon: '&#9737;', mod: 'crm' },
       { path: '#/crm/intelligence', label: 'Lead Intelligence', icon: '&#10024;', mod: 'crm' },
       { path: '#/crm/customers', label: 'Customers', icon: '&#9823;', mod: 'crm' },
@@ -116,7 +128,6 @@ const Core = {
       { path: '#/crm/late-payments', label: 'Late Payments', icon: '&#9888;', mod: 'crm' }
     ]},
     { group: 'Sales', items: [
-      { path: '#/sales/recurring', label: 'Recurring & Payments', icon: '&#8635;', mod: 'sales' },
       { path: '#/sales/quotations', label: 'Quotations', icon: '&#9998;', mod: 'sales' },
       { path: '#/sales/ai-quote', label: 'AI Quote Draft', icon: '&#10022;', mod: 'sales' },
       { path: '#/sales/documents', label: 'Sales Documents', icon: '&#9636;', mod: 'sales' },
@@ -136,7 +147,6 @@ const Core = {
       { path: '#/purchase/grns', label: 'GRN / Receipts', icon: '&#10515;', mod: 'purchase' },
       { path: '#/purchase/suppliers', label: 'Suppliers', icon: '&#9881;', mod: 'purchase' }
       ,{ path: '#/purchase/billing', label: 'Vendor Billing', icon: '&#8377;', mod: 'purchase' }
-      ,{ path: '#/purchase/matching', label: '3-Way Match & Landed Cost', icon: '&#8801;', mod: 'purchase' }
     ]},
     { group: 'Inventory', items: [
       { path: '#/inventory/products', label: 'Products', icon: '&#9635;', mod: 'inventory' },
@@ -146,15 +156,12 @@ const Core = {
       ,{ path: '#/inventory/price-lists', label: 'Price Lists', icon: '&#127991;', mod: 'inventory' }
       ,{ path: '#/inventory/assets', label: 'Assets', icon: '&#127970;', mod: 'inventory' }
       ,{ path: '#/inventory/damage-loss', label: 'Damage / Loss', icon: '&#9888;', mod: 'inventory' }
-      ,{ path: '#/inventory/quality', label: 'Quality & Traceability', icon: '&#10003;', mod: 'inventory' }
     ]},
     { group: 'Manufacturing', items: [
-      { path: '#/manufacturing/planning', label: 'MRP & Work Centres', icon: '&#9881;', mod: 'manufacturing' },
       { path: '#/manufacturing/boms', label: 'BOMs', icon: '&#8981;', mod: 'manufacturing' },
       { path: '#/manufacturing/jobs', label: 'Job Orders', icon: '&#9883;', mod: 'manufacturing' }
     ]},
     { group: 'Service', items: [
-      { path: '#/service/dispatch', label: 'Dispatch & Knowledge', icon: '&#9992;', mod: 'service' },
       { path: '#/service/amc', label: 'AMC Contracts', icon: '&#9742;', mod: 'service' },
       { path: '#/service/tickets', label: 'Service Tickets', icon: '&#9873;', mod: 'service' },
       { path: '#/service/sla-control', label: 'SLA & Technician Control', icon: '&#9201;', mod: 'service' }
@@ -163,7 +170,6 @@ const Core = {
       { path: '#/finance/accounts', label: 'Chart of Accounts', icon: '&#8721;', mod: 'finance' },
       { path: '#/finance/journals', label: 'Journal Entries', icon: '&#8776;', mod: 'finance' },
       { path: '#/finance/expenses', label: 'Expenses', icon: '&#8364;', mod: 'finance' },
-      { path: '#/finance/banking', label: 'Banking & Reconciliation', icon: '&#127974;', mod: 'finance' },
       { path: '#/finance/petty-cash', label: 'Petty Cash', icon: '&#128181;', mod: 'finance' },
       { path: '#/finance/cost-centers', label: 'Cost Centres', icon: '&#9678;', mod: 'finance' },
       { path: '#/finance/cheques', label: 'Cheque Status', icon: '&#9745;', mod: 'finance' },
@@ -184,7 +190,6 @@ const Core = {
       { path: '#/operations/inbox', label: 'Operations Inbox', icon: '&#9889;', mod: 'operations' }
     ]},
     { group: 'Reports', items: [
-      { path: '#/reports/builder', label: 'Custom Report Builder', icon: '&#9881;', mod: 'reports' },
       { path: '#/reports/command', label: 'Report Centre', icon: '&#128202;', mod: 'reports' },
       { path: '#/reports/sales', label: 'Sales Report', icon: '&#8613;', mod: 'reports' },
       { path: '#/reports/receivables', label: 'Receivable Aging', icon: '&#8987;', mod: 'reports' },
@@ -193,7 +198,6 @@ const Core = {
       { path: '#/reports/service', label: 'Service Summary', icon: '&#9889;', mod: 'reports' }
     ]},
     { group: 'Communication', items: [
-      { path: '#/communication/governance', label: 'Consent & Segments', icon: '&#10003;', mod: 'communication' },
       { path: '#/communication/email', label: 'Email Center', icon: '&#9993;', mod: 'communication' },
       { path: '#/communication/history', label: 'Communication History', icon: '&#8635;', mod: 'communication' },
       { path: '#/communication/analytics', label: 'Delivery Analytics', icon: '&#9636;', mod: 'communication' }
@@ -207,8 +211,6 @@ const Core = {
       { path: '#/client-documents', label: 'Client Documents', icon: '&#9636;', mod: 'dataImport' }
     ]},
     { group: 'Administration', items: [
-      { path: '#/admin/api-hub', label: 'API & Integration Hub', icon: '&#8644;', mod: 'admin' },
-      { path: '#/sales/b2b-commerce', label: 'B2B Commerce', icon: '&#128722;', mod: 'sales' },
       { path: '#/admin/subscription', label: 'Plan & Subscription', icon: '&#128179;', mod: 'admin' },
       { path: '#/admin/subscription-manager', label: 'Subscription Manager', icon: '&#128179;', mod: 'admin' },
       { path: '#/admin/platform', label: 'Platform Control', icon: '&#9733;', mod: 'admin', superOnly: true },
@@ -241,7 +243,7 @@ const Core = {
     for (const g of groups) {
       const visible = g.items.filter(it =>
         (!it.superOnly || this.state.user.role === 'super_admin') &&
-        (!it.mod || this.can(it.mod, 'view'))
+        (!it.mod || this.can(it.mod, 'view')) && this.canApp(it.path)
       );
       if (!visible.length) continue;
       const key = this.navGroupKey(g.group);
@@ -280,7 +282,7 @@ const Core = {
   visibleNavGroups() {
     return this.NAV.map(group => ({ ...group, items: group.items.filter(item =>
       (!item.superOnly || this.state.user.role === 'super_admin') &&
-      (!item.mod || this.can(item.mod, 'view'))
+      (!item.mod || this.can(item.mod, 'view')) && this.canApp(item.path)
     ) })).filter(group => group.items.length);
   },
 
@@ -447,7 +449,7 @@ const Core = {
   async render() {
     const hash = location.hash || '#/dashboard';
     const module = this.moduleForHash(hash);
-    if (!this.can(module, 'view')) {
+    if (!this.can(module, 'view') || !this.canApp(hash)) {
       const fallback = this.defaultRoute();
       if (hash !== fallback) { location.hash = fallback; return; }
     }
@@ -520,7 +522,7 @@ const Core = {
     for (const group of this.NAV) {
       const item = group.items.find(candidate =>
         (!candidate.superOnly || this.state.user.role === 'super_admin') &&
-        (!candidate.mod || this.can(candidate.mod, 'view'))
+        (!candidate.mod || this.can(candidate.mod, 'view')) && this.canApp(candidate.path)
       );
       if (item) return item.path;
     }
