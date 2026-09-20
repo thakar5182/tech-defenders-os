@@ -731,10 +731,12 @@ router.post('/approvals/workflows', requirePerm('admin', 'create'), (req, res) =
   const entityType = clean(body.entityType, 60);
   const approverRole = clean(body.approverRole, 60);
   if (!name || !entityType || !approverRole) return res.status(400).json({ error: 'Name, entity type and approver role are required' });
+  const requestedSteps = Array.isArray(body.steps) ? body.steps : [];
+  const steps = (requestedSteps.length ? requestedSteps : [{ approverRole }]).slice(0, 5).map((step, index) => ({ order: index + 1, approverRole: clean(step.approverRole || approverRole, 60), minimumAmount: r2(Math.max(0, asNumber(step.minimumAmount))), substituteUserId: clean(step.substituteUserId, 100) || null }));
   const workflow = store.insert('approvalWorkflows', {
     orgId: req.org.id, name, entityType, approverRole,
     minimumAmount: r2(Math.max(0, asNumber(body.minimumAmount))), active: body.active !== false,
-    steps: [{ order: 1, approverRole }]
+    timeoutHours: Math.max(1, Math.min(720, asNumber(body.timeoutHours) || 24)), steps
   });
   audit(req.org.id, req.user.id, 'create', 'approval_workflow', workflow.id, { name });
   res.status(201).json({ workflow });
@@ -774,7 +776,9 @@ router.post('/approvals/requests', (req, res) => {
   const request = store.insert('approvalRequests', {
     orgId: req.org.id, number: nextNumber(req.org.id, 'approval'), workflowId: workflow.id,
     entityType, entityId, entityNumber: clean(body.entityNumber, 80), amount: r2(asNumber(body.amount)),
-    requestedBy: req.user.id, approverRole: workflow.approverRole, status: 'pending', decisions: []
+    requestedBy: req.user.id, approverRole: workflow.steps?.[0]?.approverRole || workflow.approverRole,
+    currentStep: 1, totalSteps: Math.max(1, workflow.steps?.length || 1), status: 'pending', decisions: [], comments: [], attachments: [],
+    dueAt: new Date(Date.now() + Math.max(1, Number(workflow.timeoutHours) || 24) * 3600000).toISOString()
   });
   notify(req.org.id, { title: 'Approval requested', body: `${request.number} requires ${workflow.approverRole}`, type: 'warning', link: '#/admin/approvals' });
   audit(req.org.id, req.user.id, 'request', 'approval', request.id, { number: request.number });
@@ -785,13 +789,34 @@ router.post('/approvals/requests/:id/decision', (req, res) => {
   const request = store.findOne('approvalRequests', item => item.id === req.params.id && item.orgId === req.org.id);
   if (!request) return res.status(404).json({ error: 'Approval request not found' });
   if (request.status !== 'pending') return res.status(400).json({ error: 'Request is already decided' });
-  if (!['super_admin', 'admin', request.approverRole].includes(req.user.role)) return res.status(403).json({ error: 'This request is assigned to another role' });
+  const workflow = store.findOne('approvalWorkflows', item => item.id === request.workflowId && item.orgId === req.org.id);
+  const step = workflow?.steps?.[Math.max(0, Number(request.currentStep || 1) - 1)] || { approverRole: request.approverRole };
+  if (!['super_admin', 'admin', step.approverRole].includes(req.user.role) && step.substituteUserId !== req.user.id) return res.status(403).json({ error: 'This request is assigned to another role or substitute approver' });
   const decision = req.body.decision === 'rejected' ? 'rejected' : 'approved';
-  const entry = { decision, by: req.user.id, at: new Date().toISOString(), note: clean(req.body.note, 500) };
-  const updated = store.update('approvalRequests', request.id, { status: decision, decisions: [...request.decisions, entry] });
-  notify(req.org.id, { title: `Approval ${decision}`, body: `${request.number} was ${decision}`, type: decision === 'approved' ? 'success' : 'danger' });
+  const entry = { step: request.currentStep || 1, role: step.approverRole, decision, by: req.user.id, at: new Date().toISOString(), note: clean(req.body.note, 500) };
+  const nextStep = Number(request.currentStep || 1) + 1, complete = decision === 'rejected' || nextStep > Number(request.totalSteps || 1);
+  const nextRule = workflow?.steps?.[nextStep - 1];
+  const patch = { status: complete ? decision : 'pending', decisions: [...(request.decisions || []), entry], currentStep: complete ? request.currentStep : nextStep };
+  if (!complete) { patch.approverRole = nextRule?.approverRole || workflow.approverRole; patch.dueAt = new Date(Date.now() + Math.max(1, Number(workflow.timeoutHours) || 24) * 3600000).toISOString(); }
+  const updated = store.update('approvalRequests', request.id, patch);
+  notify(req.org.id, { userId: request.requestedBy, title: complete ? `Approval ${decision}` : 'Approval advanced', body: complete ? `${request.number} was ${decision}` : `${request.number} moved to step ${nextStep}`, type: decision === 'rejected' ? 'danger' : 'success', link: '#/admin/approvals' });
   audit(req.org.id, req.user.id, decision, 'approval', request.id, { note: entry.note });
   res.json({ approvalRequest: updated });
+});
+
+router.post('/approvals/requests/:id/comments', (req, res) => {
+  const request = store.findOne('approvalRequests', item => item.id === req.params.id && item.orgId === req.org.id), text = clean(req.body?.text, 1000);
+  if (!request || !text) return res.status(400).json({ error: 'Approval request and comment are required' });
+  const attachment = req.body?.attachment && /^data:(application\/pdf|image\/(png|jpeg|webp));base64,/.test(req.body.attachment.data || '') && String(req.body.attachment.data).length <= 2100000 ? { name: clean(req.body.attachment.name, 120), mimeType: clean(req.body.attachment.mimeType, 80), data: req.body.attachment.data } : null;
+  const comment = { id: require('crypto').randomUUID(), text, by: req.user.id, byName: req.user.name, at: new Date().toISOString(), attachment };
+  const updated = store.update('approvalRequests', request.id, { comments: [...(request.comments || []), comment] });
+  audit(req.org.id, req.user.id, 'comment', 'approval', request.id, { hasAttachment: !!attachment }); res.status(201).json({ approvalRequest: updated, comment: { ...comment, attachment: attachment ? { name: attachment.name, mimeType: attachment.mimeType } : null } });
+});
+
+router.post('/approvals/escalate-due', requirePerm('admin', 'edit'), (req, res) => {
+  const now = new Date(), due = store.find('approvalRequests', item => item.orgId === req.org.id && item.status === 'pending' && item.dueAt && new Date(item.dueAt) < now); let escalated = 0;
+  due.forEach(item => { const count = Number(item.escalationCount || 0) + 1; store.update('approvalRequests', item.id, { escalationCount: count, lastEscalatedAt: now.toISOString(), dueAt: new Date(now.getTime() + 24 * 3600000).toISOString() }); notify(req.org.id, { title: 'Approval SLA breached', body: `${item.number} is overdue at step ${item.currentStep || 1}`, type: 'danger', link: '#/admin/approvals' }); escalated++; });
+  audit(req.org.id, req.user.id, 'escalate', 'approval_queue', req.org.id, { escalated }); res.json({ escalated });
 });
 
 /* ================= AI PROVIDER (LOCAL OLLAMA) ================= */

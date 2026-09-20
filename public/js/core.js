@@ -169,7 +169,7 @@ const Core = {
       ,{ path: '#/inventory/assets', label: 'Assets', icon: '&#127970;', mod: 'inventory' }
       ,{ path: '#/inventory/damage-loss', label: 'Damage / Loss', icon: '&#9888;', mod: 'inventory' }
       ,{ path: '#/inventory/quality', label: 'Quality & Traceability', icon: '&#10003;', mod: 'inventory' }
-      ,{ path: '#/inventory/quality', label: 'Quality & Traceability', icon: '&#10003;', mod: 'inventory' }
+      ,{ path: '#/inventory/warehouse-operations', label: 'Warehouse Operations', icon: '&#9638;', mod: 'inventory' }
     ]},
     { group: 'Manufacturing', items: [
       { path: '#/manufacturing/planning', label: 'MRP & Work Centres', icon: '&#9881;', mod: 'manufacturing' },

@@ -411,7 +411,8 @@ Core.route('finance/ledgers', async () => {
 Core.route('admin/approvals', async () => {
   const [workflows, requests] = await Promise.all([Core.get('/v3/approvals/workflows'), Core.get('/v3/approvals/requests')]);
   document.getElementById('content').innerHTML = `
-    ${Core.pageHead('Approval Center', 'Configurable amount thresholds and role-based approval inbox', `
+    ${Core.pageHead('Approval Center', 'Amount rules, multi-level decisions, substitutes, comments and SLA escalation', `
+      <button class="btn btn-outline" id="escalate-approvals">Escalate overdue</button>
       ${workflows.workflows.length ? '<button class="btn btn-outline" id="new-approval-request">+ Request approval</button>' : ''}
       ${Core.can('admin', 'create') ? '<button class="btn btn-gold" id="new-workflow">+ Workflow</button>' : ''}`)}
     <div class="statement-grid">
@@ -419,8 +420,8 @@ Core.route('admin/approvals', async () => {
         ${Core.table([
           { label: 'Request', render: item => `<b>${Core.esc(item.number)}</b><br><small>${Core.esc(item.entityType)}</small>` },
           { label: 'Record', key: 'entityNumber' }, { label: 'Amount', num: true, render: item => Core.money(item.amount) },
-          { label: 'Role', key: 'approverRole' }, { label: 'Status', render: item => Core.badge(item.status) },
-          { label: '', render: item => item.status === 'pending' ? `<div class="actions-cell"><button class="btn btn-outline btn-sm" data-decision="rejected" data-request="${Core.esc(item.id)}">Reject</button><button class="btn btn-gold btn-sm" data-decision="approved" data-request="${Core.esc(item.id)}">Approve</button></div>` : '' }
+          { label: 'Step', render: item => `${item.currentStep || 1}/${item.totalSteps || 1}<br><small>${Core.esc(item.approverRole)}</small>` }, { label: 'Due', render: item => item.dueAt ? Core.fmtDate(item.dueAt) : '-' }, { label: 'Status', render: item => Core.badge(item.status) },
+          { label: '', render: item => `<div class="actions-cell"><button class="btn btn-outline btn-sm" data-comment-request="${Core.esc(item.id)}">Comment</button>${item.status === 'pending' ? `<button class="btn btn-outline btn-sm" data-decision="rejected" data-request="${Core.esc(item.id)}">Reject</button><button class="btn btn-gold btn-sm" data-decision="approved" data-request="${Core.esc(item.id)}">Approve</button>` : ''}</div>` }
         ], requests.approvalRequests, { emptyTitle: 'No approval requests' })}</section>
       <aside><div class="section-title"><div><h3>Workflows</h3><p>Rules that route new requests</p></div></div>
         <div class="policy-list">${workflows.workflows.map(item => `<div class="policy-row"><div><b>${Core.esc(item.name)}</b><small>${Core.esc(item.entityType)} · ${Core.money(item.minimumAmount)}+ → ${Core.esc(item.approverRole)}</small></div>${Core.badge(item.active ? 'active' : 'disabled')}</div>`).join('') || '<div class="empty-state"><p>No workflows configured.</p></div>'}</div></aside>
@@ -431,6 +432,7 @@ Core.route('admin/approvals', async () => {
       { name: 'name', label: 'Workflow name', required: true },
       { name: 'entityType', label: 'Entity type', type: 'select', options: ['purchase_order', 'expense', 'quotation', 'credit_note'].map(value => ({ value, label: value.replace(/_/g, ' ') })), required: true },
       { name: 'minimumAmount', label: 'Minimum amount', type: 'number', value: 0, half: true },
+      { name: 'timeoutHours', label: 'Escalate after hours', type: 'number', value: 24, half: true },
       { name: 'approverRole', label: 'Approver role', type: 'select', options: ['admin', 'accountant', 'sales_manager', 'purchase_manager'].map(value => ({ value, label: value.replace(/_/g, ' ') })), half: true, required: true }
     ], onSubmit: async values => { await Core.post('/v3/approvals/workflows', values); toast('Workflow created', values.name, 'success'); Core.render(); }
   });
@@ -444,10 +446,9 @@ Core.route('admin/approvals', async () => {
       { name: 'amount', label: 'Amount', type: 'number', step: '0.01', required: true }
     ], onSubmit: async values => { await Core.post('/v3/approvals/requests', values); toast('Approval requested', values.entityNumber, 'success'); Core.render(); }
   });
-  document.querySelectorAll('[data-request]').forEach(button => button.onclick = async () => {
-    const result = await Core.post('/v3/approvals/requests/' + button.dataset.request + '/decision', { decision: button.dataset.decision });
-    toast('Approval updated', result.approvalRequest.status, result.approvalRequest.status === 'approved' ? 'success' : 'error'); Core.render();
-  });
+  document.querySelectorAll('[data-request]').forEach(button => button.onclick = () => Core.formModal({title:(button.dataset.decision==='approved'?'Approve':'Reject')+' request',fields:[{name:'note',label:'Decision comment',type:'textarea',required:button.dataset.decision==='rejected'}],submitLabel:button.dataset.decision==='approved'?'Approve':'Reject',onSubmit:async values=>{const result=await Core.post('/v3/approvals/requests/'+button.dataset.request+'/decision',{decision:button.dataset.decision,note:values.note});toast('Approval updated',result.approvalRequest.status,result.approvalRequest.status==='rejected'?'error':'success');Core.render();}}));
+  document.querySelectorAll('[data-comment-request]').forEach(button=>button.onclick=()=>Core.formModal({title:'Approval comment',fields:[{name:'text',label:'Comment *',type:'textarea',required:true}],submitLabel:'Add comment',onSubmit:async values=>{await Core.post('/v3/approvals/requests/'+button.dataset.commentRequest+'/comments',values);toast('Comment added','Approval timeline updated','success');Core.render();}}));
+  document.getElementById('escalate-approvals').onclick=async()=>{try{const result=await Core.post('/v3/approvals/escalate-due',{});toast('Escalation complete',result.escalated+' overdue request(s) escalated',result.escalated?'warning':'success');Core.render();}catch(error){toast('Escalation failed',error.message,'error');}};
 });
 
 /* ================= AUTOMATION ================= */
