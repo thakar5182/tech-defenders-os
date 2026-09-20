@@ -96,6 +96,10 @@ async function run() {
     response = await req('GET', '/js/core.js');
     check('sidebar module labels expand into their permitted apps', response.status === 200 &&
       response.raw.includes('nav-group-toggle') && response.raw.includes('toggleNavGroup') && response.raw.includes('toggleDashboardApp'));
+    check('enterprise app navigation remains complete', response.status === 200 &&
+      ['AI Command Centre', 'Recurring & Payments', '3-Way Match & Landed Cost', 'Quality & Traceability',
+        'MRP & Work Centres', 'Dispatch & Knowledge', 'Banking & Reconciliation', 'Custom Report Builder',
+        'Consent & Segments', 'API & Integration Hub', 'B2B Commerce'].every(label => response.raw.includes(label)));
     response = await req('GET', '/js/pages-commerce.js');
     check('manual quotation and direct invoice editors are bundled',
       response.status === 200 && response.raw.includes('Manual quotation mode') &&
