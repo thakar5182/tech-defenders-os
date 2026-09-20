@@ -922,7 +922,7 @@ Pages.manageGlobalDashboard = async id => {
           <span class="role-pill ${user.role === 'admin' ? 'role-admin' : ''}">${Core.esc(Core.roleLabel(user.role))}</span>
         </div>
         <div class="dashboard-control-grid">
-          <section><div class="policy-head"><div><h3>Module & Menu Access</h3><p>Controls sidebar, pages, search and API access.</p></div><span class="badge b-gold">11 sections</span></div><div id="global-module-policies" class="policy-list"></div>
+          <section><div class="policy-head"><div><h3>Modules & App Access</h3><p>Control each section and every app visible inside it.</p></div><span class="badge b-gold">${Pages._globalControl.modules.length} modules · ${Pages._globalControl.apps.length} apps</span></div><div id="global-module-policies" class="policy-list policy-tree"></div>
           <div class="policy-head widget-head"><div><h3>Dashboard Widgets</h3><p>Controls the cards, charts and lists on this user's dashboard.</p></div><span class="badge b-info">10 widgets</span></div><div id="global-widget-policies" class="policy-list"></div></section>
           <aside><div class="policy-head"><div><h3>Live User Preview</h3><p>Exactly what this account can see after refresh.</p></div><span class="live-dot">LIVE</span></div><div id="global-dashboard-preview" class="dashboard-preview"></div></aside>
         </div>`,
@@ -944,7 +944,11 @@ Pages.renderGlobalDashboardControl = () => {
   const previewHost = state.modal.el.querySelector('#global-dashboard-preview');
   moduleHost.innerHTML = data.modules.map(module => {
     const checked = user.effectiveAccess[module.key] === true;
-    return `<div class="policy-row"><div><b>${Core.esc(module.label)}</b><small>${Core.esc(module.description)}</small></div><span class="access-state">${checked ? 'On' : 'Off'}</span><label class="ios-switch"><input type="checkbox" data-global-module="${module.key}" ${checked ? 'checked' : ''} aria-label="${Core.esc(module.label)} for ${Core.esc(user.name)}"><span class="ios-track"></span></label></div>`;
+    const apps = data.apps.filter(app => app.module === module.key);
+    return `<div class="policy-module ${checked ? '' : 'policy-module-off'}"><div class="policy-row policy-module-row"><div><b>${Core.esc(module.label)}</b><small>${Core.esc(module.description)} · ${apps.length} app${apps.length === 1 ? '' : 's'}</small></div><span class="access-state">${checked ? 'On' : 'Off'}</span><label class="ios-switch"><input type="checkbox" data-global-module="${module.key}" ${checked ? 'checked' : ''} aria-label="${Core.esc(module.label)} for ${Core.esc(user.name)}"><span class="ios-track"></span></label></div><div class="policy-apps">${apps.map(app => {
+      const appChecked = user.effectiveAppAccess?.[app.key] === true;
+      return `<div class="policy-row policy-app-row ${checked ? '' : 'policy-disabled'}"><div><b>${Core.esc(app.label)}</b><small>${Core.esc(app.key)}</small></div><span class="access-state">${appChecked ? 'On' : 'Off'}</span><label class="ios-switch"><input type="checkbox" data-global-app="${Core.esc(app.key)}" ${appChecked ? 'checked' : ''} ${checked ? '' : 'disabled'} aria-label="${Core.esc(app.label)} for ${Core.esc(user.name)}"><span class="ios-track"></span></label></div>`;
+    }).join('')}</div></div>`;
   }).join('');
   widgetHost.innerHTML = data.dashboardWidgets.map(widget => {
     const checked = user.effectiveDashboardWidgets[widget.key] === true;
@@ -953,6 +957,7 @@ Pages.renderGlobalDashboardControl = () => {
   }).join('');
   previewHost.innerHTML = `<div class="preview-shell"><div class="preview-top"><span>Dashboard</span><b>${Core.esc(user.name.split(' ')[0])}</b></div><div class="preview-grid">${state.preview.widgets.map(widget => `<div class="preview-widget ${widget.enabled ? '' : 'preview-off'}"><span>${Core.esc(widget.label)}</span><b>${widget.format === 'money' ? Core.moneyShort(widget.primary) : Core.esc(widget.primary)}</b><small>${Core.esc(widget.enabled ? widget.secondary : 'Hidden by Super Admin')}</small></div>`).join('')}</div></div>`;
   moduleHost.querySelectorAll('[data-global-module]').forEach(input => input.addEventListener('change', () => Pages.setGlobalPolicy(input, 'module')));
+  moduleHost.querySelectorAll('[data-global-app]').forEach(input => input.addEventListener('change', () => Pages.setGlobalPolicy(input, 'app')));
   widgetHost.querySelectorAll('[data-global-widget]').forEach(input => input.addEventListener('change', () => Pages.setGlobalPolicy(input, 'widget')));
 };
 
@@ -964,14 +969,16 @@ Pages.setGlobalPolicy = async (input, type) => {
   try {
     const body = type === 'module'
       ? { moduleAccess: { ...(user.moduleAccess || {}), [input.dataset.globalModule]: desired } }
-      : { dashboardWidgets: { ...(user.dashboardWidgets || {}), [input.dataset.globalWidget]: desired } };
+      : type === 'app'
+        ? { appAccess: { ...(user.appAccess || {}), [input.dataset.globalApp]: desired } }
+        : { dashboardWidgets: { ...(user.dashboardWidgets || {}), [input.dataset.globalWidget]: desired } };
     await Core.patch('/admin/global/users/' + state.id + '/access', body);
     state.preview = await Core.get('/admin/global/users/' + state.id + '/dashboard-preview');
     const cachedIndex = Pages._globalControl.users.findIndex(item => item.id === state.id);
     if (cachedIndex >= 0) Pages._globalControl.users[cachedIndex] = state.preview.user;
     Pages.filterGlobalAccounts();
     Pages.renderGlobalDashboardControl();
-    toast('Dashboard updated', (type === 'module' ? 'Module' : 'Widget') + ' is now ' + (desired ? 'visible' : 'hidden'), 'success');
+    toast('Access updated', (type === 'module' ? 'Module' : type === 'app' ? 'App' : 'Widget') + ' is now ' + (desired ? 'visible' : 'hidden'), 'success');
   } catch (error) {
     input.checked = !desired;
     input.disabled = false;
@@ -1295,16 +1302,21 @@ Pages.renderAccessModules = () => {
   host.innerHTML = data.modules.map(module => {
     const checked = user.effectiveAccess[module.key] === true;
     const protectSelfAdmin = user.id === Core.state.user.id && module.key === 'admin';
-    return `<div class="access-row">
+    const apps = data.apps.filter(app => app.module === module.key);
+    return `<div class="access-module ${checked ? '' : 'access-module-off'}"><div class="access-row">
       <div class="access-copy"><b>${Core.esc(module.label)}</b><small>${Core.esc(module.description)}</small></div>
       <span class="access-state">${checked ? 'On' : 'Off'}</span>
       <label class="ios-switch" title="${checked ? 'Turn off' : 'Turn on'} ${Core.esc(module.label)}">
         <input type="checkbox" data-module="${Core.esc(module.key)}" ${checked ? 'checked' : ''} ${(protectSelfAdmin || protectedTarget) ? 'disabled' : ''} aria-label="${Core.esc(module.label)} access for ${Core.esc(user.name)}">
         <span class="ios-track"></span>
       </label>
-    </div>`;
+    </div><div class="access-apps">${apps.map(app => {
+      const appChecked = user.effectiveAppAccess?.[app.key] === true;
+      return `<div class="access-row access-app-row"><div class="access-copy"><b>${Core.esc(app.label)}</b><small>${Core.esc(app.key)}</small></div><span class="access-state">${appChecked ? 'On' : 'Off'}</span><label class="ios-switch"><input type="checkbox" data-app="${Core.esc(app.key)}" ${appChecked ? 'checked' : ''} ${(!checked || protectedTarget) ? 'disabled' : ''} aria-label="${Core.esc(app.label)} access for ${Core.esc(user.name)}"><span class="ios-track"></span></label></div>`;
+    }).join('')}</div></div>`;
   }).join('');
   host.querySelectorAll('input[data-module]').forEach(input => input.addEventListener('change', () => Pages.setModuleAccess(input)));
+  host.querySelectorAll('input[data-app]').forEach(input => input.addEventListener('change', () => Pages.setAppAccess(input)));
 };
 
 Pages.setModuleAccess = async input => {
@@ -1318,8 +1330,10 @@ Pages.setModuleAccess = async input => {
     });
     user.moduleAccess = response.user.moduleAccess || {};
     user.effectiveAccess = response.effectiveAccess;
+    user.effectiveAppAccess = response.effectiveAppAccess;
     if (user.id === Core.state.user.id) {
       Core.state.moduleAccess = response.effectiveAccess;
+      Core.state.appAccess = response.effectiveAppAccess;
       Core.buildSidebar();
     }
     toast('Access updated', `${input.dataset.module} is now ${desired ? 'on' : 'off'} for ${user.name}`, 'success');
@@ -1331,3 +1345,26 @@ Pages.setModuleAccess = async input => {
   }
 };
 
+Pages.setAppAccess = async input => {
+  const user = Pages._accessData.users.find(item => item.id === Pages._accessUserId);
+  if (!user) return;
+  const desired = input.checked;
+  input.disabled = true;
+  try {
+    const response = await Core.patch('/admin/users/' + user.id + '/access', {
+      appAccess: { ...(user.appAccess || {}), [input.dataset.app]: desired }
+    });
+    user.appAccess = response.user.appAccess || {};
+    user.effectiveAppAccess = response.effectiveAppAccess;
+    if (user.id === Core.state.user.id) {
+      Core.state.appAccess = response.effectiveAppAccess;
+      Core.buildSidebar();
+    }
+    toast('App access updated', `${input.dataset.app} is now ${desired ? 'on' : 'off'} for ${user.name}`, 'success');
+    Pages.renderAccessModules();
+  } catch (error) {
+    input.checked = !desired;
+    input.disabled = false;
+    toast('Access not changed', error.message, 'error');
+  }
+};
