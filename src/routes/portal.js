@@ -72,6 +72,12 @@ function safeDocument(document) {
   const { contentData, ...safe } = document;
   return safe;
 }
+function safeAttachment(input) {
+  if (!input) return null;
+  const data = String(input.data || ''), match = /^data:(application\/pdf|image\/(?:png|jpeg|webp));base64,/.exec(data);
+  if (!match || Buffer.byteLength(data, 'utf8') > 2 * 1024 * 1024) return null;
+  return { name: clean(input.name, 120) || 'attachment', mimeType: match[1], data };
+}
 
 function customerSession(access, customer) {
   const match = (collection, key = 'customerId') => store.find(collection, item => item.orgId === access.orgId && item[key] === customer.id);
@@ -80,18 +86,23 @@ function customerSession(access, customer) {
   const billed = invoices.filter(item => !['cancelled', 'credited'].includes(item.status)).reduce((sum, item) => sum + (Number(item.totals?.grandTotal) || 0), 0);
   const paid = invoices.reduce((sum, item) => sum + (Number(item.paidAmount) || 0), 0);
   const customerSummary = { id: customer.id, name: customer.name, contactPerson: customer.contactPerson, email: customer.email };
-  const projects = match('projects').map(project => ({
+  const projects = match('projects').map(project => {
+    const milestones = store.find('projectMilestones', row => row.orgId === access.orgId && row.projectId === project.id), tasks = store.find('workOrders', row => row.orgId === access.orgId && row.projectId === project.id), total = milestones.length + tasks.length, completed = milestones.filter(row => row.status === 'completed').length + tasks.filter(row => row.status === 'completed').length;
+    return ({
     ...project,
-    milestones: store.find('projectMilestones', row => row.orgId === access.orgId && row.projectId === project.id),
-    tasks: store.find('workOrders', row => row.orgId === access.orgId && row.projectId === project.id)
-  }));
+    milestones, tasks, progressPercent: total ? Math.round(completed / total * 100) : 0,
+    files: match('customerDocuments').filter(row => row.projectId === project.id).map(safeDocument)
+  }); });
+  const ticketRows = tickets.map(ticket => ({ ...ticket, messages: store.find('ticketMessages', row => row.orgId === access.orgId && row.ticketId === ticket.id).map(row => ({ ...row, attachment: row.attachment ? { name: row.attachment.name, mimeType: row.attachment.mimeType } : null })) }));
+  const paymentLinks = store.find('paymentLinks', row => row.orgId === access.orgId && row.customerId === customer.id && row.status !== 'expired').map(({ tokenHash, ...row }) => row);
   return {
     portal: { partyType: 'customer', expiresAt: access.expiresAt },
     party: customerSummary,
     customer: customerSummary,
     summary: { billed: r2(billed), paid: r2(paid), outstanding: r2(billed - paid), openTickets: tickets.filter(item => !['closed', 'resolved'].includes(item.status)).length },
     quotations: match('quotations'), orders: match('salesOrders'), invoices, receipts: match('receipts'),
-    projects, tickets, documents: match('customerDocuments').map(safeDocument),
+    projects, tickets: ticketRows, paymentLinks, documents: match('customerDocuments').map(safeDocument),
+    notificationCount: store.find('portalActivities', row => row.orgId === access.orgId && row.partyType === 'customer' && row.partyId === customer.id && new Date(row.createdAt) > new Date(access.lastPortalViewedAt || 0)).length,
     activity: store.find('portalActivities', row => row.orgId === access.orgId && row.partyType === 'customer' && row.partyId === customer.id).slice(-50).reverse()
   };
 }
@@ -101,12 +112,14 @@ function supplierSession(access, supplier) {
   const invoices = match('purchaseInvoices');
   const paid = match('supplierPayments').reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
   const billed = invoices.reduce((sum, item) => sum + (Number(item.total || item.totals?.grandTotal) || 0), 0);
+  const orders = match('purchaseOrders').map(order => ({ ...order, expectedDeliveryDate: order.expectedDeliveryDate || order.deliveryDate || null, deliveredQty: match('grns').filter(row => row.poId === order.id).reduce((sum, grn) => sum + (grn.lines || []).reduce((n, line) => n + Number(line.acceptedQty || line.receivedQty || 0), 0), 0) }));
   return {
     portal: { partyType: 'supplier', expiresAt: access.expiresAt },
     party: { id: supplier.id, name: supplier.name, contactPerson: supplier.contactPerson, email: supplier.email },
     summary: { billed: r2(billed), paid: r2(paid), outstanding: r2(billed - paid), openTickets: 0 },
     rfqs: store.find('rfqs', item => item.orgId === access.orgId && Array.isArray(item.vendorIds) && item.vendorIds.includes(supplier.id)),
-    orders: match('purchaseOrders'), grns: match('grns'), invoices, payments: match('supplierPayments'),
+    orders, grns: match('grns'), invoices: invoices.map(invoice => ({ ...invoice, paymentStatus: Number(invoice.paidAmount || 0) >= Number(invoice.total || invoice.totals?.grandTotal || 0) ? 'paid' : (Number(invoice.paidAmount || 0) > 0 ? 'partial' : 'unpaid') })), payments: match('supplierPayments'),
+    notificationCount: store.find('portalActivities', row => row.orgId === access.orgId && row.partyType === 'supplier' && row.partyId === supplier.id && new Date(row.createdAt) > new Date(access.lastPortalViewedAt || 0)).length,
     documents: store.find('supplierDocuments', row => row.orgId === access.orgId && row.supplierId === supplier.id).map(safeDocument),
     activity: store.find('portalActivities', row => row.orgId === access.orgId && row.partyType === 'supplier' && row.partyId === supplier.id).slice(-50).reverse()
   };
@@ -114,9 +127,19 @@ function supplierSession(access, supplier) {
 
 router.get('/session', portalAuth, (req, res) => {
   res.setHeader('Cache-Control', 'no-store');
-  res.json(req.portal.partyType === 'supplier'
+  const payload = req.portal.partyType === 'supplier'
     ? supplierSession(req.portal.access, req.portal.party)
-    : customerSession(req.portal.access, req.portal.party));
+    : customerSession(req.portal.access, req.portal.party);
+  store.update('portalAccess', req.portal.access.id, { lastPortalViewedAt: new Date().toISOString() });
+  res.json(payload);
+});
+
+router.post('/quotations/:id/discussion', portalAuth, (req, res) => {
+  if (req.portal.partyType !== 'customer') return res.status(403).json({ error: 'Customer portal access required' });
+  const quotation = store.findOne('quotations', item => item.id === req.params.id && item.orgId === req.portal.access.orgId && item.customerId === req.portal.partyId), message = clean(req.body?.message, 1500);
+  if (!quotation || !message) return res.status(400).json({ error: 'Quotation and discussion message are required' });
+  const timeline = [...(quotation.portalDiscussion || []), { id: crypto.randomUUID(), message, by: req.portal.party.name, side: 'customer', at: new Date().toISOString() }];
+  const updated = store.update('quotations', quotation.id, { portalDiscussion: timeline }); activity(req.portal, 'comment', 'quotation', quotation.id, message); portalNotify(req.portal, 'Quotation discussion reply', `${req.portal.party.name}: ${quotation.number}`, '#/sales/quotations'); res.status(201).json({ quotation: updated });
 });
 
 router.post('/quotations/:id/decision', portalAuth, (req, res) => {
@@ -162,6 +185,8 @@ router.post('/tickets', portalAuth, (req, res) => {
     assetDesc: '', amcId: null, workLog: [{ at: new Date().toISOString(), by: req.portal.party.name, text: message, portal: true }],
     partsUsed: [], channel: 'customer_portal'
   });
+  const attachment = safeAttachment(req.body?.attachment);
+  store.insert('ticketMessages', { orgId: ticket.orgId, ticketId: ticket.id, customerId: req.portal.partyId, authorName: req.portal.party.name, authorSide: 'customer', message, attachment, createdAt: new Date().toISOString() });
   audit(ticket.orgId, null, 'portal_create', 'ticket', ticket.id, { customerId: req.portal.partyId, number: ticket.number });
   activity(req.portal, 'create', 'ticket', ticket.id, ticket.number);
   portalNotify(req.portal, 'New customer portal ticket', `${req.portal.party.name}: ${ticket.subject}`, '#/service/tickets');
@@ -176,11 +201,20 @@ router.post('/tickets/:id/replies', portalAuth, (req, res) => {
   const message = clean(req.body?.message, 2000);
   if (!message) return res.status(400).json({ error: 'Reply message is required' });
   const workLog = [...(ticket.workLog || []), { at: new Date().toISOString(), by: req.portal.party.name, text: message, portal: true }];
+  const attachment = safeAttachment(req.body?.attachment);
+  store.insert('ticketMessages', { orgId: ticket.orgId, ticketId: ticket.id, customerId: req.portal.partyId, authorName: req.portal.party.name, authorSide: 'customer', message, attachment, createdAt: new Date().toISOString() });
   const updated = store.update('tickets', ticket.id, { workLog, status: ticket.status === 'waiting_customer' ? 'in_progress' : ticket.status });
   audit(ticket.orgId, null, 'portal_reply', 'ticket', ticket.id, { customerId: req.portal.partyId });
   activity(req.portal, 'reply', 'ticket', ticket.id, ticket.number);
   portalNotify(req.portal, 'Customer replied to ticket', `${ticket.number}: ${ticket.subject}`, '#/service/tickets');
   res.json({ ticket: updated });
+});
+
+router.get('/ticket-attachments/:messageId', portalAuth, (req, res) => {
+  if (req.portal.partyType !== 'customer') return res.status(403).json({ error: 'Customer portal access required' });
+  const message = store.findOne('ticketMessages', row => row.id === req.params.messageId && row.orgId === req.portal.access.orgId && row.customerId === req.portal.partyId);
+  if (!message?.attachment?.data) return res.status(404).json({ error: 'Attachment not found' });
+  res.setHeader('Content-Type', message.attachment.mimeType); res.setHeader('Content-Disposition', `attachment; filename="${clean(message.attachment.name, 100).replace(/[^a-z0-9._ -]/gi, '_')}"`); res.send(Buffer.from(message.attachment.data.split(',')[1] || '', 'base64'));
 });
 
 router.post('/rfqs/:id/quote', portalAuth, (req, res) => {

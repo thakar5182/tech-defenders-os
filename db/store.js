@@ -35,16 +35,18 @@ const COLLECTIONS = [
   'emailTemplates', 'emailCampaigns', 'emailQueue', 'emailSuppressions', 'communicationLogs',
   'automationExecutions', 'whatsappIntegrations',
   'providerWebhooks', 'gstSubmissions', 'aiDrafts', 'authChallenges', 'authSessions', 'securityEvents',
-  'savedReports', 'reportSchedules', 'notifications', 'auditEvents', 'backupRestoreRequests',
+  'savedReports', 'reportSchedules', 'reportRuns', 'notifications', 'auditEvents', 'backupRestoreRequests',
   'mobileDevices', 'mobileAttendance', 'mobileCrashReports',
   'attendanceRecords', 'shifts', 'salaryComponents', 'payrollPolicies', 'payrollRuns', 'payslips',
   'salaryStructures', 'payrollAdjustments', 'financialPeriods', 'openingBalances', 'tdsRecords', 'accountingAdjustments', 'financialVerifications', 'documentRevisions',
   'projects', 'projectMilestones', 'workOrders', 'timesheets', 'mentions', 'backupSnapshots', 'backupPolicies', 'backupAgentHeartbeats', 'disasterRecoveryLogs'
   ,'customerSegments', 'assignmentRules', 'recurringInvoiceProfiles', 'paymentLinks'
+  ,'followUpSequences', 'followUpEnrollments', 'quotationVersions', 'rmaRequests', 'salesTargets', 'salesCommissions'
   ,'purchaseMatchReviews', 'landedCostAllocations', 'workCenters', 'manufacturingRoutings', 'mrpRuns'
   ,'serviceDispatches', 'technicianTimeLogs', 'knowledgeArticles'
   ,'apiKeys', 'apiWebhooks', 'apiRequestLogs', 'customReports'
   ,'communicationSegments', 'communicationConsents', 'templateApprovals', 'inboundCommunications'
+  ,'unsubscribeEvents', 'campaignEvents', 'communicationTimelines'
   ,'commerceCatalogs', 'commercePrices', 'commerceCarts', 'commerceOrders'
   ,'aiConversations', 'aiRecommendations', 'aiActionRequests'
 ];

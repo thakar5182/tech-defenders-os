@@ -124,9 +124,8 @@ const Core = {
     ]},
     { group: 'CRM', items: [
       { path: '#/crm/intelligence', label: 'Customer Intelligence', icon: '&#9673;', mod: 'crm' },
-      { path: '#/crm/intelligence', label: 'Customer Intelligence', icon: '&#9673;', mod: 'crm' },
+      { path: '#/crm/automation', label: 'Sales Automation', icon: '&#9889;', mod: 'crm' },
       { path: '#/crm/leads', label: 'Leads', icon: '&#9737;', mod: 'crm' },
-      { path: '#/crm/intelligence', label: 'Lead Intelligence', icon: '&#10024;', mod: 'crm' },
       { path: '#/crm/customers', label: 'Customers', icon: '&#9823;', mod: 'crm' },
       { path: '#/crm/contacts', label: 'Contacts', icon: '&#9787;', mod: 'crm' },
       { path: '#/crm/deals', label: 'Deals Pipeline', icon: '&#9670;', mod: 'crm' },
