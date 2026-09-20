@@ -1,8 +1,11 @@
 'use strict';
 const express = require('express');
+const PDFDocument = require('pdfkit');
 const store = require('../../db/store');
 const { requireAuth, requirePerm } = require('../middleware');
 const { audit, notify, nextNumber, r2 } = require('../util');
+const { sendSystemEmail } = require('../services/integrations');
+const { assertOpen } = require('../services/finance-periods');
 const router = express.Router();
 router.use(requireAuth);
 
@@ -11,27 +14,31 @@ const dateOnly = value => /^\d{4}-\d{2}-\d{2}$/.test(String(value || '')) ? Stri
 const employees = orgId => store.find('employees', row => row.orgId === orgId && row.status !== 'inactive' && row.active !== false);
 const policyFor = orgId => store.findOne('payrollPolicies', row => row.orgId === orgId) || { enablePf: true, pfEmployeeRate: 12, pfEmployerRate: 12, pfWageCeiling: 15000, enableEsi: true, esiEmployeeRate: 0.75, esiEmployerRate: 3.25, esiEligibility: 21000, enableProfessionalTax: true, defaultProfessionalTax: 0 };
 
-function calculatePay(employee, components, policy) {
+function calculatePay(employee, components, policy, context = {}) {
   const basic = Math.max(0, Number(employee.basicSalary || employee.monthlySalary || 0));
-  const earnings = [{ name: 'Basic salary', amount: basic }];
+  const payableFactor = Math.max(0, Math.min(1, Number(context.payableFactor ?? 1)));
+  const proratedBasic = r2(basic * payableFactor);
+  const earnings = [{ name: 'Basic salary', amount: proratedBasic }];
   const deductions = [];
   components.filter(row => row.active !== false).forEach(row => {
-    const basis = row.basis === 'ctc' ? Math.max(0, Number(employee.annualCtc || basic * 12)) / 12 : basic;
+    const basis = (row.basis === 'ctc' ? Math.max(0, Number(employee.annualCtc || basic * 12)) / 12 : basic) * payableFactor;
     const amount = r2(row.calculation === 'percent' ? basis * (Number(row.value) || 0) / 100 : Number(row.value) || 0);
     if (amount > 0) (row.kind === 'deduction' ? deductions : earnings).push({ componentId: row.id, name: row.name, amount, statutory: !!row.statutory });
   });
   const gross = r2(earnings.reduce((sum, row) => sum + row.amount, 0));
-  const pfBase = Math.min(basic, Number(policy.pfWageCeiling || 15000));
+  (context.adjustments || []).forEach(row => { const item = { name: row.label, amount: r2(Number(row.amount) || 0), adjustmentId: row.id }; if (item.amount > 0) (row.kind === 'deduction' || row.kind === 'advance' ? deductions : earnings).push(item); });
+  const adjustedGross = r2(earnings.reduce((sum, row) => sum + row.amount, 0));
+  const pfBase = Math.min(proratedBasic, Number(policy.pfWageCeiling || 15000));
   const pf = policy.enablePf === false ? 0 : r2(pfBase * (Number(policy.pfEmployeeRate) || 12) / 100);
   const employerPf = policy.enablePf === false ? 0 : r2(pfBase * (Number(policy.pfEmployerRate) || 12) / 100);
-  const esiEligible = gross <= (Number(policy.esiEligibility) || 21000);
-  const esi = policy.enableEsi === false || !esiEligible ? 0 : r2(gross * (Number(policy.esiEmployeeRate) || 0.75) / 100);
-  const employerEsi = policy.enableEsi === false || !esiEligible ? 0 : r2(gross * (Number(policy.esiEmployerRate) || 3.25) / 100);
+  const esiEligible = adjustedGross <= (Number(policy.esiEligibility) || 21000);
+  const esi = policy.enableEsi === false || !esiEligible ? 0 : r2(adjustedGross * (Number(policy.esiEmployeeRate) || 0.75) / 100);
+  const employerEsi = policy.enableEsi === false || !esiEligible ? 0 : r2(adjustedGross * (Number(policy.esiEmployerRate) || 3.25) / 100);
   const pt = policy.enableProfessionalTax === false ? 0 : r2(Number(employee.professionalTax ?? policy.defaultProfessionalTax) || 0);
   const tds = r2(Number(employee.tdsMonthly) || 0);
   [[pf, 'Provident Fund'], [esi, 'ESI'], [pt, 'Professional Tax'], [tds, 'TDS']].forEach(([amount, name]) => { if (amount) deductions.push({ name, amount, statutory: true }); });
   const totalDeductions = r2(deductions.reduce((sum, row) => sum + row.amount, 0));
-  return { basic, gross, earnings, deductions, totalDeductions, netPay: r2(Math.max(0, gross - totalDeductions)), employerContributions: [{ name: 'Employer PF', amount: employerPf }, { name: 'Employer ESI', amount: employerEsi }].filter(row => row.amount), totalEmployerCost: r2(gross + employerPf + employerEsi) };
+  return { basic, gross: adjustedGross, earnings, deductions, totalDeductions, netPay: r2(Math.max(0, adjustedGross - totalDeductions)), payableDays: context.payableDays, calendarDays: context.calendarDays, employerContributions: [{ name: 'Employer PF', amount: employerPf }, { name: 'Employer ESI', amount: employerEsi }].filter(row => row.amount), totalEmployerCost: r2(adjustedGross + employerPf + employerEsi) };
 }
 
 /* Attendance & shifts */
@@ -75,23 +82,33 @@ router.put('/payroll-policy', requirePerm('hr','edit'), (req,res) => {
   const current=store.findOne('payrollPolicies',row=>row.orgId===req.org.id), policy=current?store.update('payrollPolicies',current.id,next):store.insert('payrollPolicies',{orgId:req.org.id,...next});
   audit(req.org.id,req.user.id,'update','payroll_policy',policy.id,{});res.json({policy});
 });
-router.get('/payroll-runs', requirePerm('hr','view'), (req,res) => res.json({runs:store.find('payrollRuns',row=>row.orgId===req.org.id).sort((a,b)=>String(b.period).localeCompare(String(a.period))),payslips:store.find('payslips',row=>row.orgId===req.org.id).slice(-500)}));
+router.get('/salary-structures', requirePerm('hr','view'), (req,res) => res.json({structures:store.find('salaryStructures',row=>row.orgId===req.org.id),adjustments:store.find('payrollAdjustments',row=>row.orgId===req.org.id).slice(-500)}));
+router.post('/salary-structures', requirePerm('hr','create'), (req,res) => { const name=clean(req.body?.name,100),componentIds=Array.isArray(req.body?.componentIds)?req.body.componentIds.filter(id=>store.findOne('salaryComponents',row=>row.id===id&&row.orgId===req.org.id)):[];if(!name)return res.status(400).json({error:'Salary structure name is required'});const structure=store.insert('salaryStructures',{orgId:req.org.id,name,componentIds,active:req.body?.active!==false,createdBy:req.user.id});audit(req.org.id,req.user.id,'create','salary_structure',structure.id,{name});res.status(201).json({structure}); });
+router.post('/payroll-adjustments', requirePerm('hr','edit'), (req,res) => { const employee=store.findOne('employees',row=>row.id===clean(req.body?.employeeId,80)&&row.orgId===req.org.id),period=/^\d{4}-\d{2}$/.test(clean(req.body?.period,7))?clean(req.body.period,7):null,amount=r2(Number(req.body?.amount)||0);if(!employee||!period||amount<=0||!clean(req.body?.label))return res.status(400).json({error:'Employee, period, label and positive amount are required'});const adjustment=store.insert('payrollAdjustments',{orgId:req.org.id,employeeId:employee.id,period,label:clean(req.body.label,100),kind:['earning','deduction','overtime','bonus','arrear','advance'].includes(req.body.kind)?req.body.kind:'earning',amount,status:'pending',createdBy:req.user.id});audit(req.org.id,req.user.id,'create','payroll_adjustment',adjustment.id,{period,amount});res.status(201).json({adjustment}); });
+router.get('/payroll-runs', requirePerm('hr','view'), (req,res) => res.json({runs:store.find('payrollRuns',row=>row.orgId===req.org.id).sort((a,b)=>String(b.period).localeCompare(String(a.period))),payslips:store.find('payslips',row=>row.orgId===req.org.id).slice(-500),adjustments:store.find('payrollAdjustments',row=>row.orgId===req.org.id).slice(-500)}));
 router.post('/payroll-runs', requirePerm('hr','create'), (req,res) => {
   const period=/^\d{4}-\d{2}$/.test(clean(req.body?.period,7))?clean(req.body.period,7):new Date().toISOString().slice(0,7);
   if(store.findOne('payrollRuns',row=>row.orgId===req.org.id&&row.period===period&&row.status!=='void'))return res.status(409).json({error:'A payroll run already exists for this period'});
-  const policy=policyFor(req.org.id), components=store.find('salaryComponents',row=>row.orgId===req.org.id), staff=employees(req.org.id), run=store.insert('payrollRuns',{orgId:req.org.id,number:nextNumber(req.org.id,'payroll'),period,status:'draft',createdBy:req.user.id,employeeCount:staff.length,policySnapshot:policy,totals:{gross:0,deductions:0,netPay:0,employerCost:0}});
-  const payslips=staff.map(employee=>store.insert('payslips',{orgId:req.org.id,payrollRunId:run.id,number:nextNumber(req.org.id,'payslip'),employeeId:employee.id,employeeName:employee.name,period,status:'draft',...calculatePay(employee,components,policy)}));
+  const policy=policyFor(req.org.id), components=store.find('salaryComponents',row=>row.orgId===req.org.id), staff=employees(req.org.id), run=store.insert('payrollRuns',{orgId:req.org.id,number:nextNumber(req.org.id,'payroll'),period,status:'draft',locked:false,createdBy:req.user.id,employeeCount:staff.length,policySnapshot:policy,totals:{gross:0,deductions:0,netPay:0,employerCost:0}});
+  const calendarDays=new Date(Number(period.slice(0,4)),Number(period.slice(5,7)),0).getDate();
+  const payslips=staff.map(employee=>{const attendance=store.find('attendanceRecords',row=>row.orgId===req.org.id&&row.employeeId===employee.id&&String(row.workDate).startsWith(period)&&row.status!=='absent'),approvedLeave=store.find('leaveRequests',row=>row.orgId===req.org.id&&row.employeeId===employee.id&&row.status==='approved'&&String(row.fromDate||row.startDate||'').startsWith(period)),payableDays=attendance.length?Math.min(calendarDays,attendance.length+approvedLeave.reduce((sum,row)=>sum+(Number(row.days)||1),0)):calendarDays,adjustments=store.find('payrollAdjustments',row=>row.orgId===req.org.id&&row.employeeId===employee.id&&row.period===period&&row.status==='pending');return store.insert('payslips',{orgId:req.org.id,payrollRunId:run.id,number:nextNumber(req.org.id,'payslip'),employeeId:employee.id,employeeName:employee.name,employeeEmail:employee.email||'',bankAccount:employee.bankAccount||employee.accountNumber||'',ifsc:employee.ifsc||'',period,status:'draft',...calculatePay(employee,components,policy,{payableFactor:payableDays/calendarDays,payableDays,calendarDays,adjustments})});});
   const totals=payslips.reduce((a,s)=>({gross:r2(a.gross+s.gross),deductions:r2(a.deductions+s.totalDeductions),netPay:r2(a.netPay+s.netPay),employerCost:r2(a.employerCost+s.totalEmployerCost)}),{gross:0,deductions:0,netPay:0,employerCost:0});
   const payrollRun=store.update('payrollRuns',run.id,{totals});audit(req.org.id,req.user.id,'create','payroll_run',run.id,{period,employeeCount:staff.length});res.status(201).json({payrollRun,payslips});
 });
+router.post('/payroll-runs/:id/approve', requirePerm('hr','approve'), (req,res) => {const run=store.findOne('payrollRuns',row=>row.id===req.params.id&&row.orgId===req.org.id);if(!run||run.status!=='draft')return res.status(409).json({error:'Only a draft payroll run can be approved'});const payrollRun=store.update('payrollRuns',run.id,{status:'approved',approvedAt:new Date().toISOString(),approvedBy:req.user.id,locked:true});audit(req.org.id,req.user.id,'approve','payroll_run',run.id,{period:run.period});res.json({payrollRun});});
 router.post('/payroll-runs/:id/publish', requirePerm('hr','approve'), (req,res) => {
-  const run=store.findOne('payrollRuns',row=>row.id===req.params.id&&row.orgId===req.org.id);if(!run)return res.status(404).json({error:'Payroll run not found'});if(run.status!=='draft')return res.status(409).json({error:'Only a draft payroll run can be published'});
+  const run=store.findOne('payrollRuns',row=>row.id===req.params.id&&row.orgId===req.org.id);if(!run)return res.status(404).json({error:'Payroll run not found'});if(!['draft','approved'].includes(run.status))return res.status(409).json({error:'Only a draft or approved payroll run can be published'});assertOpen(req.org.id,run.period+'-01');
   const expense=store.findOne('accounts',row=>row.orgId===req.org.id&&row.type==='expense'&&/salary|payroll/i.test(row.name)),payable=store.findOne('accounts',row=>row.orgId===req.org.id&&row.type==='liability'&&/salary|payroll/i.test(row.name));
   const journal=expense&&payable&&run.totals.netPay>0?store.insert('journals',{orgId:req.org.id,number:nextNumber(req.org.id,'journal'),date:run.period+'-01',narration:'Payroll payable '+run.period,posted:true,refType:'payroll',refId:run.id,lines:[{accountId:expense.id,debit:run.totals.netPay,credit:0},{accountId:payable.id,debit:0,credit:run.totals.netPay}]}):null;
-  const payrollRun=store.update('payrollRuns',run.id,{status:'published',publishedAt:new Date().toISOString(),publishedBy:req.user.id,journalId:journal?.id||null,accountingStatus:journal?'posted':'needs_account_mapping'});
+  const payrollRun=store.update('payrollRuns',run.id,{status:'published',locked:true,approvedAt:run.approvedAt||new Date().toISOString(),approvedBy:run.approvedBy||req.user.id,publishedAt:new Date().toISOString(),publishedBy:req.user.id,journalId:journal?.id||null,accountingStatus:journal?'posted':'needs_account_mapping'});
   store.find('payslips',row=>row.orgId===req.org.id&&row.payrollRunId===run.id).forEach(row=>store.update('payslips',row.id,{status:'published',publishedAt:new Date().toISOString()}));
+  store.find('payrollAdjustments',row=>row.orgId===req.org.id&&row.period===run.period&&row.status==='pending').forEach(row=>store.update('payrollAdjustments',row.id,{status:'applied',payrollRunId:run.id}));
   audit(req.org.id,req.user.id,'publish','payroll_run',run.id,{journalId:journal?.id||null});res.json({payrollRun,journal});
 });
+router.post('/payroll-runs/:id/reverse', requirePerm('hr','approve'), (req,res) => {const run=store.findOne('payrollRuns',row=>row.id===req.params.id&&row.orgId===req.org.id);if(!run||run.status!=='published')return res.status(409).json({error:'Only a published payroll can be reversed'});const journal=run.journalId?store.findOne('journals',row=>row.id===run.journalId&&row.orgId===req.org.id):null;if(journal)assertOpen(req.org.id,journal.date);const reversal=journal?store.insert('journals',{orgId:req.org.id,number:nextNumber(req.org.id,'journal'),date:new Date().toISOString().slice(0,10),narration:'Payroll reversal '+run.number,posted:true,refType:'payroll_reversal',refId:run.id,lines:(journal.lines||[]).map(row=>({accountId:row.accountId,debit:Number(row.credit)||0,credit:Number(row.debit)||0}))}):null;const payrollRun=store.update('payrollRuns',run.id,{status:'reversed',reversedAt:new Date().toISOString(),reversedBy:req.user.id,reversalJournalId:reversal?.id||null});store.find('payslips',row=>row.payrollRunId===run.id&&row.orgId===req.org.id).forEach(row=>store.update('payslips',row.id,{status:'reversed'}));audit(req.org.id,req.user.id,'reverse','payroll_run',run.id,{reversalJournalId:reversal?.id||null,reason:clean(req.body?.reason,300)});res.json({payrollRun,reversal});});
+router.get('/payroll-runs/:id/bank-sheet', requirePerm('hr','view'), (req,res) => {const run=store.findOne('payrollRuns',row=>row.id===req.params.id&&row.orgId===req.org.id);if(!run)return res.status(404).json({error:'Payroll run not found'});res.json({run,rows:store.find('payslips',row=>row.payrollRunId===run.id&&row.orgId===req.org.id).map(row=>({employeeName:row.employeeName,bankAccount:row.bankAccount,ifsc:row.ifsc,amount:row.netPay,reference:row.number}))});});
+router.get('/payslips/:id/pdf', requirePerm('hr','view'), (req,res) => {const slip=store.findOne('payslips',row=>row.id===req.params.id&&row.orgId===req.org.id);if(!slip)return res.status(404).json({error:'Payslip not found'});const doc=new PDFDocument({size:'A4',margin:48});res.setHeader('Content-Type','application/pdf');res.setHeader('Content-Disposition',`attachment; filename="${slip.number}.pdf"`);doc.pipe(res);doc.fontSize(20).text(req.org.name||'Tech Defenders',{align:'center'}).fontSize(15).text('PAYSLIP',{align:'center'}).moveDown();doc.fontSize(10).text(`Employee: ${slip.employeeName}`).text(`Period: ${slip.period}`).text(`Payslip: ${slip.number}`).moveDown();doc.fontSize(12).text('Earnings');(slip.earnings||[]).forEach(row=>doc.fontSize(10).text(`${row.name}: INR ${Number(row.amount).toFixed(2)}`));doc.moveDown().fontSize(12).text('Deductions');(slip.deductions||[]).forEach(row=>doc.fontSize(10).text(`${row.name}: INR ${Number(row.amount).toFixed(2)}`));doc.moveDown().fontSize(13).text(`Net pay: INR ${Number(slip.netPay).toFixed(2)}`,{align:'right'});doc.fontSize(9).fillColor('#666').text('System generated payslip.',{align:'center'});doc.end();});
+router.post('/payslips/:id/email', requirePerm('hr','approve'), async(req,res,next) => {try{const slip=store.findOne('payslips',row=>row.id===req.params.id&&row.orgId===req.org.id),employee=slip&&store.findOne('employees',row=>row.id===slip.employeeId&&row.orgId===req.org.id),to=clean(req.body?.to||employee?.email||slip?.employeeEmail,180);if(!slip||!to)return res.status(400).json({error:'Payslip and employee email are required'});const result=await sendSystemEmail({to,name:slip.employeeName,subject:`Payslip ${slip.period} · ${req.org.name}`,text:`Hello ${slip.employeeName},\n\nYour payslip for ${slip.period} is available in Tech Defenders OS. Net pay: INR ${Number(slip.netPay).toFixed(2)}.\n\nSign in securely to view or download it.`});audit(req.org.id,req.user.id,'email','payslip',slip.id,{to:to.replace(/^(.{2}).*(@.*)$/,'$1***$2')});res.json({sent:true,provider:result.provider});}catch(error){next(error);}});
 router.get('/my/payslips', requirePerm('hr','view'), (req,res) => res.json({payslips:store.find('payslips',row=>row.orgId===req.org.id&&(row.employeeId===req.user.employeeId||row.employeeId===req.user.id)&&row.status==='published')}));
 
 /* Projects, work orders, timesheets and profitability */

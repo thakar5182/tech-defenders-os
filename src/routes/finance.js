@@ -8,6 +8,7 @@ const express = require('express');
 const store = require('../../db/store');
 const { requireAuth, requirePerm } = require('../middleware');
 const { r2, nextNumber, audit } = require('../util');
+const { assertOpen } = require('../services/finance-periods');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -44,6 +45,7 @@ router.get('/journals', requirePerm('finance', 'view'), (req, res) => {
 
 router.post('/journals', requirePerm('finance', 'create'), (req, res) => {
   const b = req.body || {};
+  assertOpen(req.org.id, b.date || new Date().toISOString().slice(0, 10));
   if (!b.narration) return res.status(400).json({ error: 'Narration is required' });
   const lines = (b.lines || []).filter(l => l.accountId && (Number(l.debit) || Number(l.credit)))
     .map(l => ({ accountId: l.accountId, debit: r2(Number(l.debit) || 0), credit: r2(Number(l.credit) || 0) }));
@@ -83,6 +85,7 @@ router.get('/expenses', requirePerm('finance', 'view'), (req, res) => {
 
 router.post('/expenses', requirePerm('finance', 'create'), (req, res) => {
   const b = req.body || {};
+  assertOpen(req.org.id, b.date || new Date().toISOString().slice(0, 10));
   const acc = store.findOne('accounts', a => a.id === b.accountHeadId && a.orgId === req.org.id && a.type === 'expense');
   if (!acc) return res.status(400).json({ error: 'Select a valid expense account head' });
   const amount = Number(b.amount);

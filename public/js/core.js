@@ -83,7 +83,9 @@ const Core = {
       this.state.perms = me.permissions || {};
       this.state.moduleAccess = me.moduleAccess || {};
       this.state.appAccess = me.appAccess || {};
-      if (me.isSuperAdmin) {
+      this.state.mfaSetupRequired = !!me.mfaSetupRequired;
+      this.state.mfaVerificationRequired = !!me.mfaVerificationRequired;
+      if (me.isSuperAdmin && !me.mfaSetupRequired && !me.mfaVerificationRequired) {
         const platform = await this.get('/admin/organizations');
         this.state.organizations = platform.organizations || [];
       }
@@ -91,6 +93,8 @@ const Core = {
 
     this.buildSidebar();
     this.buildTopbar();
+    if (this.state.mfaVerificationRequired) { this.forceMfaVerification(); return; }
+    if (this.state.mfaSetupRequired) { this.forceMfaSetup(); return; }
     window.addEventListener('hashchange', () => this.render());
     document.addEventListener('keydown', e => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); document.getElementById('global-search').focus(); }
@@ -106,6 +110,7 @@ const Core = {
     { group: 'Overview', items: [
       { path: '#/dashboard', label: 'Dashboard', icon: '&#9636;', mod: 'dashboard' },
       { path: '#/ai/command-centre', label: 'AI Command Centre', icon: '&#10022;', mod: 'dashboard' },
+      { path: '#/ai/command-centre', label: 'AI Command Centre', icon: '&#10022;', mod: 'dashboard' },
       { path: '#/my-plan', label: 'My Plan', icon: '&#128179;', mod: 'dashboard' },
       { path: '#/apps', label: 'All Apps', icon: '&#9638;', mod: 'dashboard' },
       { path: '#/onboarding', label: 'Get Started', icon: '&#10024;', mod: 'dashboard' }
@@ -119,8 +124,8 @@ const Core = {
     ]},
     { group: 'CRM', items: [
       { path: '#/crm/intelligence', label: 'Customer Intelligence', icon: '&#9673;', mod: 'crm' },
+      { path: '#/crm/automation', label: 'Sales Automation', icon: '&#9889;', mod: 'crm' },
       { path: '#/crm/leads', label: 'Leads', icon: '&#9737;', mod: 'crm' },
-      { path: '#/crm/intelligence', label: 'Lead Intelligence', icon: '&#10024;', mod: 'crm' },
       { path: '#/crm/customers', label: 'Customers', icon: '&#9823;', mod: 'crm' },
       { path: '#/crm/contacts', label: 'Contacts', icon: '&#9787;', mod: 'crm' },
       { path: '#/crm/deals', label: 'Deals Pipeline', icon: '&#9670;', mod: 'crm' },
@@ -130,6 +135,7 @@ const Core = {
       { path: '#/crm/late-payments', label: 'Late Payments', icon: '&#9888;', mod: 'crm' }
     ]},
     { group: 'Sales', items: [
+      { path: '#/sales/recurring', label: 'Recurring & Payments', icon: '&#8635;', mod: 'sales' },
       { path: '#/sales/recurring', label: 'Recurring & Payments', icon: '&#8635;', mod: 'sales' },
       { path: '#/sales/quotations', label: 'Quotations', icon: '&#9998;', mod: 'sales' },
       { path: '#/sales/ai-quote', label: 'AI Quote Draft', icon: '&#10022;', mod: 'sales' },
@@ -151,6 +157,7 @@ const Core = {
       { path: '#/purchase/suppliers', label: 'Suppliers', icon: '&#9881;', mod: 'purchase' }
       ,{ path: '#/purchase/billing', label: 'Vendor Billing', icon: '&#8377;', mod: 'purchase' }
       ,{ path: '#/purchase/matching', label: '3-Way Match & Landed Cost', icon: '&#8801;', mod: 'purchase' }
+      ,{ path: '#/purchase/matching', label: '3-Way Match & Landed Cost', icon: '&#8801;', mod: 'purchase' }
     ]},
     { group: 'Inventory', items: [
       { path: '#/inventory/products', label: 'Products', icon: '&#9635;', mod: 'inventory' },
@@ -161,13 +168,16 @@ const Core = {
       ,{ path: '#/inventory/assets', label: 'Assets', icon: '&#127970;', mod: 'inventory' }
       ,{ path: '#/inventory/damage-loss', label: 'Damage / Loss', icon: '&#9888;', mod: 'inventory' }
       ,{ path: '#/inventory/quality', label: 'Quality & Traceability', icon: '&#10003;', mod: 'inventory' }
+      ,{ path: '#/inventory/warehouse-operations', label: 'Warehouse Operations', icon: '&#9638;', mod: 'inventory' }
     ]},
     { group: 'Manufacturing', items: [
+      { path: '#/manufacturing/planning', label: 'MRP & Work Centres', icon: '&#9881;', mod: 'manufacturing' },
       { path: '#/manufacturing/planning', label: 'MRP & Work Centres', icon: '&#9881;', mod: 'manufacturing' },
       { path: '#/manufacturing/boms', label: 'BOMs', icon: '&#8981;', mod: 'manufacturing' },
       { path: '#/manufacturing/jobs', label: 'Job Orders', icon: '&#9883;', mod: 'manufacturing' }
     ]},
     { group: 'Service', items: [
+      { path: '#/service/dispatch', label: 'Dispatch & Knowledge', icon: '&#9992;', mod: 'service' },
       { path: '#/service/dispatch', label: 'Dispatch & Knowledge', icon: '&#9992;', mod: 'service' },
       { path: '#/service/amc', label: 'AMC Contracts', icon: '&#9742;', mod: 'service' },
       { path: '#/service/tickets', label: 'Service Tickets', icon: '&#9873;', mod: 'service' },
@@ -178,6 +188,7 @@ const Core = {
       { path: '#/finance/journals', label: 'Journal Entries', icon: '&#8776;', mod: 'finance' },
       { path: '#/finance/expenses', label: 'Expenses', icon: '&#8364;', mod: 'finance' },
       { path: '#/finance/banking', label: 'Banking & Reconciliation', icon: '&#127974;', mod: 'finance' },
+      { path: '#/finance/production-controls', label: 'Production Controls', icon: '&#128274;', mod: 'finance' },
       { path: '#/finance/petty-cash', label: 'Petty Cash', icon: '&#128181;', mod: 'finance' },
       { path: '#/finance/cost-centers', label: 'Cost Centres', icon: '&#9678;', mod: 'finance' },
       { path: '#/finance/cheques', label: 'Cheque Status', icon: '&#9745;', mod: 'finance' },
@@ -199,6 +210,7 @@ const Core = {
     ]},
     { group: 'Reports', items: [
       { path: '#/reports/builder', label: 'Custom Report Builder', icon: '&#9881;', mod: 'reports' },
+      { path: '#/reports/builder', label: 'Custom Report Builder', icon: '&#9881;', mod: 'reports' },
       { path: '#/reports/command', label: 'Report Centre', icon: '&#128202;', mod: 'reports' },
       { path: '#/reports/sales', label: 'Sales Report', icon: '&#8613;', mod: 'reports' },
       { path: '#/reports/receivables', label: 'Receivable Aging', icon: '&#8987;', mod: 'reports' },
@@ -207,6 +219,7 @@ const Core = {
       { path: '#/reports/service', label: 'Service Summary', icon: '&#9889;', mod: 'reports' }
     ]},
     { group: 'Communication', items: [
+      { path: '#/communication/governance', label: 'Consent & Segments', icon: '&#10003;', mod: 'communication' },
       { path: '#/communication/governance', label: 'Consent & Segments', icon: '&#10003;', mod: 'communication' },
       { path: '#/communication/email', label: 'Email Center', icon: '&#9993;', mod: 'communication' },
       { path: '#/communication/history', label: 'Communication History', icon: '&#8635;', mod: 'communication' },
@@ -221,6 +234,9 @@ const Core = {
       { path: '#/client-documents', label: 'Client Documents', icon: '&#9636;', mod: 'dataImport' }
     ]},
     { group: 'Administration', items: [
+      { path: '#/admin/api-hub', label: 'API & Integration Hub', icon: '&#8644;', mod: 'admin' },
+      { path: '#/admin/security', label: 'Security Centre', icon: '&#128737;', mod: 'admin' },
+      { path: '#/sales/b2b-commerce', label: 'B2B Commerce', icon: '&#128722;', mod: 'sales' },
       { path: '#/admin/api-hub', label: 'API & Integration Hub', icon: '&#8644;', mod: 'admin' },
       { path: '#/sales/b2b-commerce', label: 'B2B Commerce', icon: '&#128722;', mod: 'sales' },
       { path: '#/admin/subscription', label: 'Plan & Subscription', icon: '&#128179;', mod: 'admin' },
@@ -571,6 +587,20 @@ const Core = {
         this.render();
       } catch (error) { toast('Password not changed', error.message, 'error'); }
     });
+  },
+
+  forceMfaVerification() {
+    const modal = this.openModal({ title: 'Verify Authenticator', closable: false, body: `<p class="muted" style="margin-bottom:14px">Enter the current 6-digit code from your authenticator app.</p><form id="mfa-verify-form"><label class="field"><span>Authenticator code</span><input name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required></label></form>`, footer: '<button class="btn btn-gold" type="submit" form="mfa-verify-form">Verify securely</button>' });
+    modal.el.querySelector('#mfa-verify-form').addEventListener('submit', async event => { event.preventDefault(); try { await this.post('/security/2fa/verify', { code: new FormData(event.target).get('code') }); location.reload(); } catch (error) { toast('Verification failed', error.message, 'error'); } });
+  },
+
+  forceMfaSetup() {
+    let secret = '';
+    const googleAccount = String(this.state.user.authProvider || '').includes('google');
+    const modal = this.openModal({ title: 'Secure administrator account', closable: false, body: `<p class="muted">Administrator accounts require free Authenticator 2FA. Add Tech Defenders OS in Google Authenticator, Microsoft Authenticator or Authy.</p><form id="mfa-setup-form" class="form-grid" style="margin-top:14px">${googleAccount?'':`<label class="field"><span>Current password</span><input name="password" type="password" autocomplete="current-password" required></label>`}<button class="btn btn-outline" type="button" id="mfa-generate">Generate setup key</button><div id="mfa-secret" class="credential-code" hidden></div><label class="field"><span>6-digit authenticator code</span><input name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" disabled required></label></form>`, footer: '<button class="btn btn-gold" type="submit" form="mfa-setup-form" disabled id="mfa-enable">Enable 2FA</button>' });
+    const form = modal.el.querySelector('#mfa-setup-form'), code = form.elements.code, enable = modal.el.querySelector('#mfa-enable');
+    modal.el.querySelector('#mfa-generate').onclick = async () => { try { const result = await this.post('/security/2fa/setup', { password: form.elements.password?.value || '' }); secret = result.secret; const box = modal.el.querySelector('#mfa-secret'); box.hidden = false; box.innerHTML = `<small>Manual setup key</small><br><b>${this.esc(secret)}</b><br><small>Account: ${this.esc(this.state.user.email)}</small>`; code.disabled = false; enable.disabled = false; code.focus(); } catch (error) { toast('Setup stopped', error.message, 'error'); } };
+    form.addEventListener('submit', async event => { event.preventDefault(); if (!secret) return; try { await this.post('/security/2fa/enable', { code: code.value }); location.reload(); } catch (error) { toast('2FA not enabled', error.message, 'error'); } });
   },
 
   /* ---------------- shared UI helpers ---------------- */

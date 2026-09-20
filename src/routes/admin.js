@@ -129,7 +129,7 @@ router.post('/switch-organization', requireSuperAdmin, (req, res) => {
   if (!org) return res.status(404).json({ error: 'Organization not found' });
   const storedUser = store.byId('users', req.user.id);
   if (!storedUser || storedUser.role !== 'super_admin') return res.status(403).json({ error: 'Super Admin access required' });
-  res.cookie('td_token', signToken(storedUser, org.id), sessionCookieOptions());
+  res.cookie('td_token', signToken(storedUser, org.id, req.authSession?.id), sessionCookieOptions());
   audit(org.id, req.user.id, 'workspace_switch', 'organization', org.id, { organization: org.name });
   res.json({ message: 'Active organization changed', org });
 });

@@ -1,0 +1,11 @@
+{
+  "name": "Tech Defenders Business OS",
+  "short_name": "TD OS",
+  "description": "Secure business operations, finance, workforce and customer service.",
+  "start_url": "/app.html#/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0b0b09",
+  "theme_color": "#0b0b09",
+  "icons": [{"src":"/assets/tech-defenders-logo.webp","sizes":"512x512","type":"image/webp","purpose":"any maskable"}]
+}

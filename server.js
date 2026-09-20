@@ -17,7 +17,7 @@ const express = require('express');
 const cookieParser = require('cookie-parser');
 
 const store = require('./db/store');
-const { attachUser } = require('./src/middleware');
+const { attachUser, enforceAppAccess } = require('./src/middleware');
 
 /* Load durable storage before serving requests. JSON remains available for
  * local development/tests; production can require PostgreSQL explicitly. */
@@ -80,7 +80,7 @@ app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('X-Frame-Options', 'SAMEORIGIN');
   res.setHeader('Referrer-Policy', 'same-origin');
-  res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  res.setHeader('Permissions-Policy', 'camera=(self), microphone=(), geolocation=(self)');
   res.setHeader(
     'Content-Security-Policy',
     "default-src 'self'; script-src 'self' 'unsafe-inline' https://accounts.google.com; style-src 'self' 'unsafe-inline' https://accounts.google.com; img-src 'self' data: https://*.googleusercontent.com; font-src 'self' data:; frame-src https://accounts.google.com; connect-src 'self' https://accounts.google.com"
@@ -90,6 +90,7 @@ app.use((req, res, next) => {
 
 /* attach authenticated user (if any) to every request */
 app.use(attachUser);
+app.use(enforceAppAccess);
 
 /* ---------------- API routes ---------------- */
 app.get('/api/health', (req, res) => {
@@ -104,6 +105,7 @@ app.get('/api/health', (req, res) => {
   });
 });
 app.use('/api/auth', require('./src/routes/auth'));
+app.use('/api/security', require('./src/routes/security'));
 app.use('/api/dashboard', require('./src/routes/dashboard'));
 app.use('/api/crm', require('./src/routes/crm'));
 app.use('/api/customer-tools', require('./src/routes/customer-tools'));
@@ -117,6 +119,7 @@ app.use('/api/manufacturing', require('./src/routes/manufacturing'));
 app.use('/api/service', require('./src/routes/service'));
 app.use('/api/finance', require('./src/routes/finance'));
 app.use('/api/finance-controls', require('./src/routes/finance-controls'));
+app.use('/api/finance-production', require('./src/routes/finance-production'));
 app.use('/api/enterprise-controls', require('./src/routes/enterprise-controls'));
 app.use('/api/business-hub', require('./src/routes/business-hub'));
 app.use('/api/ai-command', require('./src/routes/ai-command'));
@@ -135,6 +138,9 @@ app.use('/api/v3', advancedRoutes);
 
 /* API 404 */
 app.use('/api', (req, res) => res.status(404).json({ error: 'API endpoint not found' }));
+
+const backupPolicyTimer = setInterval(() => require('./src/services/backup-service').runDuePolicies().catch(error => console.error('[backup-scheduler]', error.message)), 60_000);
+backupPolicyTimer.unref();
 
 /* ---------------- static frontend ---------------- */
 const PUBLIC_DIR = path.join(__dirname, 'public');

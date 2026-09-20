@@ -14,16 +14,18 @@ const DATA_DIR = process.env.DATA_DIR
   : path.join(__dirname, '..', 'data');
 
 const COLLECTIONS = [
-  'organizations', 'subscriptions', 'branches', 'users', 'sequences',
+  'organizations', 'subscriptions', 'subscriptionEvents', 'branches', 'users', 'sequences',
   'leads', 'customers', 'customerContacts', 'meetings', 'suppliers', 'deals', 'tasks', 'activities',
   'products', 'productCategories', 'warehouses', 'stockReservations', 'priceLists', 'assetRegister', 'stockIncidents',
   'inventoryLots', 'inventorySerials', 'qualityInspections', 'ncrRecords', 'stockHolds',
+  'warehouseBins', 'cycleCounts', 'stockTransferRequests', 'reorderRecommendations',
   'quotations', 'proformas', 'salesOrders', 'deliveryChallans', 'salesVisits', 'dispatchRecords', 'gatePasses',
   'invoices', 'receipts', 'creditNotes', 'debitNotes',
   'requisitions', 'rfqs', 'purchaseOrders', 'grns',
   'purchaseInvoices', 'purchaseReturns', 'supplierPayments',
   'stockLedger', 'boms', 'jobOrders',
   'amcContracts', 'tickets', 'ticketMessages', 'serviceSlaPolicies',
+  'serviceVisits', 'serviceMedia', 'serviceSignatures', 'serviceEscalations',
   'accounts', 'journals', 'expenses', 'bankAccounts', 'bankTransactions', 'bankStatementImports', 'bankReconciliations', 'costCenters', 'pettyCashTransactions', 'chequeRegisters',
   'employees', 'leaveRequests',
   'approvalWorkflows', 'approvalRequests',
@@ -32,16 +34,19 @@ const COLLECTIONS = [
   'clientDocuments', 'customerDocuments', 'supplierDocuments', 'portalAccess', 'portalActivities',
   'emailTemplates', 'emailCampaigns', 'emailQueue', 'emailSuppressions', 'communicationLogs',
   'automationExecutions', 'whatsappIntegrations',
-  'providerWebhooks', 'gstSubmissions', 'aiDrafts', 'authChallenges',
-  'savedReports', 'reportSchedules', 'notifications', 'auditEvents', 'backupRestoreRequests',
+  'providerWebhooks', 'gstSubmissions', 'aiDrafts', 'authChallenges', 'authSessions', 'securityEvents',
+  'savedReports', 'reportSchedules', 'reportRuns', 'notifications', 'auditEvents', 'backupRestoreRequests',
   'mobileDevices', 'mobileAttendance', 'mobileCrashReports',
   'attendanceRecords', 'shifts', 'salaryComponents', 'payrollPolicies', 'payrollRuns', 'payslips',
-  'projects', 'projectMilestones', 'workOrders', 'timesheets', 'mentions', 'backupSnapshots'
+  'salaryStructures', 'payrollAdjustments', 'financialPeriods', 'openingBalances', 'tdsRecords', 'accountingAdjustments', 'financialVerifications', 'documentRevisions',
+  'projects', 'projectMilestones', 'workOrders', 'timesheets', 'mentions', 'backupSnapshots', 'backupPolicies', 'backupAgentHeartbeats', 'disasterRecoveryLogs'
   ,'customerSegments', 'assignmentRules', 'recurringInvoiceProfiles', 'paymentLinks'
+  ,'followUpSequences', 'followUpEnrollments', 'quotationVersions', 'rmaRequests', 'salesTargets', 'salesCommissions'
   ,'purchaseMatchReviews', 'landedCostAllocations', 'workCenters', 'manufacturingRoutings', 'mrpRuns'
   ,'serviceDispatches', 'technicianTimeLogs', 'knowledgeArticles'
   ,'apiKeys', 'apiWebhooks', 'apiRequestLogs', 'customReports'
   ,'communicationSegments', 'communicationConsents', 'templateApprovals', 'inboundCommunications'
+  ,'unsubscribeEvents', 'campaignEvents', 'communicationTimelines'
   ,'commerceCatalogs', 'commercePrices', 'commerceCarts', 'commerceOrders'
   ,'aiConversations', 'aiRecommendations', 'aiActionRequests'
 ];

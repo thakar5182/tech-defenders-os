@@ -1,0 +1,28 @@
+'use strict';
+const express = require('express');
+const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
+const store = require('../../db/store');
+const { requireAuth } = require('../middleware');
+const { audit } = require('../util');
+const router = express.Router();
+router.use(requireAuth);
+
+const B32 = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567';
+function base32(buffer) { let bits = '', out = ''; for (const byte of buffer) bits += byte.toString(2).padStart(8, '0'); for (let i = 0; i < bits.length; i += 5) out += B32[parseInt(bits.slice(i, i + 5).padEnd(5, '0'), 2)]; return out; }
+function decode32(value) { const clean = String(value || '').toUpperCase().replace(/[^A-Z2-7]/g, ''); let bits = ''; for (const ch of clean) bits += B32.indexOf(ch).toString(2).padStart(5, '0'); return Buffer.from((bits.match(/.{8}/g) || []).map(byte => parseInt(byte, 2))); }
+function totp(secret, at = Date.now()) { const counter = Math.floor(at / 30000), buffer = Buffer.alloc(8); buffer.writeBigUInt64BE(BigInt(counter)); const hash = crypto.createHmac('sha1', decode32(secret)).update(buffer).digest(); const offset = hash[19] & 15; return String((hash.readUInt32BE(offset) & 0x7fffffff) % 1000000).padStart(6, '0'); }
+function validTotp(secret, code) { return [-1, 0, 1].some(step => { const expected = Buffer.from(totp(secret, Date.now() + step * 30000)); const supplied = Buffer.from(String(code || '').padStart(6, '0')); return expected.length === supplied.length && crypto.timingSafeEqual(expected, supplied); }); }
+function reconfirmed(req) { return req.authSession && req.authSession.reconfirmedAt && Date.now() - new Date(req.authSession.reconfirmedAt).getTime() < 10 * 60_000; }
+
+router.get('/sessions', (req, res) => res.json({ sessions: store.find('authSessions', row => row.userId === req.user.id && !row.revokedAt).sort((a,b) => String(b.lastSeenAt).localeCompare(String(a.lastSeenAt))).map(row => ({ ...row, current: row.id === req.authSession?.id })) }));
+router.post('/reconfirm', (req, res) => { const user = store.byId('users', req.user.id); if (!user || !bcrypt.compareSync(String(req.body?.password || ''), user.passwordHash)) return res.status(401).json({ error: 'Password is incorrect' }); if (req.authSession) store.update('authSessions', req.authSession.id, { reconfirmedAt: new Date().toISOString() }); audit(req.org.id, req.user.id, 'security_reconfirm', 'auth_session', req.authSession?.id); res.json({ confirmedForSeconds: 600 }); });
+router.post('/2fa/setup', (req, res) => { const user = store.byId('users', req.user.id); if (!user) return res.status(404).json({ error: 'User not found' }); const recentGoogle = req.authSession?.method === 'google' && Date.now() - new Date(req.authSession.createdAt).getTime() < 10 * 60_000; if (!recentGoogle && !reconfirmed(req) && !bcrypt.compareSync(String(req.body?.password || ''), user.passwordHash)) return res.status(401).json({ error: 'Password confirmation required' }); const secret = base32(crypto.randomBytes(20)); store.update('users', user.id, { mfaPendingSecret: secret }); const issuer = encodeURIComponent('Tech Defenders OS'), account = encodeURIComponent(user.email); res.json({ secret, otpauthUrl: `otpauth://totp/${issuer}:${account}?secret=${secret}&issuer=${issuer}&digits=6&period=30` }); });
+router.post('/2fa/enable', (req, res) => { const user = store.byId('users', req.user.id); if (!user?.mfaPendingSecret || !validTotp(user.mfaPendingSecret, req.body?.code)) return res.status(400).json({ error: 'Authenticator code is invalid' }); store.update('users', user.id, { mfaSecret: user.mfaPendingSecret, mfaPendingSecret: null, mfaEnabled: true, mfaEnabledAt: new Date().toISOString() }); audit(req.org.id, req.user.id, 'enable_2fa', 'user', user.id); res.json({ enabled: true }); });
+router.post('/2fa/verify', (req, res) => { const user = store.byId('users', req.user.id); if (!user?.mfaEnabled || !validTotp(user.mfaSecret, req.body?.code)) return res.status(401).json({ error: 'Authenticator code is invalid' }); if (!req.authSession) return res.status(401).json({ error: 'Tracked session required' }); store.update('authSessions', req.authSession.id, { mfaVerified: true, mfaVerifiedAt: new Date().toISOString(), lastSeenAt: new Date().toISOString() }); audit(req.org.id, req.user.id, 'verify_2fa', 'auth_session', req.authSession.id); res.json({ verified: true }); });
+router.post('/sessions/:id/revoke', (req, res) => { const session = store.findOne('authSessions', row => row.id === req.params.id && row.userId === req.user.id); if (!session) return res.status(404).json({ error: 'Session not found' }); store.update('authSessions', session.id, { revokedAt: new Date().toISOString(), revokedBy: req.user.id }); audit(req.org.id, req.user.id, 'revoke_session', 'auth_session', session.id); res.json({ revoked: true, current: session.id === req.authSession?.id }); });
+router.post('/logout-all', (req, res) => { store.find('authSessions', row => row.userId === req.user.id && !row.revokedAt).forEach(row => store.update('authSessions', row.id, { revokedAt: new Date().toISOString(), revokedBy: req.user.id })); const user = store.byId('users', req.user.id); store.update('users', user.id, { tokenVersion: (user.tokenVersion || 0) + 1 }); audit(req.org.id, req.user.id, 'logout_all_devices', 'user', user.id); res.json({ revoked: true }); });
+router.get('/events', (req, res) => { if (!['admin','super_admin'].includes(req.user.role)) return res.status(403).json({ error: 'Administrator access required' }); res.json({ events: store.find('securityEvents', row => row.orgId === req.org.id).slice(-500).reverse() }); });
+
+module.exports = router;
+module.exports.validTotp = validTotp;
