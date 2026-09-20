@@ -483,6 +483,13 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
 .access-modules { padding: 4px 20px 8px; }
 .access-row { min-height: 68px; display: flex; align-items: center; justify-content: space-between; gap: 18px; border-bottom: 1px solid var(--line); }
 .access-row:last-child { border-bottom: 0; }
+.access-module { border-bottom: 1px solid var(--line); }
+.access-module:last-child { border-bottom: 0; }
+.access-apps { padding: 0 0 8px 22px; border-left: 2px solid rgba(212,175,55,.28); }
+.access-app-row { min-height: 52px; padding: 0 8px 0 12px; background: #fbfaf7; }
+.access-app-row .access-copy b { font-size: 12px; }
+.access-app-row .access-copy small { font-size: 10.5px; }
+.access-module-off .access-apps { opacity: .55; }
 .access-copy b { display: block; font-size: 13.5px; }
 .access-copy small { color: var(--muted); font-size: 12px; }
 .ios-switch { display: inline-flex; align-items: center; min-width: 52px; min-height: 44px; cursor: pointer; position: relative; flex-shrink: 0; }
@@ -551,6 +558,14 @@ input, select, textarea { font-family: inherit; font-size: 14px; }
 .policy-row b { font-size: 12.5px; }
 .policy-row small { color: var(--muted); font-size: 11px; }
 .policy-row.policy-disabled { background: #f8f8f8; }
+.policy-module { border-bottom: 1px solid var(--line); }
+.policy-module:last-child { border-bottom: 0; }
+.policy-module-row { background: #fffdf7; border-bottom-color: rgba(212,175,55,.2); }
+.policy-apps { padding-left: 24px; border-left: 2px solid rgba(212,175,55,.3); background: #faf9f5; }
+.policy-app-row { min-height: 50px; background: #faf9f5; }
+.policy-app-row b { font-size: 11.5px; }
+.policy-app-row small { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 9.5px; }
+.policy-module-off .policy-apps { opacity: .55; }
 .live-dot { color: #0c7a43; background: #e7f8ef; border: 1px solid #b7e6cb; padding: 4px 8px; border-radius: 999px; font-size: 9px; font-weight: 900; letter-spacing: .08em; }
 .preview-shell { overflow: hidden; border-radius: 14px; border: 1px solid #243442; background: #0a141e; box-shadow: 0 18px 36px rgba(5,15,24,.18); }
 .preview-top { display: flex; justify-content: space-between; align-items: center; padding: 12px 14px; color: #b9ccd7; border-bottom: 1px solid rgba(255,255,255,.09); font-size: 11px; }
