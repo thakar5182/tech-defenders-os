@@ -409,8 +409,8 @@ router.get('/me', requireAuth, (req, res) => {
     permissions: permsForRole(req.user.role),
     moduleAccess: effectiveAccess(req.user),
     appAccess: effectiveAppAccess(req.user),
-    mfaSetupRequired: process.env.NODE_ENV === 'production' && process.env.REQUIRE_ADMIN_2FA !== 'false' && ['admin', 'super_admin'].includes(req.user.role) && !req.user.mfaEnabled,
-    mfaVerificationRequired: !!(req.user.mfaEnabled && req.authSession && !req.authSession.mfaVerified),
+    mfaSetupRequired: process.env.NODE_ENV === 'production' && process.env.REQUIRE_ADMIN_2FA !== 'false' && req.user.role === 'admin' && !req.user.mfaEnabled,
+    mfaVerificationRequired: !!(req.user.role !== 'super_admin' && req.user.mfaEnabled && req.authSession && !req.authSession.mfaVerified),
     isSuperAdmin: req.user.role === 'super_admin'
   });
 });

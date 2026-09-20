@@ -70,11 +70,11 @@ function requireAuth(req, res, next) {
   const trialExpired = subscription && subscription.status === 'trial' && subscription.trialEndsAt && new Date(subscription.trialEndsAt) < new Date();
   const blocked = subscription && ['suspended', 'cancelled'].includes(subscription.status);
   const path = req.originalUrl.split('?')[0];
-  const mfaVerificationRequired = req.user.mfaEnabled && req.authSession && !req.authSession.mfaVerified;
+  const mfaVerificationRequired = req.user.role !== 'super_admin' && req.user.mfaEnabled && req.authSession && !req.authSession.mfaVerified;
   if (mfaVerificationRequired && !['/api/auth/me', '/api/auth/logout', '/api/security/2fa/verify'].includes(path)) {
     return res.status(403).json({ error: 'Authenticator verification required', code: 'MFA_REQUIRED' });
   }
-  const adminMfaRequired = process.env.NODE_ENV === 'production' && process.env.REQUIRE_ADMIN_2FA !== 'false' && ['admin', 'super_admin'].includes(req.user.role) && !req.user.mfaEnabled;
+  const adminMfaRequired = process.env.NODE_ENV === 'production' && process.env.REQUIRE_ADMIN_2FA !== 'false' && req.user.role === 'admin' && !req.user.mfaEnabled;
   if (adminMfaRequired && !['/api/auth/me', '/api/auth/logout', '/api/security/2fa/setup', '/api/security/2fa/enable', '/api/security/reconfirm'].includes(path)) {
     return res.status(403).json({ error: 'Authenticator 2FA setup is required for administrator accounts', code: 'MFA_SETUP_REQUIRED' });
   }
