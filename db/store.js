@@ -24,7 +24,7 @@ const COLLECTIONS = [
   'requisitions', 'rfqs', 'purchaseOrders', 'grns',
   'purchaseInvoices', 'purchaseReturns', 'supplierPayments',
   'stockLedger', 'boms', 'jobOrders',
-  'amcContracts', 'tickets', 'ticketMessages', 'serviceSlaPolicies',
+  'amcContracts', 'amcAssets', 'maintenanceSchedules', 'serviceChecklists', 'serviceFeedback', 'tickets', 'ticketMessages', 'serviceSlaPolicies',
   'serviceVisits', 'serviceMedia', 'serviceSignatures', 'serviceEscalations',
   'accounts', 'journals', 'expenses', 'bankAccounts', 'bankTransactions', 'bankStatementImports', 'bankReconciliations', 'costCenters', 'pettyCashTransactions', 'chequeRegisters',
   'employees', 'leaveRequests', 'departments', 'designations', 'holidays',
