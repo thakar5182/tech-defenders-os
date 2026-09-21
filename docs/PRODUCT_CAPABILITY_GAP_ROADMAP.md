@@ -93,9 +93,19 @@ The canonical AMC, Tickets and Dispatch workflows are extended with:
 - reuse of existing dispatch, GPS consent, photos, signatures and service-report PDF workflows;
 - RBAC, audit events, validation and dedicated regression coverage.
 
-### Release 4 — Document governance and employee self-service
+### Release 4 — Document governance and employee self-service (implemented)
 
-Extend existing document repositories with folders, versions, tags, expiry, approval and access events. Expose permission-filtered attendance, leave, payslip, training, goals and documents through one employee self-service screen.
+The existing document repositories and HR/payroll records are extended with:
+
+- one governed index across client, customer, supplier and employee documents;
+- nested folder-ready classification, tags and expiry dates;
+- controlled file revisions with version numbers and version notes;
+- approval/rejection controls that reset safely when an approved file is revised;
+- audited document-download access events;
+- employee-document publishing from the existing HR permission model;
+- a private employee desk for attendance, leave, published payslips, training, goals, tasks and documents;
+- self-service leave requests routed into the existing HR approval queue;
+- tenant scoping, RBAC, validation and dedicated Release 4 regression coverage.
 
 ### Release 5 — Marketing acquisition and unified calendar
 
