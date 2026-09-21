@@ -1177,6 +1177,7 @@ Core.route('admin/users', async () => {
   const d = await Core.get('/admin/users');
   Pages._adminUsers = d.users;
   Pages._adminRoles = d.roles;
+  Pages._adminWorkforceOptions = d.workforceOptions || { departments: [], designations: [], managers: [] };
   const canEdit = Core.can('admin', 'edit');
   const canDelete = Core.can('admin', 'delete');
   const actorIsSuperAdmin = Core.state.user.role === 'super_admin';
@@ -1203,6 +1204,7 @@ Core.route('admin/users', async () => {
 
 Pages.openUserForm = function () {
   Core.get('/admin/users').then(d => {
+    const workforce = d.workforceOptions || { departments: [], designations: [], managers: [] };
     Core.formModal({
       title: 'Add team member',
       fields: [
@@ -1210,7 +1212,11 @@ Pages.openUserForm = function () {
         { name: 'email', label: 'Work email *', type: 'email', required: true, half: true },
         { name: 'role', label: 'Role *', type: 'select', required: true,
           options: d.roles.map(r => ({ value: r, label: r.replace('_', ' ') })) },
-        { name: 'phone', label: 'Phone', half: true }
+        { name: 'phone', label: 'Phone', half: true },
+        { name: 'department', label: 'Department (Employee / Engineer)', type: 'select', half: true, options: [{ value: '', label: 'Not assigned' }].concat(workforce.departments.map(row => ({ value: row.name, label: row.name }))) },
+        { name: 'designation', label: 'Designation', type: 'select', half: true, options: [{ value: '', label: 'Not assigned' }].concat(workforce.designations.map(row => ({ value: row.name, label: row.name }))) },
+        { name: 'managerEmployeeId', label: 'Reporting manager', type: 'select', half: true, options: [{ value: '', label: 'Not assigned' }].concat(workforce.managers.map(row => ({ value: row.id, label: row.name + (row.designation ? ' · ' + row.designation : '') }))) },
+        { name: 'joinDate', label: 'Joining date', type: 'date', half: true, value: new Date().toISOString().slice(0, 10) }
       ],
       submitLabel: 'Create user',
       onSubmit: async v => {
@@ -1253,13 +1259,19 @@ Pages.resetUserPw = async id => {
 Pages.editUser = id => {
   const user = Pages._adminUsers?.find(item => item.id === id);
   if (!user) return;
+  const workforce = Pages._adminWorkforceOptions || { departments: [], designations: [], managers: [] };
+  const employee = user.employeeProfile || {};
   Core.formModal({
     title: 'Edit user and role',
     fields: [
       { name: 'name', label: 'Full name *', required: true, half: true, value: user.name },
       { name: 'phone', label: 'Phone', half: true, value: user.phone || '' },
       { name: 'role', label: 'Role *', type: 'select', required: true, value: user.role,
-        options: Pages._adminRoles.map(role => ({ value: role, label: Core.roleLabel(role) })) }
+        options: Pages._adminRoles.map(role => ({ value: role, label: Core.roleLabel(role) })) },
+      { name: 'department', label: 'Department', type: 'select', half: true, value: employee.department || '', options: [{ value: '', label: 'Not assigned' }].concat(workforce.departments.map(row => ({ value: row.name, label: row.name }))) },
+      { name: 'designation', label: 'Designation', type: 'select', half: true, value: employee.designation || '', options: [{ value: '', label: 'Not assigned' }].concat(workforce.designations.map(row => ({ value: row.name, label: row.name }))) },
+      { name: 'managerEmployeeId', label: 'Reporting manager', type: 'select', half: true, value: employee.managerEmployeeId || '', options: [{ value: '', label: 'Not assigned' }].concat(workforce.managers.filter(row => row.id !== employee.id).map(row => ({ value: row.id, label: row.name + (row.designation ? ' · ' + row.designation : '') }))) },
+      { name: 'joinDate', label: 'Joining date', type: 'date', half: true, value: employee.joinDate || '' }
     ],
     submitLabel: 'Save user',
     onSubmit: async values => {

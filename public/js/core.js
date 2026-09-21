@@ -540,6 +540,18 @@ const Core = {
   },
 
   defaultRoute() {
+    const roleHome = {
+      employee: '#/hr/self-service',
+      engineer: '#/operations/inbox',
+      accountant: '#/finance/ledgers',
+      purchase_manager: '#/purchase/orders',
+      store_manager: '#/inventory/summary',
+      production_manager: '#/manufacturing/jobs',
+      service_manager: '#/service/tickets',
+      sales_exec: '#/crm/daily-work',
+      sales_manager: '#/crm/daily-work'
+    }[this.state.user?.role];
+    if (roleHome && this.can(this.moduleForHash(roleHome), 'view') && this.canApp(roleHome)) return roleHome;
     for (const group of this.NAV) {
       const item = group.items.find(candidate =>
         (!candidate.superOnly || this.state.user.role === 'super_admin') &&
