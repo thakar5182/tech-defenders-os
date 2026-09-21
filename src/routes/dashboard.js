@@ -16,7 +16,7 @@ function monthKey(d) { return String(d).slice(0, 7); }
 router.get('/summary', requireModule('dashboard'), (req, res) => {
   const orgId = req.org.id;
   const today = new Date().toISOString().slice(0, 10);
-  const access = Object.fromEntries(['crm', 'sales', 'purchase', 'inventory', 'service', 'reports']
+  const access = Object.fromEntries(['crm', 'sales', 'purchase', 'inventory', 'service', 'reports', 'hr', 'operations']
     .map(mod => [mod, can(req.user, mod, 'view')]));
   const widgets = effectiveDashboardWidgets(req.user);
 
@@ -28,6 +28,11 @@ router.get('/summary', requireModule('dashboard'), (req, res) => {
   const tickets = access.service ? store.find('tickets', t => t.orgId === orgId) : [];
   const receipts = access.sales ? store.find('receipts', r => r.orgId === orgId) : [];
   const pos = access.purchase ? store.find('purchaseOrders', p => p.orgId === orgId) : [];
+  const employee = access.hr ? store.findOne('employees', row => row.orgId === orgId && (row.userId === req.user.id || (row.email && req.user.email && row.email.toLowerCase() === req.user.email.toLowerCase()))) : null;
+  const myAttendance = employee ? store.find('attendanceRecords', row => row.orgId === orgId && row.employeeId === employee.id) : [];
+  const myLeaves = employee ? store.find('leaveRequests', row => row.orgId === orgId && row.employeeId === employee.id) : [];
+  const myPayslips = employee ? store.find('payslips', row => row.orgId === orgId && row.employeeId === employee.id && row.status === 'published') : [];
+  const myTasks = access.operations ? store.find('tasks', row => row.orgId === orgId && (row.assignedTo === req.user.id || row.assignee === req.user.id || (employee && row.assignedTo === employee.id))) : [];
 
   /* follow-ups due today or overdue */
   const dueTasks = tasks.filter(t => t.status === 'open' && t.dueDate && t.dueDate <= today);
@@ -93,7 +98,11 @@ router.get('/summary', requireModule('dashboard'), (req, res) => {
           .reduce((s, r) => s + (Number(r.amount) || 0), 0))
         : null,
       invoicedThisMonth: widgets.salesMonthly ? r2(invoices.filter(i => monthKey(i.date || i.createdAt) === monthKey(today))
-        .reduce((s, i) => s + (Number(i.totals?.grandTotal) || 0), 0)) : null
+        .reduce((s, i) => s + (Number(i.totals?.grandTotal) || 0), 0)) : null,
+      myAttendanceToday: widgets.myAttendance ? (myAttendance.find(row => row.workDate === today)?.status || 'not_marked') : null,
+      myPendingLeave: widgets.myLeave ? myLeaves.filter(row => row.status === 'pending').length : null,
+      myPublishedPayslips: widgets.myPayslips ? myPayslips.length : null,
+      myOpenTasks: widgets.myTasks ? myTasks.filter(row => !['completed', 'done', 'closed'].includes(row.status)).length : null
     },
     salesTrend: widgets.salesTrend ? Object.entries(trend).map(([month, total]) => ({ month, total: r2(total) })) : [],
     leadFunnel: widgets.leadFunnel ? funnel : {},
