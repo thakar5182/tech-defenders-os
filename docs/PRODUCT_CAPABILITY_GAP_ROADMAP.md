@@ -66,9 +66,18 @@ The existing `Employees` app is extended with:
 - responsive reuse of existing tables, forms, KPI and empty-state components;
 - dedicated regression coverage.
 
-### Release 2 — Project delivery depth
+### Release 2 — Project delivery depth (implemented)
 
-Extend `Projects & Work Orders`: subtasks, dependencies, templates, budget/expense controls, workload projection and Gantt/calendar projections. Reuse `tasks`, `timesheets`, approvals, notifications and reports.
+The existing `Projects & Work Orders` app is extended with:
+
+- reusable project templates that generate milestones and tasks;
+- tasks, subtasks, priorities, due dates and workspace assignees;
+- dependency enforcement that blocks premature task execution;
+- project expense capture included in profitability and budget variance;
+- team workload derived from live assignments and timesheets;
+- Gantt/calendar projection from milestones, tasks and dependencies;
+- assignment notifications, tenant scoping, RBAC and audit events;
+- expanded P0 regression coverage.
 
 ### Release 3 — Service/AMC completion
 
