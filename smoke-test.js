@@ -17,6 +17,7 @@ process.env.INITIAL_STAFF_PASSWORD = 'TestStaffAccount@123';
 
 const app = require('./server');
 const store = require('./db/store');
+const { DASHBOARD_WIDGETS } = require('./src/util');
 const INITIAL_BUSINESS_COLLECTIONS = [
   'leads', 'customers', 'suppliers', 'deals', 'tasks', 'activities',
   'products', 'warehouses', 'quotations', 'salesOrders', 'invoices',
@@ -325,7 +326,7 @@ async function run() {
     check('newly registered account appears immediately in Super Admin without workspace switch',
       response.status === 200 && globallyVisibleOwner && globallyVisibleOwner.organization.name === 'Other Org');
     response = await req('GET', `/api/admin/global/users/${otherOwner.id}/dashboard-preview`, null, superCookie);
-    check('Super Admin can preview a user dashboard', response.status === 200 && response.json.widgets.length === 10);
+    check('Super Admin can preview a user dashboard', response.status === 200 && response.json.widgets.length === DASHBOARD_WIDGETS.length);
     response = await req('PATCH', `/api/admin/global/users/${otherOwner.id}/access`, {
       dashboardWidgets: { crmOverview: false }, moduleAccess: { service: true }, appAccess: { 'service/tickets': false }
     }, superCookie);
