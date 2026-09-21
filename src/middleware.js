@@ -108,6 +108,23 @@ function requireModule(module) {
 }
 
 const APP_API_RULES = [
+  [/^\/api\/crm\/leads(?:\/|$)/, 'crm/leads'], [/^\/api\/crm\/customers(?:\/|$)/, 'crm/customers'],
+  [/^\/api\/crm\/contacts(?:\/|$)/, 'crm/contacts'], [/^\/api\/crm\/meetings(?:\/|$)/, 'crm/meetings'],
+  [/^\/api\/crm\/daily-work(?:\/|$)/, 'crm/daily-work'], [/^\/api\/crm\/late-payments(?:\/|$)/, 'crm/late-payments'],
+  [/^\/api\/crm\/deals(?:\/|$)/, 'crm/deals'], [/^\/api\/crm\/tasks(?:\/|$)/, 'crm/tasks'],
+  [/^\/api\/sales\/quotations(?:\/|$)/, 'sales/quotations'], [/^\/api\/sales\/sales-orders(?:\/|$)/, 'sales/orders'],
+  [/^\/api\/sales\/invoices(?:\/|$)/, 'sales/invoices'], [/^\/api\/sales\/receipts(?:\/|$)/, 'sales/receipts'],
+  [/^\/api\/sales\/credit-notes(?:\/|$)/, 'sales/credit-notes'],
+  [/^\/api\/purchase\/requisitions(?:\/|$)/, 'purchase/requisitions'], [/^\/api\/purchase\/rfqs(?:\/|$)/, 'purchase/rfqs'],
+  [/^\/api\/purchase\/purchase-orders(?:\/|$)/, 'purchase/orders'], [/^\/api\/purchase\/grns(?:\/|$)/, 'purchase/grns'],
+  [/^\/api\/purchase\/suppliers(?:\/|$)/, 'purchase/suppliers'],
+  [/^\/api\/inventory\/products(?:\/|$)/, 'inventory/products'], [/^\/api\/inventory\/summary(?:\/|$)/, 'inventory/summary'],
+  [/^\/api\/inventory\/ledger(?:\/|$)/, 'inventory/ledger'],
+  [/^\/api\/manufacturing\/boms(?:\/|$)/, 'manufacturing/boms'], [/^\/api\/manufacturing\/job-orders(?:\/|$)/, 'manufacturing/jobs'],
+  [/^\/api\/service\/amc(?:\/|$)/, 'service/amc'], [/^\/api\/service\/tickets(?:\/|$)/, 'service/tickets'],
+  [/^\/api\/service\/sla(?:\/|$)/, 'service/sla-control'],
+  [/^\/api\/finance\/accounts(?:\/|$)/, 'finance/accounts'], [/^\/api\/finance\/journals(?:\/|$)/, 'finance/journals'],
+  [/^\/api\/finance\/expenses(?:\/|$)/, 'finance/expenses'], [/^\/api\/finance\/pnl(?:\/|$)/, 'finance/pnl'],
   [/^\/api\/ai-command(?:\/|$)/, 'ai/command-centre'], [/^\/api\/customer-tools(?:\/|$)/, 'crm/intelligence'],
   [/^\/api\/collections(?:\/|$)/, 'sales/collections'], [/^\/api\/inventory-controls(?:\/|$)/, 'inventory/quality'],
   [/^\/api\/p0\/attendance(?:\/|$)/, 'hr/attendance'], [/^\/api\/p0\/shifts(?:\/|$)/, 'hr/attendance'], [/^\/api\/p0\/(?:salary-components|payroll-policy|payroll-runs|my\/payslips)(?:\/|$)/, 'hr/payroll'],
@@ -115,7 +132,8 @@ const APP_API_RULES = [
   [/^\/api\/enterprise-controls\/sales\/recurring(?:\/|$)/, 'sales/recurring'], [/^\/api\/enterprise-controls\/purchase(?:\/|$)/, 'purchase/matching'],
   [/^\/api\/enterprise-controls\/manufacturing(?:\/|$)/, 'manufacturing/planning'], [/^\/api\/enterprise-controls\/service(?:\/|$)/, 'service/dispatch'],
   [/^\/api\/report-controls(?:\/|$)/, 'reports/builder'], [/^\/api\/business-hub\/api(?:\/|$)/, 'admin/api-hub'],
-  [/^\/api\/business-hub\/communication(?:\/|$)/, 'communication/governance'], [/^\/api\/business-hub\/commerce(?:\/|$)/, 'sales/b2b-commerce']
+  [/^\/api\/business-hub\/communication(?:\/|$)/, 'communication/governance'], [/^\/api\/business-hub\/commerce(?:\/|$)/, 'sales/b2b-commerce'],
+  [/^\/api\/workspace\/self-service(?:\/|$)/, 'hr/self-service']
 ];
 function enforceAppAccess(req, res, next) {
   if (!req.user) return next();

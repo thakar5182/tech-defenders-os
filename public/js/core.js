@@ -5,7 +5,7 @@
 'use strict';
 
 const Core = {
-  state: { user: null, org: null, perms: {}, moduleAccess: {}, appAccess: {}, organizations: [], openNavGroup: null, lastNavHash: null, openDashboardApp: null },
+  state: { user: null, org: null, perms: {}, moduleAccess: {}, appAccess: {}, dashboardWidgets: {}, organizations: [], openNavGroup: null, lastNavHash: null, openDashboardApp: null },
   routes: [],
 
   /* ---------------- API ---------------- */
@@ -83,6 +83,7 @@ const Core = {
       this.state.perms = me.permissions || {};
       this.state.moduleAccess = me.moduleAccess || {};
       this.state.appAccess = me.appAccess || {};
+      this.state.dashboardWidgets = me.dashboardWidgets || {};
       this.state.mfaSetupRequired = !!me.mfaSetupRequired;
       this.state.mfaVerificationRequired = !!me.mfaVerificationRequired;
       if (me.isSuperAdmin && !me.mfaSetupRequired && !me.mfaVerificationRequired) {

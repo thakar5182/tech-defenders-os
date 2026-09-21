@@ -6,7 +6,7 @@
 const express = require('express');
 const store = require('../../db/store');
 const { requireAuth, requireModule } = require('../middleware');
-const { r2, can, effectiveDashboardWidgets } = require('../util');
+const { r2, can, canUseApp, effectiveDashboardWidgets } = require('../util');
 
 const router = express.Router();
 router.use(requireAuth);
@@ -22,7 +22,8 @@ router.get('/summary', requireModule('dashboard'), (req, res) => {
 
   const leads = access.crm ? store.find('leads', l => l.orgId === orgId) : [];
   const deals = access.crm ? store.find('deals', d => d.orgId === orgId) : [];
-  const tasks = access.crm ? store.find('tasks', t => t.orgId === orgId) : [];
+  const personalWorkOnly = ['employee', 'engineer'].includes(req.user.role);
+  const tasks = access.crm ? store.find('tasks', t => t.orgId === orgId && (!personalWorkOnly || t.assignee === req.user.id)) : [];
   const invoices = access.sales ? store.find('invoices', i => i.orgId === orgId && !['cancelled', 'credited'].includes(i.status)) : [];
   const products = access.inventory ? store.find('products', p => p.orgId === orgId && p.type !== 'service') : [];
   const tickets = access.service ? store.find('tickets', t => t.orgId === orgId) : [];
@@ -123,29 +124,29 @@ router.get('/search', (req, res) => {
   };
   const results = [];
 
-  if (can(req.user, 'crm', 'view')) for (const c of store.find('customers', x => x.orgId === orgId)) {
+  if (canUseApp(req.user, 'crm/customers')) for (const c of store.find('customers', x => x.orgId === orgId)) {
     if (like(c.serialNo, c.name, c.contactPerson, c.email, c.phone, c.gstin, c.billingAddress)) results.push({ type: 'Customer', label: c.name, sub: `${c.serialNo || 'CUS-legacy'} · ${c.email || c.phone || ''}`, link: '#/crm/customers/' + c.id });
   }
-  if (can(req.user, 'crm', 'view')) for (const l of store.find('leads', x => x.orgId === orgId)) {
+  if (canUseApp(req.user, 'crm/leads')) for (const l of store.find('leads', x => x.orgId === orgId)) {
     if (like(l.serialNo, l.name, l.company, l.email, l.phone)) results.push({ type: 'Lead', label: l.name, sub: `${l.serialNo || 'LEAD-legacy'} · ${l.company || ''}`, link: '#/crm/leads' });
   }
-  if (can(req.user, 'inventory', 'view')) for (const p of store.find('products', x => x.orgId === orgId)) {
+  if (canUseApp(req.user, 'inventory/products')) for (const p of store.find('products', x => x.orgId === orgId)) {
     if (like(p.serialNo, p.name, p.sku, p.category, p.hsn)) results.push({ type: 'Product', label: `${p.name} (${p.sku})`, sub: `${p.serialNo || 'PRD-legacy'} · ${p.category}`, link: '#/inventory/products' });
   }
-  if (can(req.user, 'sales', 'view')) for (const d of store.find('quotations', x => x.orgId === orgId)) {
+  if (canUseApp(req.user, 'sales/quotations')) for (const d of store.find('quotations', x => x.orgId === orgId)) {
     if (like(d.number, d.customerName, d.notes)) results.push({ type: 'Quotation', label: d.number, sub: d.status, link: '#/sales/quotations' });
   }
-  if (can(req.user, 'sales', 'view')) for (const d of store.find('invoices', x => x.orgId === orgId)) {
+  if (canUseApp(req.user, 'sales/invoices')) for (const d of store.find('invoices', x => x.orgId === orgId)) {
     if (like(d.number, d.customerName, d.notes, d.lines?.map(line => line.name))) results.push({ type: 'Sales invoice', label: d.number, sub: d.status, link: '#/print/invoice/' + d.id });
   }
-  if (can(req.user, 'purchase', 'view')) for (const s of store.find('suppliers', x => x.orgId === orgId)) {
+  if (canUseApp(req.user, 'purchase/suppliers')) for (const s of store.find('suppliers', x => x.orgId === orgId)) {
     if (like(s.name, s.contactPerson, s.email, s.phone, s.gstin, s.address)) results.push({ type: 'Vendor', label: s.name, sub: s.gstin || s.phone, link: '#/purchase/suppliers' });
   }
-  if (can(req.user, 'purchase', 'view')) for (const d of store.find('purchaseInvoices', x => x.orgId === orgId)) {
+  if (canUseApp(req.user, 'purchase/billing')) for (const d of store.find('purchaseInvoices', x => x.orgId === orgId)) {
     const supplier = store.byId('suppliers', d.supplierId) || {};
     if (like(d.number, d.supplierInvoiceNo, supplier.name, d.notes, d.lines?.map(line => line.description))) results.push({ type: 'Purchase bill', label: d.supplierInvoiceNo || d.number, sub: supplier.name || d.status, link: '#/purchase/billing' });
   }
-  if (can(req.user, 'service', 'view')) for (const d of store.find('tickets', x => x.orgId === orgId)) {
+  if (canUseApp(req.user, 'service/tickets')) for (const d of store.find('tickets', x => x.orgId === orgId)) {
     if (like(d.number) || like(d.subject)) results.push({ type: 'Ticket', label: `${d.number} - ${d.subject}`, sub: d.status, link: '#/service/tickets' });
   }
   res.json({ results: results.slice(0, 20) });
