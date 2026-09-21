@@ -1,0 +1,30 @@
+/** Phase 2 finance and compliance regression. */
+'use strict';
+const assert = require('assert');
+const f = require('./src/services/phase2-finance');
+let passed = 0;
+const check = (name, condition) => { assert.ok(condition, name); passed++; console.log('  PASS  ' + name); };
+(() => {
+  console.log('\n=== Phase 2 finance and compliance regression ===\n');
+  const orgId = 'org-1', period = '2026-09';
+  const invoice = { orgId, date: '2026-09-10', status: 'posted', totals: { taxable: 1000, cgst: 90, sgst: 90, grandTotal: 1180 } };
+  const purchase = { orgId, date: '2026-09-11', status: 'posted', totals: { taxable: 500, cgst: 45, sgst: 45, grandTotal: 590 } };
+  const gst = f.gstReturn({ invoices: [invoice, { ...invoice, status: 'cancelled' }], purchases: [purchase], orgId, period });
+  check('GST excludes cancelled documents', gst.outward.documents === 1);
+  check('GST computes output tax', gst.outputTax === 180);
+  check('GST applies eligible input credit', gst.inputTaxCredit === 90 && gst.netPayable === 90);
+  check('GST reconciliation detects portal differences', !f.reconcileGst(gst.outward, { ...gst.outward, cgst: 80 }).matched);
+  check('GST reconciliation accepts tolerance', f.reconcileGst(gst.outward, { ...gst.outward, cgst: 89.5 }, 1).matched);
+  const tds = f.deduction({ kind: 'tds', taxableAmount: 10000, rate: 10, surcharge: 10, cess: 4 });
+  check('TDS/TCS calculation includes surcharge and cess', tds.total === 1144);
+  check('PAN validation enforces Indian PAN format', f.validatePan('ABCDE1234F') && !f.validatePan('ABC123'));
+  const movements = [{ date: '2026-09-01', qty: 10, rate: 100 }, { date: '2026-09-02', qty: 10, rate: 200 }, { date: '2026-09-03', qty: -12 }];
+  const fifo = f.valuation(movements, 'fifo'), weighted = f.valuation(movements, 'weighted_average');
+  check('FIFO valuation consumes oldest layers', fifo.qty === 8 && fifo.value === 1600);
+  check('Weighted average valuation is accurate', weighted.qty === 8 && weighted.value === 1200);
+  check('Valuation honours as-of dates', f.valuation(movements, 'fifo', '2026-09-02').qty === 20);
+  check('Closing control detects unposted journals', f.journalIssues([{ id: 'j1', posted: false }])[0].issue === 'unposted');
+  check('Closing control detects unbalanced journals', f.journalIssues([{ id: 'j2', posted: true, lines: [{ debit: 100 }, { credit: 90 }] }])[0].issue === 'unbalanced');
+  check('Close snapshot digest is deterministic', f.closingDigest({ a: 1 }) === f.closingDigest({ a: 1 }));
+  console.log('\n=== Results: ' + passed + '/' + passed + ' passed ===\n');
+})();
