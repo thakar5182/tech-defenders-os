@@ -14,7 +14,7 @@ const {
 } = require('../middleware');
 const {
   audit, notify, MODULES, APP_CATALOG, DASHBOARD_WIDGETS, effectiveAccess,
-  effectiveAppAccess, effectiveDashboardWidgets, stockBalance, r2
+  effectiveAppAccess, effectiveDashboardWidgets, workspacePolicyForRole, stockBalance, r2
 } = require('../util');
 
 const router = express.Router();
@@ -165,6 +165,7 @@ router.post('/global/users', requireSuperAdmin, (req, res) => {
   const email = String(body.email).trim().toLowerCase();
   if (store.findOne('users', user => user.email === email)) return res.status(409).json({ error: 'Email already in use' });
   const tempPassword = 'Td@' + crypto.randomBytes(4).toString('hex');
+  const policy = workspacePolicyForRole(body.role);
   const user = store.insert('users', {
     orgId: org.id,
     name: body.name,
@@ -174,8 +175,10 @@ router.post('/global/users', requireSuperAdmin, (req, res) => {
     phone: body.phone || '',
     active: true,
     tokenVersion: 0,
-    moduleAccess: {},
-    dashboardWidgets: {},
+    workspaceCategory: policy.category,
+    moduleAccess: policy.moduleAccess,
+    appAccess: policy.appAccess,
+    dashboardWidgets: policy.dashboardWidgets,
     mustChangePassword: true
   });
   audit(org.id, req.user.id, 'global_create', 'user', user.id, { email, role: body.role });
@@ -193,6 +196,13 @@ router.patch('/global/users/:id', requireSuperAdmin, (req, res) => {
   if (req.body.role) {
     if (!SUPER_ADMIN_ASSIGNABLE_ROLES.includes(req.body.role)) return res.status(400).json({ error: 'Invalid role' });
     patch.role = req.body.role;
+    if (req.body.applyWorkspaceProfile !== false) {
+      const policy = workspacePolicyForRole(req.body.role);
+      patch.workspaceCategory = policy.category;
+      patch.moduleAccess = policy.moduleAccess;
+      patch.appAccess = policy.appAccess;
+      patch.dashboardWidgets = policy.dashboardWidgets;
+    }
   }
   if (Object.keys(patch).length === 0) return res.status(400).json({ error: 'No supported changes supplied' });
   patch.tokenVersion = (target.tokenVersion || 0) + 1;
@@ -296,13 +306,16 @@ router.post('/users', requirePerm('admin', 'create'), (req, res) => {
   if (store.findOne('users', u => u.email === email)) return res.status(409).json({ error: 'Email already in use' });
   /* generate a one-time temporary password; admin must share it securely */
   const tempPassword = 'Td@' + crypto.randomBytes(4).toString('hex');
+  const policy = workspacePolicyForRole(b.role);
   const user = store.insert('users', {
     orgId: req.org.id, name: b.name, email,
     passwordHash: bcrypt.hashSync(tempPassword, 10),
     role: b.role, phone: b.phone || '',
     active: true, tokenVersion: 0,
-    moduleAccess: {},
-    dashboardWidgets: {},
+    workspaceCategory: policy.category,
+    moduleAccess: policy.moduleAccess,
+    appAccess: policy.appAccess,
+    dashboardWidgets: policy.dashboardWidgets,
     mustChangePassword: true
   });
   audit(req.org.id, req.user.id, 'create', 'user', user.id, { email, role: b.role });
@@ -331,6 +344,13 @@ router.patch('/users/:id', requirePerm('admin', 'edit'), (req, res) => {
   if (req.body.role) {
     if (!assignableRoles(req.user).includes(req.body.role)) return res.status(403).json({ error: 'You cannot assign this role' });
     patch.role = req.body.role;
+    if (req.body.applyWorkspaceProfile !== false) {
+      const policy = workspacePolicyForRole(req.body.role);
+      patch.workspaceCategory = policy.category;
+      patch.moduleAccess = policy.moduleAccess;
+      patch.appAccess = policy.appAccess;
+      patch.dashboardWidgets = policy.dashboardWidgets;
+    }
   }
   if (typeof req.body.active === 'boolean') patch.active = req.body.active;
   if (req.body.resetPassword) {
@@ -350,6 +370,21 @@ router.patch('/users/:id', requirePerm('admin', 'edit'), (req, res) => {
     role: patch.role, active: patch.active, passwordReset: !!req.body.resetPassword
   });
   res.json({ user: safeUser(updated), tempPassword: generatedTempPassword });
+});
+
+router.post('/users/:id/apply-workspace-profile', requirePerm('admin', 'edit'), (req, res) => {
+  const target = store.findOne('users', user => user.id === req.params.id && user.orgId === req.org.id && !user.deletedAt);
+  if (!target) return res.status(404).json({ error: 'User not found' });
+  if (target.id === req.user.id) return res.status(400).json({ error: 'Use individual access controls for your own account' });
+  const targetError = managementError(req.user, target); if (targetError) return res.status(403).json({ error: targetError });
+  const policy = workspacePolicyForRole(target.role);
+  const updated = store.update('users', target.id, {
+    workspaceCategory: policy.category, moduleAccess: policy.moduleAccess,
+    appAccess: policy.appAccess, dashboardWidgets: policy.dashboardWidgets,
+    tokenVersion: (target.tokenVersion || 0) + 1
+  });
+  audit(req.org.id, req.user.id, 'apply_workspace_profile', 'user', target.id, { category: policy.category });
+  res.json({ user: safeUser(updated), effectiveAccess: effectiveAccess(updated), effectiveAppAccess: effectiveAppAccess(updated), effectiveDashboardWidgets: effectiveDashboardWidgets(updated) });
 });
 
 router.delete('/users/:id', requirePerm('admin', 'delete'), (req, res) => {
