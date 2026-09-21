@@ -35,6 +35,10 @@ Core.route('dashboard', async () => {
       ${k.lowStockCount != null ? Core.kpi('Low Stock Items', k.lowStockCount, 'at or below reorder level', k.lowStockCount ? 'k-danger' : 'k-success', '#/inventory/summary') : ''}
       ${k.openTickets != null ? Core.kpi('Open Tickets', k.openTickets, 'service desk load', '', '#/service/tickets') : ''}
       ${k.pendingPOs != null ? Core.kpi('Pending POs', k.pendingPOs, 'awaiting delivery', '', '#/purchase/orders') : ''}
+      ${k.myAttendanceToday != null ? Core.kpi('My Attendance', String(k.myAttendanceToday).replace(/_/g, ' '), 'today · personal record', k.myAttendanceToday === 'present' ? 'k-success' : 'k-gold', '#/hr/self-service') : ''}
+      ${k.myPendingLeave != null ? Core.kpi('My Pending Leave', k.myPendingLeave, 'requests awaiting decision', k.myPendingLeave ? 'k-gold' : '', '#/hr/self-service') : ''}
+      ${k.myPublishedPayslips != null ? Core.kpi('My Payslips', k.myPublishedPayslips, 'published documents', '', '#/hr/self-service') : ''}
+      ${k.myOpenTasks != null ? Core.kpi('My Open Work', k.myOpenTasks, 'assigned tasks', k.myOpenTasks ? 'k-gold' : '', '#/operations/inbox') : ''}
     </div>
 
     <div class="grid-2col">
