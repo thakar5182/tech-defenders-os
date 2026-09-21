@@ -126,6 +126,7 @@ app.use('/api/ai-command', require('./src/routes/ai-command'));
 app.use('/api/reports', require('./src/routes/reports'));
 app.use('/api/report-controls', require('./src/routes/report-controls'));
 app.use('/api/admin', require('./src/routes/admin'));
+app.use('/api/workspace', require('./src/routes/document-self-service'));
 app.use('/api/backups', require('./src/routes/backup-controls'));
 app.use('/api/subscription', require('./src/routes/subscriptions'));
 app.use('/api/integrations', require('./src/routes/integrations'));
