@@ -121,3 +121,11 @@ Add budget control/variance, recurring expenses, improved statutory export packs
 - Shared tasks, notifications, approvals, files, email, audit and authentication remain shared infrastructure.
 - Proposed duplicate apps are rejected; missing capability is added to the canonical app.
 - Ambiguous ownership is documented for manual review before implementation.
+## Role-category workspaces — implemented
+
+- New users automatically receive a focused module, app and dashboard preset for their selected work category.
+- Employee accounts see Employee Desk, assigned project work and Operations Inbox instead of business administration screens.
+- Sales, purchase, store, production, accounts, service and engineering categories have dedicated app sets and KPIs.
+- Administrators can reapply a category preset or fine-tune individual module/app switches afterwards.
+- App-level API enforcement prevents a hidden or blocked app from being reached directly by URL.
+- Category changes revoke existing sessions so the new access policy takes effect on the next sign-in.
