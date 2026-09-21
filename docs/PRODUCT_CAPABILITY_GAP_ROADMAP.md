@@ -79,9 +79,19 @@ The existing `Projects & Work Orders` app is extended with:
 - assignment notifications, tenant scoping, RBAC and audit events;
 - expanded P0 regression coverage.
 
-### Release 3 — Service/AMC completion
+### Release 3 — Service/AMC completion (implemented)
 
-Extend existing AMC/Tickets/Dispatch: preventive schedules, service checklists, AMC assets, warranty/equipment history, renewal automation, CSAT and service report billing linkage.
+The canonical AMC, Tickets and Dispatch workflows are extended with:
+
+- customer equipment register with serial, installation, location and warranty details;
+- recurring preventive-maintenance schedules and required checklists;
+- automatic next-due calculation after checklist completion;
+- tenant-scoped equipment service history linked to AMC and tickets;
+- renewal queue and live AMC/service/CSAT metrics;
+- resolved-ticket customer satisfaction capture;
+- matching-customer invoice linkage for contract billing;
+- reuse of existing dispatch, GPS consent, photos, signatures and service-report PDF workflows;
+- RBAC, audit events, validation and dedicated regression coverage.
 
 ### Release 4 — Document governance and employee self-service
 
