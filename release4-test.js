@@ -1,0 +1,31 @@
+/** Isolated document governance and employee self-service regression. */
+'use strict';
+const fs=require('fs'),os=require('os'),path=require('path'),http=require('http');
+process.env.DATA_DIR=fs.mkdtempSync(path.join(os.tmpdir(),'tdos-release4-'));
+process.env.AUTO_SEED='true';process.env.JWT_SECRET='release4-test-secret-that-is-longer-than-32-characters';process.env.NODE_ENV='test';process.env.INITIAL_SUPERADMIN_PASSWORD='TestSuperAdmin@123';process.env.INITIAL_STAFF_PASSWORD='TestStaffAccount@123';
+const app=require('./server'),store=require('./db/store');let passed=0,failed=0,port;
+function request(method,p,b,c){return new Promise((resolve,reject)=>{const x=b==null?null:Buffer.from(JSON.stringify(b));const q=http.request({host:'127.0.0.1',port,path:p,method,headers:{...(x?{'Content-Type':'application/json','Content-Length':x.length}:{}),...(c?{Cookie:c}:{})}},r=>{const a=[];r.on('data',v=>a.push(v));r.on('end',()=>{let j={};try{j=JSON.parse(Buffer.concat(a).toString())}catch(_){}resolve({status:r.statusCode,json:j,body:Buffer.concat(a),cookie:r.headers['set-cookie']?.[0]?.split(';')[0]||c});});});q.on('error',reject);if(x)q.write(x);q.end();});}
+function check(n,c,e){if(c){passed++;console.log('  PASS  '+n)}else{failed++;console.log('  FAIL  '+n+(e?' -> '+JSON.stringify(e).slice(0,240):''));}}
+async function run(){await app.ready;const server=app.listen(0);await new Promise(r=>server.once('listening',r));port=server.address().port;console.log('\n=== Tech Defenders OS Release 4 regression ===\n');try{
+  let r=await request('GET','/api/workspace/documents');check('workspace documents require authentication',r.status===401,r.json);
+  r=await request('POST','/api/auth/login',{email:'admin@techdefenders.in',password:'TestStaffAccount@123'});const cookie=r.cookie;check('administrator login works',r.status===200&&!!cookie,r.json);
+  const user=store.findOne('users',row=>row.email==='admin@techdefenders.in'), employee=store.insert('employees',{orgId:user.orgId,userId:user.id,empCode:'EMP-R4',name:'Release Four Admin',email:user.email,status:'active'});
+  const pdf='data:application/pdf;base64,'+Buffer.from('%PDF-1.4 release four').toString('base64');
+  const customer=store.insert('customers',{orgId:user.orgId,name:'Governed Customer'});
+  const document=store.insert('customerDocuments',{orgId:user.orgId,customerId:customer.id,title:'Master Agreement',mimeType:'application/pdf',contentData:pdf,uploadedBy:user.id});
+  r=await request('POST','/api/workspace/document-folders',{name:'Legal'},cookie);const folder=r.json.folder;check('document folder is created',r.status===201&&folder?.name==='Legal',r.json);
+  r=await request('PATCH',`/api/workspace/documents/customer/${document.id}`,{folderId:folder.id,tags:['agreement','customer'],expiryDate:'2027-09-21',requiresApproval:true},cookie);check('document governance stores folder tags expiry and approval',r.status===200&&r.json.governance?.approvalStatus==='pending'&&r.json.governance?.tags.length===2,r.json);
+  r=await request('POST',`/api/workspace/documents/customer/${document.id}/versions`,{contentData:pdf,note:'Signed revision'},cookie);check('new revision increments the governed version',r.status===201&&r.json.revision?.version===2,r.json);
+  r=await request('POST',`/api/workspace/documents/customer/${document.id}/approval`,{decision:'approved',comment:'Verified'},cookie);check('pending document version can be approved',r.status===200&&r.json.approval?.version===2,r.json);
+  r=await request('GET',`/api/workspace/documents/customer/${document.id}/download`,null,cookie);check('governed download returns content and records access',r.status===200&&r.body.length>0);
+  r=await request('POST','/api/workspace/employee-documents',{employeeId:employee.id,title:'Employment Policy',type:'policy',visibleToEmployee:true,contentData:pdf},cookie);check('HR publishes a private employee document',r.status===201&&r.json.document?.scope==='employee',r.json);
+  store.insert('attendanceRecords',{orgId:user.orgId,employeeId:employee.id,userId:user.id,workDate:'2026-09-21',status:'present',clockInAt:new Date().toISOString()});
+  store.insert('payslips',{orgId:user.orgId,employeeId:employee.id,number:'PAY-R4',period:'2026-09',status:'published',netPay:50000});
+  const course=store.insert('trainingCourses',{orgId:user.orgId,title:'Data Handling',active:true});store.insert('trainingEnrollments',{orgId:user.orgId,employeeId:employee.id,courseId:course.id,status:'assigned'});
+  store.insert('performanceReviews',{orgId:user.orgId,employeeId:employee.id,period:'2026 Q3',reviewDate:'2026-09-20',score:4.5,goals:'Complete secure delivery'});
+  r=await request('GET','/api/workspace/self-service',null,cookie);check('employee desk returns only linked private workforce data',r.status===200&&r.json.employee?.id===employee.id&&r.json.attendance?.length===1&&r.json.payslips?.length===1&&r.json.training?.[0]?.course==='Data Handling'&&r.json.documents?.length===1,r.json);
+  r=await request('POST','/api/workspace/self-service/leaves',{type:'casual',fromDate:'2026-10-01',toDate:'2026-10-02',reason:'Family event'},cookie);check('self-service leave enters existing approval queue',r.status===201&&r.json.leave?.employeeId===employee.id&&r.json.leave?.days===2&&r.json.leave?.status==='pending',r.json);
+  r=await request('GET','/api/workspace/documents',null,cookie);check('governed index exposes metrics without file content',r.status===200&&r.json.documents?.length===2&&r.json.metrics?.versions===1&&r.json.metrics?.accessEvents===1&&!('contentData' in r.json.documents[0]),r.json);
+  await store.flush();
+}finally{await new Promise(r=>server.close(r));await store.close().catch(()=>{});}console.log(`\n=== Results: ${passed} passed, ${failed} failed ===\n`);if(failed)process.exitCode=1;}
+run().catch(error=>{console.error(error);process.exitCode=1;});
