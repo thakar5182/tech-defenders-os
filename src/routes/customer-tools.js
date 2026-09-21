@@ -88,12 +88,18 @@ router.get('/customers/:id/intelligence', requirePerm('crm', 'view'), (req, res)
   const delayDays = [];
   receipts.forEach(receipt => (receipt.allocations || []).forEach(allocation => {
     const inv = invoices.find(row => row.id === allocation.invoiceId);
-    if (!inv || !inv.date || !receipt.date) return;
-    const delay = Math.max(0, Math.round((new Date(receipt.date + 'T00:00:00') - new Date(inv.date + 'T00:00:00')) / 86400000));
+    if (!inv || !receipt.date) return;
+    const dueDate = inv.dueDate || (inv.date
+      ? new Date(Date.parse(inv.date + 'T00:00:00Z') + (Number(customer.paymentTermsDays) || 0) * 86400000).toISOString().slice(0, 10)
+      : null);
+    if (!dueDate) return;
+    const delay = Math.max(0, Math.round((Date.parse(receipt.date + 'T00:00:00Z') - Date.parse(dueDate + 'T00:00:00Z')) / 86400000));
     if (Number.isFinite(delay)) delayDays.push(delay);
   }));
   const products = new Map();
   let estimatedCost = 0;
+  let costedSales = 0;
+  let hasUnknownCost = false;
   invoices.forEach(inv => (inv.lines || []).forEach(line => {
     const name = String(line.productName || line.name || line.description || 'Manual item');
     const row = products.get(name) || { name, quantity: 0, sales: 0 };
@@ -101,7 +107,13 @@ router.get('/customers/:id/intelligence', requirePerm('crm', 'view'), (req, res)
     row.sales += Number(line.amount || line.taxableValue || ((Number(line.qty) || 0) * (Number(line.rate) || 0))) || 0;
     products.set(name, row);
     const product = line.productId ? store.findOne('products', item => item.id === line.productId && item.orgId === req.org.id) : null;
-    estimatedCost += (Number(product?.purchasePrice) || 0) * (Number(line.qty) || 0);
+    const quantity = Number(line.qty) || 0;
+    const unitCost = Number(line.unitCost ?? line.costPrice ?? product?.purchasePrice);
+    const lineSales = Number(line.amount || line.taxableValue || (quantity * (Number(line.rate) || 0))) || 0;
+    if (Number.isFinite(unitCost) && unitCost >= 0 && (line.productId || line.unitCost != null || line.costPrice != null)) {
+      estimatedCost += unitCost * quantity;
+      costedSales += lineSales;
+    } else if (lineSales > 0) hasUnknownCost = true;
   }));
   const lastInvoice = invoices.slice().sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))[0] || null;
   const limit = Number(customer.creditLimit) || 0;
@@ -113,8 +125,10 @@ router.get('/customers/:id/intelligence', requirePerm('crm', 'view'), (req, res)
       overdueInvoices: overdue.length,
       overdueAmount: r2(overdue.reduce((sum, inv) => sum + Math.max(0, (Number(inv.totals?.grandTotal) || 0) - (Number(inv.paidAmount) || 0)), 0)),
       topProducts: [...products.values()].sort((a, b) => b.sales - a.sales).slice(0, 5).map(row => ({ ...row, sales: r2(row.sales) })),
-      estimatedProfit: r2(Math.max(0, totalSales - estimatedCost)),
-      profitContributionPercent: totalSales ? r2(Math.max(0, totalSales - estimatedCost) / totalSales * 100) : null,
+      estimatedProfit: hasUnknownCost ? null : r2(totalSales - estimatedCost),
+      profitContributionPercent: totalSales && !hasUnknownCost ? r2((totalSales - estimatedCost) / totalSales * 100) : null,
+      costCoveragePercent: totalSales ? r2(costedSales / totalSales * 100) : null,
+      profitEstimateComplete: !hasUnknownCost,
       credit: { limit, available: limit > 0 ? r2(limit - outstanding) : null, exceeded: limit > 0 && outstanding > limit }
     }
   });

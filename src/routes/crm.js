@@ -438,7 +438,7 @@ router.patch('/tasks/:id', (req, res) => {
 });
 
 /* ================= ACTIVITY TIMELINE ================= */
-router.post('/activities', requireAuth, (req, res) => {
+router.post('/activities', requirePerm('crm', 'create'), (req, res) => {
   const b = req.body || {};
   if (!b.entityType || !b.entityId || !b.text) return res.status(400).json({ error: 'entityType, entityId and text are required' });
   const act = store.insert('activities', {
@@ -447,7 +447,7 @@ router.post('/activities', requireAuth, (req, res) => {
   });
   res.json({ activity: act });
 });
-router.get('/activities', requireAuth, (req, res) => {
+router.get('/activities', requirePerm('crm', 'view'), (req, res) => {
   const { entityType, entityId } = req.query;
   const list = store.find('activities', a =>
     a.orgId === req.org.id &&

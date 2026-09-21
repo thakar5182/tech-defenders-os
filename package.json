@@ -16,7 +16,7 @@
     "test:operations": "node operations-test.js",
     "test:persistence": "node persistence-test.js",
     "test:google": "node google-auth-test.js",
-    "test": "npm run smoke && npm run test:v3 && npm run test:integrations && npm run test:operations && npm run test:p0 && npm run test:p1 && npm run test:banking && npm run test:quality && npm run test:enterprise && npm run test:hub && npm run test:ai-command && npm run test:workforce && npm run test:service-lifecycle && npm run test:release4 && npm run test:role-access && npm run test:persistence && npm run test:google",
+    "test": "npm run smoke && npm run test:v3 && npm run test:integrations && npm run test:operations && npm run test:p0 && npm run test:p1 && npm run test:banking && npm run test:quality && npm run test:enterprise && npm run test:hub && npm run test:ai-command && npm run test:workforce && npm run test:service-lifecycle && npm run test:release4 && npm run test:role-access && npm run test:phase0-security && npm run test:persistence && npm run test:google",
     "test:p0": "node p0-test.js",
     "test:p1": "node p1-portal-test.js",
     "test:banking": "node banking-test.js",
@@ -26,19 +26,20 @@
     "test:ai-command": "node ai-command-test.js",
     "test:workforce": "node workforce-test.js",
     "test:service-lifecycle": "node service-lifecycle-test.js",
-    "test:release4": "node release4-test.js"
-    ,"test:role-access": "node role-access-test.js"
+    "test:release4": "node release4-test.js",
+    "test:role-access": "node role-access-test.js",
+    "test:phase0-security": "node phase0-security-test.js"
   },
   "dependencies": {
     "@e965/xlsx": "^0.20.3",
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.7",
-    "express": "^4.19.2",
+    "express": "^4.22.3",
     "fast-xml-parser": "^5.11.1",
     "google-auth-library": "^11.0.2",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.3.0",
-    "nodemailer": "^7.0.6",
+    "nodemailer": "^10.0.10",
     "pdf-parse": "^2.4.5",
     "pdfkit": "^0.17.2",
     "pg": "^8.23.0",

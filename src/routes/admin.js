@@ -14,7 +14,7 @@ const {
 } = require('../middleware');
 const {
   audit, notify, MODULES, APP_CATALOG, DASHBOARD_WIDGETS, effectiveAccess,
-  effectiveAppAccess, effectiveDashboardWidgets, stockBalance, r2
+  effectiveAppAccess, effectiveDashboardWidgets, stockBalance, r2, can
 } = require('../util');
 
 const router = express.Router();
@@ -669,8 +669,22 @@ router.post('/leaves', requireAuth, (req, res) => {
   const b = req.body || {};
   const emp = store.findOne('employees', e => e.id === b.employeeId && e.orgId === req.org.id);
   if (!emp) return res.status(400).json({ error: 'Valid employee is required' });
-  if (!b.fromDate || !b.toDate) return res.status(400).json({ error: 'From and to dates are required' });
-  const days = Math.max(1, Math.round((new Date(b.toDate) - new Date(b.fromDate)) / 86400000) + 1);
+  const canCreateForOthers = can(req.user, 'hr', 'approve') || ['admin', 'super_admin'].includes(req.user.role);
+  const ownEmployee = store.findOne('employees', e => e.orgId === req.org.id &&
+    (e.userId === req.user.id || e.id === req.user.employeeId));
+  if (!canCreateForOthers && (!ownEmployee || ownEmployee.id !== emp.id)) {
+    return res.status(403).json({ error: 'You can submit leave only for your own employee profile' });
+  }
+  const datePattern = /^\d{4}-\d{2}-\d{2}$/;
+  if (!datePattern.test(String(b.fromDate || '')) || !datePattern.test(String(b.toDate || ''))) {
+    return res.status(400).json({ error: 'Valid from and to dates are required' });
+  }
+  const fromTime = Date.parse(b.fromDate + 'T00:00:00Z');
+  const toTime = Date.parse(b.toDate + 'T00:00:00Z');
+  if (!Number.isFinite(fromTime) || !Number.isFinite(toTime) || toTime < fromTime) {
+    return res.status(400).json({ error: 'Leave end date cannot be before start date' });
+  }
+  const days = Math.round((toTime - fromTime) / 86400000) + 1;
   const leave = store.insert('leaveRequests', {
     orgId: req.org.id, employeeId: emp.id, type: b.type || 'casual',
     fromDate: b.fromDate, toDate: b.toDate, days,

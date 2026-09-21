@@ -14,26 +14,32 @@
     const actionbar = document.querySelector('.customer-actionbar');
     if (!actionbar || actionbar.dataset.customerTools === id) return;
     actionbar.dataset.customerTools = id;
-    try {
-      const [addressData, intelligenceData, workspaceData] = await Promise.all([
-        Core.get('/customer-tools/customers/' + encodeURIComponent(id) + '/addresses'),
-        Core.get('/customer-tools/customers/' + encodeURIComponent(id) + '/intelligence'),
-        Core.get('/customer-tools/customers/' + encodeURIComponent(id) + '/workspace')
-      ]);
-      if (routeId() !== id) return;
-      if (Core.can('crm', 'edit')) {
+    const [addressResult, intelligenceResult, workspaceResult] = await Promise.allSettled([
+      Core.get('/customer-tools/customers/' + encodeURIComponent(id) + '/addresses'),
+      Core.get('/customer-tools/customers/' + encodeURIComponent(id) + '/intelligence'),
+      Core.get('/customer-tools/customers/' + encodeURIComponent(id) + '/workspace')
+    ]);
+    if (routeId() !== id) return;
+    const addressData = addressResult.status === 'fulfilled' ? addressResult.value : null;
+    const intelligenceData = intelligenceResult.status === 'fulfilled' ? intelligenceResult.value : null;
+    const workspaceData = workspaceResult.status === 'fulfilled' ? workspaceResult.value : null;
+    if (addressResult.status === 'rejected') console.warn('Customer address book unavailable:', addressResult.reason?.message || addressResult.reason);
+    if (intelligenceResult.status === 'rejected') console.warn('Customer intelligence unavailable:', intelligenceResult.reason?.message || intelligenceResult.reason);
+    if (workspaceResult.status === 'rejected') console.warn('Customer workspace unavailable:', workspaceResult.reason?.message || workspaceResult.reason);
+    if (Core.can('crm', 'edit')) {
+      if (addressData) {
         actionbar.insertAdjacentHTML('beforeend', '<button class="btn btn-outline btn-sm" data-customer-address-book>Address book</button>');
         actionbar.querySelector('[data-customer-address-book]').onclick = () => openAddressBook(id, addressData.addresses || []);
-        actionbar.insertAdjacentHTML('beforeend', '<button class="btn btn-outline btn-sm" data-customer-contact>+ Contact</button>');
-        actionbar.querySelector('[data-customer-contact]').onclick = () => openContactForm(id);
       }
+      actionbar.insertAdjacentHTML('beforeend', '<button class="btn btn-outline btn-sm" data-customer-contact>+ Contact</button>');
+      actionbar.querySelector('[data-customer-contact]').onclick = () => openContactForm(id);
+    }
+    if (intelligenceData?.intelligence) {
       actionbar.insertAdjacentHTML('beforeend', '<button class="btn btn-outline btn-sm" data-customer-intelligence>Sales intelligence</button>');
       actionbar.querySelector('[data-customer-intelligence]').onclick = () => showIntelligence(intelligenceData.intelligence);
       renderSummary(intelligenceData.intelligence);
-      renderWorkspace(workspaceData, intelligenceData.intelligence);
-    } catch (error) {
-      console.warn('Customer tools unavailable:', error.message);
     }
+    if (workspaceData) renderWorkspace(workspaceData, intelligenceData?.intelligence || { credit: {}, overdueInvoices: 0 });
   }
 
   function renderWorkspace(data, intelligence) {

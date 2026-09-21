@@ -112,6 +112,7 @@ const APP_API_RULES = [
   [/^\/api\/crm\/contacts(?:\/|$)/, 'crm/contacts'], [/^\/api\/crm\/meetings(?:\/|$)/, 'crm/meetings'],
   [/^\/api\/crm\/daily-work(?:\/|$)/, 'crm/daily-work'], [/^\/api\/crm\/late-payments(?:\/|$)/, 'crm/late-payments'],
   [/^\/api\/crm\/deals(?:\/|$)/, 'crm/deals'], [/^\/api\/crm\/tasks(?:\/|$)/, 'crm/tasks'],
+  [/^\/api\/crm\/activities(?:\/|$)/, 'crm/customers'],
   [/^\/api\/sales\/quotations(?:\/|$)/, 'sales/quotations'], [/^\/api\/sales\/sales-orders(?:\/|$)/, 'sales/orders'],
   [/^\/api\/sales\/invoices(?:\/|$)/, 'sales/invoices'], [/^\/api\/sales\/receipts(?:\/|$)/, 'sales/receipts'],
   [/^\/api\/sales\/credit-notes(?:\/|$)/, 'sales/credit-notes'],
