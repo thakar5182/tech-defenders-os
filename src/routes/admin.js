@@ -23,6 +23,7 @@ router.use(requireAuth);
 const STANDARD_ROLES = ['sales_manager', 'sales_exec', 'purchase_manager', 'store_manager',
   'production_manager', 'accountant', 'service_manager', 'engineer', 'employee', 'viewer'];
 const SUPER_ADMIN_ASSIGNABLE_ROLES = ['admin', ...STANDARD_ROLES];
+const clean = (value, max = 300) => String(value == null ? '' : value).trim().slice(0, max);
 
 function assignableRoles(actor) {
   return actor.role === 'super_admin' ? SUPER_ADMIN_ASSIGNABLE_ROLES : STANDARD_ROLES;
@@ -483,6 +484,113 @@ router.post('/employees', requirePerm('hr', 'create'), (req, res) => {
   });
   audit(req.org.id, req.user.id, 'create', 'employee', emp.id, { name: emp.name });
   res.json({ employee: emp });
+});
+
+/* ================= WORKFORCE LIFECYCLE =================
+ * Extends the existing HR employee app. It deliberately does not introduce
+ * a second HR module, employee master, permission model or notification stack.
+ */
+router.get('/workforce', requirePerm('hr', 'view'), (req, res) => {
+  const scoped = name => store.find(name, row => row.orgId === req.org.id);
+  res.json({
+    departments: scoped('departments').sort((a, b) => a.name.localeCompare(b.name)),
+    designations: scoped('designations').sort((a, b) => a.name.localeCompare(b.name)),
+    holidays: scoped('holidays').sort((a, b) => String(a.date).localeCompare(String(b.date))),
+    jobOpenings: scoped('jobOpenings').sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))),
+    candidates: scoped('candidates').sort((a, b) => String(b.createdAt).localeCompare(String(a.createdAt))),
+    performanceReviews: scoped('performanceReviews').sort((a, b) => String(b.reviewDate).localeCompare(String(a.reviewDate))),
+    trainingCourses: scoped('trainingCourses').sort((a, b) => a.title.localeCompare(b.title)),
+    trainingEnrollments: scoped('trainingEnrollments')
+  });
+});
+
+router.post('/workforce/departments', requirePerm('hr', 'create'), (req, res) => {
+  const name = clean(req.body?.name, 100), code = clean(req.body?.code, 30).toUpperCase();
+  if (!name) return res.status(400).json({ error: 'Department name is required' });
+  if (store.findOne('departments', row => row.orgId === req.org.id && row.name.toLowerCase() === name.toLowerCase())) return res.status(409).json({ error: 'Department already exists' });
+  const department = store.insert('departments', { orgId: req.org.id, name, code, managerEmployeeId: clean(req.body?.managerEmployeeId, 80) || null, active: true });
+  audit(req.org.id, req.user.id, 'create', 'department', department.id, { name });
+  res.status(201).json({ department });
+});
+
+router.post('/workforce/designations', requirePerm('hr', 'create'), (req, res) => {
+  const name = clean(req.body?.name, 100), departmentId = clean(req.body?.departmentId, 80) || null;
+  if (!name) return res.status(400).json({ error: 'Designation name is required' });
+  if (departmentId && !store.findOne('departments', row => row.id === departmentId && row.orgId === req.org.id)) return res.status(400).json({ error: 'Valid department is required' });
+  if (store.findOne('designations', row => row.orgId === req.org.id && row.name.toLowerCase() === name.toLowerCase() && row.departmentId === departmentId)) return res.status(409).json({ error: 'Designation already exists' });
+  const designation = store.insert('designations', { orgId: req.org.id, name, departmentId, grade: clean(req.body?.grade, 30), active: true });
+  audit(req.org.id, req.user.id, 'create', 'designation', designation.id, { name });
+  res.status(201).json({ designation });
+});
+
+router.post('/workforce/holidays', requirePerm('hr', 'create'), (req, res) => {
+  const name = clean(req.body?.name, 100), date = clean(req.body?.date, 10);
+  if (!name || !/^\d{4}-\d{2}-\d{2}$/.test(date)) return res.status(400).json({ error: 'Holiday name and date are required' });
+  if (store.findOne('holidays', row => row.orgId === req.org.id && row.date === date)) return res.status(409).json({ error: 'A holiday already exists on this date' });
+  const holiday = store.insert('holidays', { orgId: req.org.id, name, date, optional: !!req.body?.optional, branchId: clean(req.body?.branchId, 80) || null });
+  audit(req.org.id, req.user.id, 'create', 'holiday', holiday.id, { name, date });
+  res.status(201).json({ holiday });
+});
+
+router.post('/workforce/job-openings', requirePerm('hr', 'create'), (req, res) => {
+  const title = clean(req.body?.title, 120);
+  if (!title) return res.status(400).json({ error: 'Job title is required' });
+  const opening = store.insert('jobOpenings', { orgId: req.org.id, title, departmentId: clean(req.body?.departmentId, 80) || null, location: clean(req.body?.location, 120), openings: Math.max(1, Number(req.body?.openings) || 1), status: 'open', description: clean(req.body?.description, 2000), createdBy: req.user.id });
+  audit(req.org.id, req.user.id, 'create', 'job_opening', opening.id, { title });
+  res.status(201).json({ opening });
+});
+
+router.post('/workforce/candidates', requirePerm('hr', 'create'), (req, res) => {
+  const name = clean(req.body?.name, 120), email = clean(req.body?.email, 180), jobOpeningId = clean(req.body?.jobOpeningId, 80);
+  const opening = store.findOne('jobOpenings', row => row.id === jobOpeningId && row.orgId === req.org.id);
+  if (!name || !opening) return res.status(400).json({ error: 'Candidate name and valid job opening are required' });
+  const candidate = store.insert('candidates', { orgId: req.org.id, jobOpeningId: opening.id, name, email, phone: clean(req.body?.phone, 40), source: clean(req.body?.source, 80), stage: 'applied', rating: 0, notes: clean(req.body?.notes, 1000), createdBy: req.user.id });
+  audit(req.org.id, req.user.id, 'create', 'candidate', candidate.id, { jobOpeningId: opening.id });
+  res.status(201).json({ candidate });
+});
+
+router.patch('/workforce/candidates/:id', requirePerm('hr', 'edit'), (req, res) => {
+  const candidate = store.findOne('candidates', row => row.id === req.params.id && row.orgId === req.org.id);
+  if (!candidate) return res.status(404).json({ error: 'Candidate not found' });
+  const patch = {};
+  if (req.body?.stage !== undefined) {
+    if (!['applied', 'screening', 'interview', 'offered', 'hired', 'rejected'].includes(req.body.stage)) return res.status(400).json({ error: 'Invalid candidate stage' });
+    patch.stage = req.body.stage;
+  }
+  if (req.body?.rating !== undefined) patch.rating = Math.max(0, Math.min(5, Number(req.body.rating) || 0));
+  if (req.body?.notes !== undefined) patch.notes = clean(req.body.notes, 1000);
+  const updated = store.update('candidates', candidate.id, patch);
+  audit(req.org.id, req.user.id, 'update', 'candidate', candidate.id, patch);
+  res.json({ candidate: updated });
+});
+
+router.post('/workforce/performance-reviews', requirePerm('hr', 'create'), (req, res) => {
+  const employee = store.findOne('employees', row => row.id === clean(req.body?.employeeId, 80) && row.orgId === req.org.id);
+  const period = clean(req.body?.period, 30);
+  if (!employee || !period) return res.status(400).json({ error: 'Valid employee and review period are required' });
+  const score = Math.max(0, Math.min(5, Number(req.body?.score) || 0));
+  const review = store.insert('performanceReviews', { orgId: req.org.id, employeeId: employee.id, period, reviewDate: clean(req.body?.reviewDate, 10) || new Date().toISOString().slice(0, 10), score, goals: clean(req.body?.goals, 1500), achievements: clean(req.body?.achievements, 1500), developmentPlan: clean(req.body?.developmentPlan, 1500), status: 'completed', reviewerId: req.user.id });
+  audit(req.org.id, req.user.id, 'create', 'performance_review', review.id, { employeeId: employee.id, period, score });
+  res.status(201).json({ review });
+});
+
+router.post('/workforce/training-courses', requirePerm('hr', 'create'), (req, res) => {
+  const title = clean(req.body?.title, 120);
+  if (!title) return res.status(400).json({ error: 'Training title is required' });
+  const course = store.insert('trainingCourses', { orgId: req.org.id, title, provider: clean(req.body?.provider, 120), mode: ['online', 'classroom', 'hybrid'].includes(req.body?.mode) ? req.body.mode : 'online', durationHours: Math.max(0, Number(req.body?.durationHours) || 0), mandatory: !!req.body?.mandatory, active: true });
+  audit(req.org.id, req.user.id, 'create', 'training_course', course.id, { title });
+  res.status(201).json({ course });
+});
+
+router.post('/workforce/training-enrollments', requirePerm('hr', 'edit'), (req, res) => {
+  const employee = store.findOne('employees', row => row.id === clean(req.body?.employeeId, 80) && row.orgId === req.org.id);
+  const course = store.findOne('trainingCourses', row => row.id === clean(req.body?.courseId, 80) && row.orgId === req.org.id);
+  if (!employee || !course) return res.status(400).json({ error: 'Valid employee and training course are required' });
+  if (store.findOne('trainingEnrollments', row => row.orgId === req.org.id && row.employeeId === employee.id && row.courseId === course.id && row.status !== 'cancelled')) return res.status(409).json({ error: 'Employee is already enrolled' });
+  const enrollment = store.insert('trainingEnrollments', { orgId: req.org.id, employeeId: employee.id, courseId: course.id, status: 'assigned', dueDate: clean(req.body?.dueDate, 10) || null, assignedBy: req.user.id });
+  notify(req.org.id, { userId: employee.userId || null, title: 'Training assigned', body: course.title, type: 'info', link: '#/hr/employees' });
+  audit(req.org.id, req.user.id, 'create', 'training_enrollment', enrollment.id, { employeeId: employee.id, courseId: course.id });
+  res.status(201).json({ enrollment });
 });
 
 router.get('/leaves', requirePerm('hr', 'view'), (req, res) => {
