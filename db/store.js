@@ -39,7 +39,8 @@ const COLLECTIONS = [
   'savedReports', 'reportSchedules', 'reportRuns', 'notifications', 'auditEvents', 'backupRestoreRequests',
   'mobileDevices', 'mobileAttendance', 'mobileCrashReports',
   'attendanceRecords', 'shifts', 'salaryComponents', 'payrollPolicies', 'payrollRuns', 'payslips',
-  'salaryStructures', 'payrollAdjustments', 'financialPeriods', 'openingBalances', 'tdsRecords', 'accountingAdjustments', 'financialVerifications', 'documentRevisions',
+  'salaryStructures', 'payrollAdjustments', 'financialPeriods', 'openingBalances', 'tdsRecords', 'taxDeductions', 'accountingAdjustments', 'financialVerifications',
+  'gstPortalReturns', 'accountingCloseSnapshots', 'documentRevisions',
   'projects', 'projectMilestones', 'workOrders', 'timesheets', 'projectTemplates', 'projectExpenses', 'mentions', 'backupSnapshots', 'backupPolicies', 'backupAgentHeartbeats', 'disasterRecoveryLogs'
   ,'customerSegments', 'assignmentRules', 'recurringInvoiceProfiles', 'paymentLinks'
   ,'followUpSequences', 'followUpEnrollments', 'quotationVersions', 'rmaRequests', 'salesTargets', 'salesCommissions'
