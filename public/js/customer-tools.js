@@ -15,21 +15,44 @@
     if (!actionbar || actionbar.dataset.customerTools === id) return;
     actionbar.dataset.customerTools = id;
     try {
-      const [addressData, intelligenceData] = await Promise.all([
+      const [addressData, intelligenceData, workspaceData] = await Promise.all([
         Core.get('/customer-tools/customers/' + encodeURIComponent(id) + '/addresses'),
-        Core.get('/customer-tools/customers/' + encodeURIComponent(id) + '/intelligence')
+        Core.get('/customer-tools/customers/' + encodeURIComponent(id) + '/intelligence'),
+        Core.get('/customer-tools/customers/' + encodeURIComponent(id) + '/workspace')
       ]);
       if (routeId() !== id) return;
       if (Core.can('crm', 'edit')) {
         actionbar.insertAdjacentHTML('beforeend', '<button class="btn btn-outline btn-sm" data-customer-address-book>Address book</button>');
         actionbar.querySelector('[data-customer-address-book]').onclick = () => openAddressBook(id, addressData.addresses || []);
+        actionbar.insertAdjacentHTML('beforeend', '<button class="btn btn-outline btn-sm" data-customer-contact>+ Contact</button>');
+        actionbar.querySelector('[data-customer-contact]').onclick = () => openContactForm(id);
       }
       actionbar.insertAdjacentHTML('beforeend', '<button class="btn btn-outline btn-sm" data-customer-intelligence>Sales intelligence</button>');
       actionbar.querySelector('[data-customer-intelligence]').onclick = () => showIntelligence(intelligenceData.intelligence);
       renderSummary(intelligenceData.intelligence);
+      renderWorkspace(workspaceData, intelligenceData.intelligence);
     } catch (error) {
       console.warn('Customer tools unavailable:', error.message);
     }
+  }
+
+  function renderWorkspace(data, intelligence) {
+    if (!data || document.querySelector('[data-customer-workspace]')) return;
+    const anchor = document.querySelector('.meta-grid');
+    if (!anchor) return;
+    const contacts = data.contacts || [], projects = data.projects || [], timeline = data.timeline || [];
+    const contactRows = contacts.length ? contacts.map(row => '<div class="customer-contact-row"><span><b>' + esc(row.name) + (row.primary ? ' <em>Primary</em>' : '') + '</b><small>' + esc(row.designation || 'Contact') + '</small></span><span>' + (row.phone ? '<a href="tel:' + esc(row.phone.replace(/[^+\d]/g, '')) + '">' + esc(row.phone) + '</a>' : '') + (row.email ? '<a href="mailto:' + encodeURIComponent(row.email) + '">' + esc(row.email) + '</a>' : '') + (row.whatsapp || row.phone ? '<a target="_blank" rel="noopener" href="https://wa.me/' + esc(String(row.whatsapp || row.phone).replace(/\D/g, '')) + '">WhatsApp</a>' : '') + '</span></div>').join('') : '<div class="empty-state">No additional contacts yet.</div>';
+    const timelineRows = timeline.length ? timeline.map(row => '<li><span class="customer-event-type">' + esc(row.type) + '</span><div><b>' + esc(row.title || row.type) + '</b><small>' + Core.fmtDate(row.date) + ' · ' + esc(row.status || 'recorded') + (row.amount == null ? '' : ' · ' + money(row.amount)) + '</small></div></li>').join('') : '<li class="empty-state">No customer activity yet.</li>';
+    anchor.insertAdjacentHTML('afterend', '<section class="customer-workspace" data-customer-workspace><div class="customer-workspace-head"><div><span class="eyebrow">CUSTOMER COMMAND VIEW</span><h3>Relationship workspace</h3></div><span class="risk-chip risk-' + (intelligence.credit?.exceeded || intelligence.overdueInvoices > 1 ? 'high' : intelligence.overdueInvoices ? 'medium' : 'low') + '">' + (intelligence.credit?.exceeded || intelligence.overdueInvoices > 1 ? 'High' : intelligence.overdueInvoices ? 'Medium' : 'Low') + ' risk</span></div><div class="customer-tabs" role="tablist"><button class="active" data-customer-tab="overview">Overview</button><button data-customer-tab="billing">Billing</button><button data-customer-tab="support">Support</button><button data-customer-tab="projects">Projects (' + projects.length + ')</button><button data-customer-tab="documents">Documents</button></div><div class="customer-workspace-grid"><div><h4>Contacts</h4>' + contactRows + '</div><div><h4>Unified timeline</h4><ul class="customer-event-list">' + timelineRows + '</ul></div></div></section>');
+    document.querySelectorAll('[data-customer-tab]').forEach(button => button.onclick = () => { document.querySelectorAll('[data-customer-tab]').forEach(item => item.classList.toggle('active', item === button)); const target = { billing: '.grid-even .card:first-child', support: '.grid-even .card:last-child', projects: '[data-customer-workspace]', documents: '.customer-documents', overview: '[data-customer-workspace]' }[button.dataset.customerTab]; document.querySelector(target)?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' }); });
+  }
+
+  function openContactForm(customerId) {
+    Core.formModal({ title: 'Add customer contact', fields: [
+      { name: 'name', label: 'Contact name *', required: true }, { name: 'designation', label: 'Designation', half: true },
+      { name: 'phone', label: 'Phone', half: true }, { name: 'whatsapp', label: 'WhatsApp number', half: true },
+      { name: 'email', label: 'Email', type: 'email', half: true }, { name: 'primary', label: 'Primary contact', type: 'checkbox' }
+    ], submitLabel: 'Save contact', onSubmit: async value => { await Core.post('/customer-tools/customers/' + encodeURIComponent(customerId) + '/contacts', value); toast('Contact saved', 'Customer contact added', 'success'); Core.render(); } });
   }
 
   function renderSummary(data) {

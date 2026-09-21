@@ -352,6 +352,11 @@ router.post('/invoices', requirePerm('sales', 'create'), (req, res) => {
   }
 
   const placeOfSupply = String(b.placeOfSupply || customer.stateCode || '').trim().slice(0, 4);
+  const addressFor = id => id ? store.findOne('customerAddresses', row => row.id === id && row.orgId === req.org.id && row.customerId === customer.id) : null;
+  const billingAddress = addressFor(b.billingAddressId);
+  const shippingAddress = addressFor(b.shippingAddressId);
+  if (b.billingAddressId && !billingAddress) return res.status(400).json({ error: 'Choose a valid customer billing address' });
+  if (b.shippingAddressId && !shippingAddress) return res.status(400).json({ error: 'Choose a valid customer delivery address' });
   const doc = computeDoc(enriched.lines, req.org.stateCode, placeOfSupply);
   /* Do not silently extend credit.  The UI must show the warning and send an
      explicit acknowledgement before the document is created. */
@@ -383,6 +388,10 @@ router.post('/invoices', requirePerm('sales', 'create'), (req, res) => {
     sourceId: null,
     notes: String(b.notes || '').trim().slice(0, 2000),
     warehouseId: requestedWarehouse ? requestedWarehouse.id : null
+    ,billingAddressId: billingAddress?.id || null
+    ,shippingAddressId: shippingAddress?.id || null
+    ,billingAddress: billingAddress || customer.billingAddress || {}
+    ,shippingAddress: shippingAddress || customer.shippingAddress || {}
   });
 
   if (b.overrideCreditWarning === true && (exceedsLimit || overdueCount)) {
