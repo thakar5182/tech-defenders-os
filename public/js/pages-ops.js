@@ -1186,12 +1186,14 @@ Core.route('admin/users', async () => {
     ${Core.table([
       { label: 'User', render: u => `<b>${Core.esc(u.name)}</b><br><small class="muted">${Core.esc(u.email)}</small>` },
       { label: 'Role', render: u => `<span class="role-pill ${u.role === 'super_admin' ? 'role-super' : u.role === 'admin' ? 'role-admin' : ''}">${Core.esc(Core.roleLabel(u.role))}</span>` },
+      { label: 'Workspace', render: u => `<b>${Core.esc(Core.roleLabel(u.workspaceCategory || u.role))}</b><br><small class="muted">category-based apps</small>` },
       { label: 'Active', render: u => u.active ? '<span class="badge b-success">yes</span>' : '<span class="badge b-danger">no</span>' },
       { label: 'Last login', render: u => u.lastLoginAt ? Core.fmtDate(u.lastLoginAt) : 'never' },
       { label: '', render: u => {
         const protectedTarget = u.role === 'super_admin' || (u.role === 'admin' && !actorIsSuperAdmin);
         return canEdit && u.id !== Core.state.user.id && !protectedTarget ? `<div class="actions-cell">
           <button class="btn btn-outline btn-sm" onclick="Pages.editUser('${u.id}')">Edit Role</button>
+          <button class="btn btn-outline btn-sm" onclick="Pages.applyUserWorkspace('${u.id}')">Apply Category</button>
           <button class="btn btn-outline btn-sm" onclick="Pages.toggleUser('${u.id}',${!u.active})">${u.active ? 'Deactivate' : 'Activate'}</button>
           <button class="btn btn-ghost btn-sm" onclick="Pages.changeUserPassword('${u.id}')">Change PW</button>
           <button class="btn btn-ghost btn-sm" onclick="Pages.resetUserPw('${u.id}')">Temp PW</button>
@@ -1204,12 +1206,12 @@ Core.route('admin/users', async () => {
 Pages.openUserForm = function () {
   Core.get('/admin/users').then(d => {
     Core.formModal({
-      title: 'Add team member',
+      title: 'Add team member · role workspace',
       fields: [
         { name: 'name', label: 'Full name *', required: true, half: true },
         { name: 'email', label: 'Work email *', type: 'email', required: true, half: true },
-        { name: 'role', label: 'Role *', type: 'select', required: true,
-          options: d.roles.map(r => ({ value: r, label: r.replace('_', ' ') })) },
+        { name: 'role', label: 'Work category *', type: 'select', required: true,
+          options: d.roles.map(r => ({ value: r, label: Core.roleLabel(r) })) },
         { name: 'phone', label: 'Phone', half: true }
       ],
       submitLabel: 'Create user',
@@ -1219,7 +1221,7 @@ Pages.openUserForm = function () {
           title: 'User created - share temp password',
           body: `<p style="font-size:14px">One-time temporary password for <b>${Core.esc(v.email)}</b>:</p>
             <code style="display:block;background:#faf7ec;padding:12px;border-radius:8px;font-size:16px;font-weight:700;margin-top:10px">${Core.esc(r.tempPassword)}</code>
-            <p class="fine muted" style="margin-top:10px">Share it securely. The user should change it after first sign-in.</p>`,
+            <p class="fine muted" style="margin-top:10px">Share it securely. ${Core.esc(Core.roleLabel(v.role))} workspace was applied automatically; only job-relevant apps and dashboard cards are visible.</p>`,
           footer: '<button class="btn btn-gold" data-cancel>Done</button>'
         });
         Core.render();
@@ -1234,6 +1236,14 @@ Pages.toggleUser = async (id, activate) => {
     toast('Updated', 'User ' + (activate ? 'activated' : 'deactivated'), activate ? 'success' : 'warning');
     Core.render();
   } catch (e) { toast('Failed', e.message, 'error'); }
+};
+
+Pages.applyUserWorkspace = async id => {
+  const user = Pages._adminUsers?.find(item => item.id === id); if (!user) return;
+  const ok = await Core.confirm(`Reset ${user.name}'s visible modules, apps and dashboard to the ${Core.roleLabel(user.role)} category defaults? Individual access changes will be replaced.`, 'Apply category workspace');
+  if (!ok) return;
+  try { await Core.post('/admin/users/' + id + '/apply-workspace-profile', {}); toast('Workspace applied', `${Core.roleLabel(user.role)} apps and dashboard are now active`, 'success'); Core.render(); }
+  catch (error) { toast('Workspace not changed', error.message, 'error'); }
 };
 
 Pages.resetUserPw = async id => {
@@ -1258,8 +1268,9 @@ Pages.editUser = id => {
     fields: [
       { name: 'name', label: 'Full name *', required: true, half: true, value: user.name },
       { name: 'phone', label: 'Phone', half: true, value: user.phone || '' },
-      { name: 'role', label: 'Role *', type: 'select', required: true, value: user.role,
+      { name: 'role', label: 'Work category *', type: 'select', required: true, value: user.role,
         options: Pages._adminRoles.map(role => ({ value: role, label: Core.roleLabel(role) })) }
+      ,{ name: 'applyWorkspaceProfile', label: 'Apply category dashboard and app access', type: 'checkbox', value: true }
     ],
     submitLabel: 'Save user',
     onSubmit: async values => {
