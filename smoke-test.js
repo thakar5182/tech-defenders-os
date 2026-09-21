@@ -155,6 +155,12 @@ async function run() {
     response = await req('POST', `/api/crm/leads/${response.json.lead.id}/convert`, {}, adminCookie);
     const customerId = response.json.customer?.id;
     check('lead converts to customer and deal', response.status === 200 && !!customerId);
+    response = await req('POST', `/api/customer-tools/customers/${customerId}/addresses`, {
+      label: 'Smoke billing branch', type: 'billing', line1: 'Test business address', city: 'Ahmedabad', state: 'Gujarat', pincode: '380001', isDefault: true
+    }, adminCookie);
+    const customerAddress = response.json.address;
+    response = await req('GET', `/api/customer-tools/customers/${customerId}/addresses`, null, adminCookie);
+    check('customer address book collection is registered and readable', response.status === 200 && response.json.addresses?.some(row => row.id === customerAddress?.id));
 
     response = await req('POST', '/api/sales/quotations', {
       customerId,

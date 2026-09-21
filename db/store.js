@@ -15,7 +15,7 @@ const DATA_DIR = process.env.DATA_DIR
 
 const COLLECTIONS = [
   'organizations', 'subscriptions', 'subscriptionEvents', 'branches', 'users', 'sequences',
-  'leads', 'customers', 'customerContacts', 'meetings', 'suppliers', 'deals', 'tasks', 'activities',
+  'leads', 'customers', 'customerContacts', 'customerAddresses', 'meetings', 'suppliers', 'deals', 'tasks', 'activities',
   'products', 'productCategories', 'warehouses', 'stockReservations', 'priceLists', 'assetRegister', 'stockIncidents',
   'inventoryLots', 'inventorySerials', 'qualityInspections', 'ncrRecords', 'stockHolds',
   'warehouseBins', 'cycleCounts', 'stockTransferRequests', 'reorderRecommendations',
