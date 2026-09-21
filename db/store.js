@@ -32,7 +32,7 @@ const COLLECTIONS = [
   'approvalWorkflows', 'approvalRequests',
   'automationRules', 'backgroundJobs', 'integrationConfigs', 'messageDeliveries',
   'importJobs', 'importFiles', 'importRecords', 'importMappings', 'importErrors',
-  'clientDocuments', 'customerDocuments', 'supplierDocuments', 'portalAccess', 'portalActivities',
+  'clientDocuments', 'customerDocuments', 'supplierDocuments', 'employeeDocuments', 'documentFolders', 'documentGovernance', 'documentApprovals', 'documentAccessEvents', 'portalAccess', 'portalActivities',
   'emailTemplates', 'emailCampaigns', 'emailQueue', 'emailSuppressions', 'communicationLogs',
   'automationExecutions', 'whatsappIntegrations',
   'providerWebhooks', 'gstSubmissions', 'aiDrafts', 'authChallenges', 'authSessions', 'securityEvents',
