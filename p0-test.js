@@ -165,6 +165,23 @@ async function run() {
     const project = response.json.project;
     check('project is created for an organization customer', response.status === 201 && project?.customerId === customer.id);
 
+    response = await request('POST', '/api/p0/project-templates', {
+      name: 'Security rollout standard',
+      defaultBudget: 75000,
+      milestones: [{ title: 'Discovery', offsetDays: 5, amount: 15000 }],
+      tasks: [{ title: 'Site assessment', offsetDays: 3, plannedHours: 8, plannedCost: 4000, priority: 'high' }]
+    }, cookie);
+    const projectTemplate = response.json.template;
+    check('project template stores reusable milestones and tasks', response.status === 201 && projectTemplate?.milestones?.length === 1 && projectTemplate?.tasks?.length === 1);
+
+    response = await request('POST', '/api/p0/projects/from-template', {
+      templateId: projectTemplate.id,
+      customerId: customer.id,
+      name: 'Template Generated Project',
+      startDate: '2026-10-01'
+    }, cookie);
+    check('project template generates a real project plan', response.status === 201 && response.json.project?.templateId === projectTemplate.id && response.json.milestones?.length === 1 && response.json.workOrders?.length === 1);
+
     response = await request('POST', '/api/p0/projects/' + project.id + '/milestones', {
       title: 'Discovery completed',
       dueDate: '2026-09-25',
@@ -180,14 +197,33 @@ async function run() {
     const workOrder = response.json.workOrder;
     check('project work order is created', response.status === 201 && workOrder?.projectId === project.id);
 
+    response = await request('POST', '/api/p0/projects/' + project.id + '/work-orders', {
+      title: 'Validate controls',
+      parentWorkOrderId: workOrder.id,
+      dependencyIds: [workOrder.id],
+      assignedTo: colleague.id,
+      priority: 'high',
+      dueDate: '2026-09-27',
+      plannedHours: 4
+    }, cookie);
+    const subtask = response.json.workOrder;
+    check('subtask keeps parent, dependency and assignee links', response.status === 201 && subtask?.parentWorkOrderId === workOrder.id && subtask?.dependencyIds?.[0] === workOrder.id && subtask?.assignedTo === colleague.id);
+
+    response = await request('PATCH', '/api/p0/projects/' + project.id + '/work-orders/' + subtask.id, { status: 'in_progress' }, cookie);
+    check('task dependency blocks premature execution', response.status === 409);
+
     response = await request('GET', '/api/p0/projects/' + project.id, null, cookie);
-    check('project delivery control returns milestones and tasks', response.status === 200 && response.json.milestones?.length === 1 && response.json.workOrders?.length === 1);
+    check('project delivery control returns milestones, tasks and subtasks', response.status === 200 && response.json.milestones?.length === 1 && response.json.workOrders?.length === 2);
 
     response = await request('PATCH', '/api/p0/projects/' + project.id + '/milestones/' + response.json.milestones[0].id, { status: 'completed' }, cookie);
     check('milestone status is updated', response.status === 200 && response.json.milestone?.status === 'completed');
 
     response = await request('PATCH', '/api/p0/projects/' + project.id + '/work-orders/' + workOrder.id, { status: 'in_progress' }, cookie);
     check('work order status is updated', response.status === 200 && response.json.workOrder?.status === 'in_progress');
+
+    response = await request('PATCH', '/api/p0/projects/' + project.id + '/work-orders/' + workOrder.id, { status: 'completed' }, cookie);
+    response = await request('PATCH', '/api/p0/projects/' + project.id + '/work-orders/' + subtask.id, { status: 'in_progress' }, cookie);
+    check('subtask starts after dependency completes', response.status === 200 && response.json.workOrder?.status === 'in_progress');
 
     response = await request('POST', '/api/p0/projects/' + project.id + '/timesheets', {
       workOrderId: workOrder.id,
@@ -198,8 +234,22 @@ async function run() {
     }, cookie);
     check('project timesheet is submitted', response.status === 201 && response.json.timesheet?.hours === 5);
 
+    response = await request('POST', '/api/p0/projects/' + project.id + '/expenses', {
+      description: 'Security appliance transport',
+      amount: 2000,
+      category: 'travel',
+      expenseDate: '2026-09-20'
+    }, cookie);
+    check('project expense is included in delivery costing', response.status === 201 && response.json.expense?.amount === 2000);
+
+    response = await request('GET', '/api/p0/projects/' + project.id + '/timeline', null, cookie);
+    check('project timeline includes milestones, tasks and dependencies', response.status === 200 && response.json.items?.length === 3 && response.json.items.some(row => row.id === subtask.id && row.dependencyIds?.includes(workOrder.id)));
+
+    response = await request('GET', '/api/p0/projects-workload', null, cookie);
+    check('team workload derives open assignments', response.status === 200 && response.json.workload?.some(row => row.userId === colleague.id && row.openTasks >= 1));
+
     response = await request('GET', '/api/p0/projects/' + project.id + '/profitability', null, cookie);
-    check('project profitability derives revenue and costs', response.status === 200 && response.json.revenue === 100000 && response.json.cost === 15000 && response.json.profit === 85000);
+    check('project profitability includes operational expenses', response.status === 200 && response.json.revenue === 100000 && response.json.cost === 17000 && response.json.profit === 83000 && response.json.expenseCost === 2000);
 
     response = await request('POST', '/api/p0/inbox/mentions', {
       userId: colleague.id,
