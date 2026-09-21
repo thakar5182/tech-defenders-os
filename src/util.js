@@ -174,7 +174,7 @@ const APP_CATALOG = [
   ...appGroup('manufacturing', [['manufacturing/planning','MRP & Work Centres'],['manufacturing/boms','BOMs'],['manufacturing/jobs','Job Orders']]),
   ...appGroup('service', [['service/dispatch','Dispatch & Knowledge'],['service/amc','AMC Contracts'],['service/tickets','Service Tickets'],['service/sla-control','SLA & Technician Control']]),
   ...appGroup('finance', [['finance/accounts','Chart of Accounts'],['finance/journals','Journal Entries'],['finance/expenses','Expenses'],['finance/banking','Banking & Reconciliation'],['finance/production-controls','Finance Production Controls'],['finance/petty-cash','Petty Cash'],['finance/cost-centers','Cost Centres'],['finance/cheques','Cheque Status'],['finance/gst-dashboard','GST Dashboard'],['finance/pnl','Profit & Loss'],['finance/ledgers','Ledgers & Statements']]),
-  ...appGroup('hr', [['hr/employees','Employees'],['hr/attendance','Attendance'],['hr/payroll','Payroll & Payslips'],['hr/leaves','Leave Requests']]),
+  ...appGroup('hr', [['hr/self-service','My Employee Desk'],['hr/employees','Employees'],['hr/attendance','Attendance'],['hr/payroll','Payroll & Payslips'],['hr/leaves','Leave Requests']]),
   ...appGroup('projects', [['projects/board','Projects & Work Orders']]),
   ...appGroup('operations', [['operations/inbox','Operations Inbox']]),
   ...appGroup('reports', [['reports/builder','Report Builder'],['reports/command','Reports Command Centre'],['reports/sales','Sales Report'],['reports/receivables','Receivables'],['reports/stock','Stock Report'],['reports/funnel','Lead Funnel'],['reports/service','Service Report']]),
@@ -195,7 +195,38 @@ const DASHBOARD_WIDGETS = [
   { key: 'salesTrend', label: 'Sales Trend Chart', description: 'Six-month invoiced-value chart', requiredModule: 'sales' },
   { key: 'leadFunnel', label: 'Lead Funnel Chart', description: 'Lead stage and conversion chart', requiredModule: 'crm' },
   { key: 'recentActivity', label: 'Recent Activity', description: 'Latest CRM activity timeline', requiredModule: 'crm' }
+  ,{ key: 'myAttendance', label: 'My Attendance', description: 'Personal attendance status for today', requiredModule: 'hr' }
+  ,{ key: 'myLeave', label: 'My Leave', description: 'Personal pending leave requests', requiredModule: 'hr' }
+  ,{ key: 'myPayslips', label: 'My Payslips', description: 'Published personal payslips', requiredModule: 'hr' }
+  ,{ key: 'myTasks', label: 'My Work', description: 'Tasks assigned to this account', requiredModule: 'operations' }
 ];
+
+/* Category presets are deliberately explicit. A new account starts with only
+ * the modules, apps and widgets needed for its job; administrators can still
+ * fine-tune individual switches afterwards. */
+const WORKSPACE_PROFILES = {
+  sales_manager: { modules:['dashboard','crm','sales','inventory','projects','operations','reports','communication','automation'], apps:['dashboard','apps','crm/intelligence','crm/automation','crm/leads','crm/customers','crm/contacts','crm/deals','crm/tasks','crm/meetings','crm/daily-work','crm/late-payments','sales/recurring','sales/quotations','sales/ai-quote','sales/documents','sales/orders','sales/invoices','sales/receipts','sales/credit-notes','sales/visits','sales/dispatches','sales/gate-passes','sales/collections','inventory/products','inventory/summary','projects/board','operations/inbox','reports/sales','reports/receivables','reports/funnel','communication/email','communication/history','communication/analytics','automation/builder'], widgets:['crmOverview','receivables','followUps','salesMonthly','salesTrend','leadFunnel','recentActivity','myTasks'] },
+  sales_exec: { modules:['dashboard','crm','sales','inventory','operations','communication'], apps:['dashboard','crm/leads','crm/customers','crm/contacts','crm/deals','crm/tasks','crm/meetings','crm/daily-work','sales/quotations','sales/orders','sales/invoices','sales/receipts','sales/visits','inventory/products','inventory/summary','operations/inbox','communication/email','communication/history'], widgets:['crmOverview','receivables','followUps','salesMonthly','leadFunnel','recentActivity','myTasks'] },
+  purchase_manager: { modules:['dashboard','purchase','inventory','operations','reports'], apps:['dashboard','purchase/requisitions','purchase/rfqs','purchase/orders','purchase/grns','purchase/suppliers','purchase/billing','purchase/matching','inventory/products','inventory/summary','inventory/ledger','inventory/quality','operations/inbox','reports/stock'], widgets:['purchaseStatus','inventoryAlerts','myTasks'] },
+  store_manager: { modules:['dashboard','purchase','inventory','manufacturing','operations','reports'], apps:['dashboard','purchase/orders','purchase/grns','purchase/suppliers','inventory/products','inventory/summary','inventory/ledger','inventory/reservations','inventory/price-lists','inventory/assets','inventory/damage-loss','inventory/quality','inventory/warehouse-operations','manufacturing/planning','manufacturing/boms','manufacturing/jobs','operations/inbox','reports/stock'], widgets:['inventoryAlerts','purchaseStatus','myTasks'] },
+  production_manager: { modules:['dashboard','inventory','manufacturing','operations','reports'], apps:['dashboard','inventory/products','inventory/summary','inventory/ledger','inventory/reservations','inventory/quality','inventory/warehouse-operations','manufacturing/planning','manufacturing/boms','manufacturing/jobs','operations/inbox','reports/stock'], widgets:['inventoryAlerts','myTasks'] },
+  accountant: { modules:['dashboard','sales','purchase','finance','hr','operations','reports','communication','dataImport'], apps:['dashboard','sales/invoices','sales/receipts','sales/credit-notes','sales/collections','purchase/orders','purchase/billing','purchase/matching','finance/accounts','finance/journals','finance/expenses','finance/banking','finance/production-controls','finance/petty-cash','finance/cost-centers','finance/cheques','finance/gst-dashboard','finance/pnl','finance/ledgers','hr/payroll','operations/inbox','reports/builder','reports/command','reports/sales','reports/receivables','communication/email','communication/history','data-import','client-documents'], widgets:['receivables','salesMonthly','salesTrend','myTasks'] },
+  service_manager: { modules:['dashboard','crm','inventory','service','projects','operations','reports','communication'], apps:['dashboard','crm/customers','crm/contacts','inventory/products','inventory/summary','inventory/ledger','inventory/assets','service/dispatch','service/amc','service/tickets','service/sla-control','projects/board','operations/inbox','reports/service','communication/email','communication/history'], widgets:['serviceLoad','inventoryAlerts','myTasks'] },
+  engineer: { modules:['dashboard','inventory','service','projects','operations'], apps:['dashboard','inventory/products','inventory/summary','inventory/ledger','service/dispatch','service/amc','service/tickets','projects/board','operations/inbox'], widgets:['serviceLoad','myTasks'] },
+  employee: { modules:['dashboard','hr','projects','operations'], apps:['dashboard','hr/self-service','projects/board','operations/inbox'], widgets:['myAttendance','myLeave','myPayslips','myTasks'] },
+  viewer: { modules:['dashboard','crm','sales','purchase','inventory','manufacturing','service','finance','reports'], apps:['dashboard','crm/customers','sales/quotations','sales/orders','sales/invoices','purchase/orders','purchase/grns','inventory/products','inventory/summary','manufacturing/boms','manufacturing/jobs','service/amc','service/tickets','finance/pnl','finance/ledgers','reports/sales','reports/stock','reports/service'], widgets:['crmOverview','receivables','salesMonthly','inventoryAlerts','serviceLoad','purchaseStatus','salesTrend','leadFunnel'] }
+};
+
+function workspacePolicyForRole(role) {
+  if (role === 'super_admin' || role === 'admin') return { category: role, moduleAccess: {}, appAccess: {}, dashboardWidgets: {} };
+  const profile = WORKSPACE_PROFILES[role] || WORKSPACE_PROFILES.viewer;
+  return {
+    category: role,
+    moduleAccess: Object.fromEntries(MODULES.map(item => [item.key, profile.modules.includes(item.key)])),
+    appAccess: Object.fromEntries(APP_CATALOG.map(item => [item.key, profile.apps.includes(item.key)])),
+    dashboardWidgets: Object.fromEntries(DASHBOARD_WIDGETS.map(item => [item.key, profile.widgets.includes(item.key)]))
+  };
+}
 
 function can(subject, module, action) {
   const role = typeof subject === 'string' ? subject : subject && subject.role;
@@ -248,5 +279,6 @@ function effectiveDashboardWidgets(user) {
 module.exports = {
   r2, fyOf, SEQ_PREFIX, nextNumber, peekNumber, computeDoc, audit, notify,
   postStock, stockBalance, ROLE_PERMS, MODULES, APP_CATALOG, DASHBOARD_WIDGETS, can,
-  permsForRole, effectiveAccess, canUseApp, effectiveAppAccess, canSeeDashboardWidget, effectiveDashboardWidgets
+  permsForRole, effectiveAccess, canUseApp, effectiveAppAccess, canSeeDashboardWidget, effectiveDashboardWidgets,
+  WORKSPACE_PROFILES, workspacePolicyForRole
 };
