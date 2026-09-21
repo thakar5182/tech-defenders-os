@@ -532,10 +532,30 @@ Core.route('finance/pnl', async () => {
 
 /* ================= HR ================= */
 Core.route('hr/employees', async () => {
-  const d = await Core.get('/admin/employees');
+  const [d, workforce] = await Promise.all([Core.get('/admin/employees'), Core.get('/admin/workforce')]);
+  Pages.workforceCache = { employees: d.employees || [], ...workforce };
+  const departmentName = id => (workforce.departments.find(row => row.id === id) || {}).name || '-';
+  const openingTitle = id => (workforce.jobOpenings.find(row => row.id === id) || {}).title || '-';
   document.getElementById('content').innerHTML = `
     ${Core.pageHead('Employees', 'Team directory',
       Core.can('hr', 'create') ? '<button class="btn btn-gold" onclick="Pages.openEmployeeForm()">+ New Employee</button>' : '')}
+    <div class="grid-kpi">
+      ${Core.kpi('Active employees', d.employees.filter(row => row.status === 'active').length, 'Live workforce')}
+      ${Core.kpi('Departments', workforce.departments.length, 'Organization structure')}
+      ${Core.kpi('Open positions', workforce.jobOpenings.filter(row => row.status === 'open').length, 'Recruitment pipeline')}
+      ${Core.kpi('Training assigned', workforce.trainingEnrollments.filter(row => row.status === 'assigned').length, 'Pending completion')}
+    </div>
+    ${Core.can('hr', 'create') ? `<div class="toolbar" style="flex-wrap:wrap">
+      <button class="btn btn-outline" onclick="Pages.openDepartmentForm()">+ Department</button>
+      <button class="btn btn-outline" onclick="Pages.openDesignationForm()">+ Designation</button>
+      <button class="btn btn-outline" onclick="Pages.openHolidayForm()">+ Holiday</button>
+      <button class="btn btn-outline" onclick="Pages.openJobOpeningForm()">+ Job opening</button>
+      <button class="btn btn-outline" onclick="Pages.openCandidateForm()">+ Candidate</button>
+      <button class="btn btn-outline" onclick="Pages.openPerformanceReviewForm()">+ Review</button>
+      <button class="btn btn-outline" onclick="Pages.openTrainingForm()">+ Training</button>
+      <button class="btn btn-outline" onclick="Pages.openTrainingAssignmentForm()">Assign training</button>
+    </div>` : ''}
+    <div class="card"><div class="card-head"><h3>Employee directory</h3><span class="muted">${d.employees.length} records</span></div>
     ${Core.table([
       { label: 'Emp code', render: e => `<b>${Core.esc(e.empCode)}</b>` },
       { label: 'Name', key: 'name' },
@@ -544,7 +564,41 @@ Core.route('hr/employees', async () => {
       { label: 'Contact', render: e => `${Core.esc(e.email || '-')}<br><small class="muted">${Core.esc(e.phone || '')}</small>` },
       { label: 'Joined', render: e => Core.fmtDate(e.joinDate) },
       { label: 'Status', render: e => Core.badge(e.status) }
-    ], d.employees, { emptyTitle: 'No employees' })}`;
+    ], d.employees, { emptyTitle: 'No employees' })}</div>
+    <div class="grid-even">
+      <div class="card"><div class="card-head"><h3>Departments & designations</h3></div>
+        ${Core.table([
+          { label: 'Department', key: 'name' },
+          { label: 'Code', key: 'code' },
+          { label: 'Designations', render: row => workforce.designations.filter(item => item.departmentId === row.id).map(item => Core.esc(item.name)).join(', ') || '-' }
+        ], workforce.departments, { emptyTitle: 'No departments configured' })}
+      </div>
+      <div class="card"><div class="card-head"><h3>Holiday calendar</h3></div>
+        ${Core.table([
+          { label: 'Date', render: row => Core.fmtDate(row.date) },
+          { label: 'Holiday', key: 'name' },
+          { label: 'Type', render: row => Core.badge(row.optional ? 'optional' : 'company') }
+        ], workforce.holidays, { emptyTitle: 'No holidays configured' })}
+      </div>
+    </div>
+    <div class="grid-even">
+      <div class="card"><div class="card-head"><h3>Recruitment pipeline</h3></div>
+        ${Core.table([
+          { label: 'Candidate', key: 'name' },
+          { label: 'Opening', render: row => Core.esc(openingTitle(row.jobOpeningId)) },
+          { label: 'Stage', render: row => Core.badge(row.stage) },
+          { label: 'Rating', render: row => `${Number(row.rating || 0).toFixed(1)} / 5` }
+        ], workforce.candidates, { emptyTitle: 'No candidates yet' })}
+      </div>
+      <div class="card"><div class="card-head"><h3>Performance & training</h3></div>
+        ${Core.table([
+          { label: 'Course', key: 'title' },
+          { label: 'Provider', key: 'provider' },
+          { label: 'Mode', render: row => Core.badge(row.mode) },
+          { label: 'Duration', render: row => `${Number(row.durationHours || 0)}h` }
+        ], workforce.trainingCourses, { emptyTitle: 'No training courses' })}
+      </div>
+    </div>`;
 });
 
 Pages.openEmployeeForm = function () {
@@ -562,6 +616,81 @@ Pages.openEmployeeForm = function () {
     submitLabel: 'Add employee',
     onSubmit: async v => { await Core.post('/admin/employees', v); toast('Added', 'Employee created', 'success'); Core.render(); }
   });
+};
+
+Pages.openDepartmentForm = function () {
+  Core.formModal({ title: 'New department', fields: [
+    { name: 'name', label: 'Department name *', required: true },
+    { name: 'code', label: 'Code', half: true },
+    { name: 'managerEmployeeId', label: 'Manager', type: 'select', half: true, options: [{ value: '', label: 'Not assigned' }].concat((Pages.workforceCache.employees || []).map(row => ({ value: row.id, label: row.name }))) }
+  ], submitLabel: 'Create department', onSubmit: async value => { await Core.post('/admin/workforce/departments', value); toast('Created', 'Department is ready', 'success'); Core.render(); } });
+};
+
+Pages.openDesignationForm = function () {
+  Core.formModal({ title: 'New designation', fields: [
+    { name: 'name', label: 'Designation name *', required: true },
+    { name: 'departmentId', label: 'Department', type: 'select', half: true, options: [{ value: '', label: 'All departments' }].concat((Pages.workforceCache.departments || []).map(row => ({ value: row.id, label: row.name }))) },
+    { name: 'grade', label: 'Grade / level', half: true }
+  ], submitLabel: 'Create designation', onSubmit: async value => { await Core.post('/admin/workforce/designations', value); toast('Created', 'Designation is ready', 'success'); Core.render(); } });
+};
+
+Pages.openHolidayForm = function () {
+  Core.formModal({ title: 'Add holiday', fields: [
+    { name: 'name', label: 'Holiday name *', required: true },
+    { name: 'date', label: 'Date *', type: 'date', required: true, half: true },
+    { name: 'optional', label: 'Optional holiday', type: 'checkbox', half: true }
+  ], submitLabel: 'Add holiday', onSubmit: async value => { await Core.post('/admin/workforce/holidays', value); toast('Added', 'Holiday calendar updated', 'success'); Core.render(); } });
+};
+
+Pages.openJobOpeningForm = function () {
+  Core.formModal({ title: 'New job opening', fields: [
+    { name: 'title', label: 'Job title *', required: true },
+    { name: 'departmentId', label: 'Department', type: 'select', half: true, options: [{ value: '', label: 'Not assigned' }].concat((Pages.workforceCache.departments || []).map(row => ({ value: row.id, label: row.name }))) },
+    { name: 'openings', label: 'Open positions', type: 'number', value: 1, min: 1, half: true },
+    { name: 'location', label: 'Location' },
+    { name: 'description', label: 'Role description', type: 'textarea' }
+  ], submitLabel: 'Open position', onSubmit: async value => { await Core.post('/admin/workforce/job-openings', value); toast('Published', 'Job opening added to the pipeline', 'success'); Core.render(); } });
+};
+
+Pages.openCandidateForm = function () {
+  Core.formModal({ title: 'Add candidate', fields: [
+    { name: 'jobOpeningId', label: 'Job opening *', type: 'select', required: true, options: (Pages.workforceCache.jobOpenings || []).filter(row => row.status === 'open').map(row => ({ value: row.id, label: row.title })) },
+    { name: 'name', label: 'Candidate name *', required: true },
+    { name: 'email', label: 'Email', type: 'email', half: true },
+    { name: 'phone', label: 'Phone', half: true },
+    { name: 'source', label: 'Source', half: true },
+    { name: 'notes', label: 'Notes', type: 'textarea' }
+  ], submitLabel: 'Add candidate', onSubmit: async value => { await Core.post('/admin/workforce/candidates', value); toast('Added', 'Candidate entered the recruitment pipeline', 'success'); Core.render(); } });
+};
+
+Pages.openPerformanceReviewForm = function () {
+  Core.formModal({ title: 'Performance review', fields: [
+    { name: 'employeeId', label: 'Employee *', type: 'select', required: true, options: (Pages.workforceCache.employees || []).map(row => ({ value: row.id, label: row.name })) },
+    { name: 'period', label: 'Review period *', required: true, half: true, placeholder: '2026 Q3' },
+    { name: 'reviewDate', label: 'Review date', type: 'date', half: true },
+    { name: 'score', label: 'Score (0–5)', type: 'number', min: 0, max: 5, step: '0.1', half: true },
+    { name: 'achievements', label: 'Achievements', type: 'textarea' },
+    { name: 'goals', label: 'Next goals', type: 'textarea' },
+    { name: 'developmentPlan', label: 'Development plan', type: 'textarea' }
+  ], submitLabel: 'Save review', onSubmit: async value => { await Core.post('/admin/workforce/performance-reviews', value); toast('Saved', 'Performance review recorded', 'success'); Core.render(); } });
+};
+
+Pages.openTrainingForm = function () {
+  Core.formModal({ title: 'New training course', fields: [
+    { name: 'title', label: 'Course title *', required: true },
+    { name: 'provider', label: 'Provider', half: true },
+    { name: 'mode', label: 'Mode', type: 'select', half: true, options: ['online', 'classroom', 'hybrid'].map(value => ({ value, label: value })) },
+    { name: 'durationHours', label: 'Duration (hours)', type: 'number', min: 0, half: true },
+    { name: 'mandatory', label: 'Mandatory training', type: 'checkbox', half: true }
+  ], submitLabel: 'Create training', onSubmit: async value => { await Core.post('/admin/workforce/training-courses', value); toast('Created', 'Training course is ready', 'success'); Core.render(); } });
+};
+
+Pages.openTrainingAssignmentForm = function () {
+  Core.formModal({ title: 'Assign training', fields: [
+    { name: 'employeeId', label: 'Employee *', type: 'select', required: true, options: (Pages.workforceCache.employees || []).map(row => ({ value: row.id, label: row.name })) },
+    { name: 'courseId', label: 'Course *', type: 'select', required: true, options: (Pages.workforceCache.trainingCourses || []).filter(row => row.active !== false).map(row => ({ value: row.id, label: row.title })) },
+    { name: 'dueDate', label: 'Due date', type: 'date' }
+  ], submitLabel: 'Assign training', onSubmit: async value => { await Core.post('/admin/workforce/training-enrollments', value); toast('Assigned', 'Employee notification created', 'success'); Core.render(); } });
 };
 
 Core.route('hr/leaves', async () => {
