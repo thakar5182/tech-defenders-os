@@ -111,6 +111,8 @@ const APP_API_RULES = [
   [/^\/api\/ai-command(?:\/|$)/, 'ai/command-centre'], [/^\/api\/customer-tools(?:\/|$)/, 'crm/intelligence'],
   [/^\/api\/collections(?:\/|$)/, 'sales/collections'], [/^\/api\/inventory-controls(?:\/|$)/, 'inventory/quality'],
   [/^\/api\/p0\/attendance(?:\/|$)/, 'hr/attendance'], [/^\/api\/p0\/shifts(?:\/|$)/, 'hr/attendance'], [/^\/api\/p0\/(?:salary-components|payroll-policy|payroll-runs|my\/payslips)(?:\/|$)/, 'hr/payroll'],
+  [/^\/api\/admin\/employees(?:\/|$)/, 'hr/employees'], [/^\/api\/admin\/workforce(?:\/|$)/, 'hr/employees'], [/^\/api\/admin\/leaves(?:\/|$)/, 'hr/leaves'],
+  [/^\/api\/workspace\/self-service(?:\/|$)/, 'hr/self-service'], [/^\/api\/workspace\/employee-documents(?:\/|$)/, 'hr/self-service'],
   [/^\/api\/finance-controls\/bank(?:-|\/|$)/, 'finance/banking'], [/^\/api\/finance-controls\/gst(?:-|\/|$)/, 'finance/gst-dashboard'],
   [/^\/api\/enterprise-controls\/sales\/recurring(?:\/|$)/, 'sales/recurring'], [/^\/api\/enterprise-controls\/purchase(?:\/|$)/, 'purchase/matching'],
   [/^\/api\/enterprise-controls\/manufacturing(?:\/|$)/, 'manufacturing/planning'], [/^\/api\/enterprise-controls\/service(?:\/|$)/, 'service/dispatch'],
