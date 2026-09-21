@@ -26,5 +26,7 @@ const check = (name, condition) => { assert.ok(condition, name); passed++; conso
   check('Closing control detects unposted journals', f.journalIssues([{ id: 'j1', posted: false }])[0].issue === 'unposted');
   check('Closing control detects unbalanced journals', f.journalIssues([{ id: 'j2', posted: true, lines: [{ debit: 100 }, { credit: 90 }] }])[0].issue === 'unbalanced');
   check('Close snapshot digest is deterministic', f.closingDigest({ a: 1 }) === f.closingDigest({ a: 1 }));
+  const { COLLECTIONS } = require('./db/store');
+  check('Phase 2 durable collections are registered', ['gstPortalReturns', 'taxDeductions', 'accountingCloseSnapshots'].every(name => COLLECTIONS.includes(name)));
   console.log('\n=== Results: ' + passed + '/' + passed + ' passed ===\n');
 })();
