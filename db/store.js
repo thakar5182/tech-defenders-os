@@ -60,6 +60,7 @@ let pool = null;
 let timer = null;
 let writeChain = Promise.resolve();
 let lastPersistenceError = null;
+let schemaVersion = 0;
 
 function filePath(col) { return path.join(DATA_DIR, col + '.json'); }
 function emptyMemory() { for (const col of COLLECTIONS) db[col] = []; }
@@ -109,6 +110,7 @@ async function initialize(options = {}) {
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
   `);
+  schemaVersion = await require('./migrations').runMigrations(pool);
   const result = await pool.query('SELECT name, records FROM td_collections');
   emptyMemory();
   for (const row of result.rows) {
@@ -174,6 +176,14 @@ async function writePostgresCollections(list, snapshots) {
          VALUES ($1, $2::jsonb, NOW())
          ON CONFLICT (name) DO UPDATE
          SET records = EXCLUDED.records, updated_at = NOW()`,
+        [col, JSON.stringify(snapshots[col])]
+      );
+      await client.query('DELETE FROM td_records WHERE collection = $1', [col]);
+      await client.query(
+        `INSERT INTO td_records (collection, id, org_id, record, updated_at)
+         SELECT $1, item->>'id', NULLIF(item->>'orgId', ''), item, NOW()
+         FROM jsonb_array_elements($2::jsonb) item
+         WHERE item ? 'id'`,
         [col, JSON.stringify(snapshots[col])]
       );
     }
@@ -272,7 +282,14 @@ function backupSync() {
 
 function status() {
   return { mode, durable: mode === 'postgres', ready: loaded && !lastPersistenceError,
-    pendingCollections: dirty.size, error: lastPersistenceError ? 'persistence_error' : null };
+    pendingCollections: dirty.size, schemaVersion,
+    normalizedRecords: mode === 'postgres' && schemaVersion >= 2,
+    error: lastPersistenceError ? 'persistence_error' : null };
+}
+
+async function query(sql, params = []) {
+  if (mode !== 'postgres' || !pool) throw new Error('PostgreSQL query is unavailable in local storage mode');
+  return pool.query(sql, params);
 }
 
 async function close() {
@@ -283,7 +300,7 @@ async function close() {
 
 function _resetForTests() {
   if (timer) { clearTimeout(timer); timer = null; }
-  dirty.clear(); loaded = false; mode = 'json'; pool = null;
+  dirty.clear(); loaded = false; mode = 'json'; pool = null; schemaVersion = 0;
   writeChain = Promise.resolve(); lastPersistenceError = null;
   for (const col of COLLECTIONS) delete db[col];
 }
@@ -291,5 +308,5 @@ function _resetForTests() {
 module.exports = {
   db, COLLECTIONS, DATA_DIR, initialize, load, save, flush, flushSync, reset,
   backupSync, status, close, id, now, insert, insertMany, update, remove, find,
-  findOne, byId, isEmpty, _resetForTests
+  findOne, byId, isEmpty, query, _resetForTests
 };
