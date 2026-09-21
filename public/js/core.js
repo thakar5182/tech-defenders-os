@@ -192,6 +192,7 @@ const Core = {
       { path: '#/finance/ledgers', label: 'Ledgers & Statements', icon: '&#9776;', mod: 'finance' }
     ]},
     { group: 'HR', items: [
+      { path: '#/hr/self-service', label: 'My Employee Desk', icon: '&#128100;', mod: 'hr' },
       { path: '#/hr/employees', label: 'Employees', icon: '&#9786;', mod: 'hr' },
       { path: '#/hr/attendance', label: 'Attendance', icon: '&#9200;', mod: 'hr' },
       { path: '#/hr/payroll', label: 'Payroll & Payslips', icon: '&#8377;', mod: 'hr' },
