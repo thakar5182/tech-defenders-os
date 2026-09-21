@@ -208,10 +208,16 @@ Pages.openOutputForm = async jobId => {
 
 /* ================= SERVICE - AMC ================= */
 Core.route('service/amc', async () => {
-  const d = await Core.get('/service/amc');
+  const [d, ops] = await Promise.all([Core.get('/service/amc'), Core.get('/service/amc-operations')]);
   document.getElementById('content').innerHTML = `
     ${Core.pageHead('AMC Contracts', 'Annual maintenance contracts - auto-created from eligible invoices',
-      Core.can('service', 'create') ? '<button class="btn btn-gold" onclick="Pages.openAmcForm()">+ New Contract</button>' : '')}
+      Core.can('service', 'create') ? '<div class="actions-cell"><button class="btn btn-outline" onclick="Pages.openAmcAssetForm()">+ Asset</button><button class="btn btn-outline" onclick="Pages.openMaintenanceForm()">+ Schedule</button><button class="btn btn-gold" onclick="Pages.openAmcForm()">+ New Contract</button></div>' : '')}
+    <div class="grid-kpi">
+      ${Core.kpi('Covered assets', ops.metrics.assets, 'AMC equipment register')}
+      ${Core.kpi('Maintenance due', ops.metrics.dueSchedules, 'Preventive visits requiring action', ops.metrics.dueSchedules ? 'k-danger' : 'k-success')}
+      ${Core.kpi('Renewals due', ops.metrics.renewalDue, 'Expiring or expired contracts')}
+      ${Core.kpi('Customer rating', ops.metrics.csat == null ? '-' : `${ops.metrics.csat}/5`, 'Resolved-ticket CSAT')}
+    </div>
     ${Core.table([
       { label: 'Contract', render: a => `<b>${Core.esc(a.number)}</b><br><small class="muted">${Core.esc(a.assetDesc)}</small>` },
       { label: 'Customer', key: 'customerName' },
@@ -221,8 +227,58 @@ Core.route('service/amc', async () => {
       { label: 'Status', render: a => Core.badge(a.status) + (a.daysLeft >= 0 && a.daysLeft <= 60 ? ` <small class="muted">(${a.daysLeft}d left)</small>` : '') },
       { label: '', render: a => Core.can('service', 'edit') && !['renewed', 'cancelled'].includes(a.status)
         ? `<button class="btn btn-outline btn-sm" onclick="Pages.renewAmc('${a.id}')">Renew</button>` : '' }
-    ], d.contracts, { emptyTitle: 'No AMC contracts', emptyText: 'Invoice an AMC-eligible product or create one manually.' })}`;
+    ], d.contracts, { emptyTitle: 'No AMC contracts', emptyText: 'Invoice an AMC-eligible product or create one manually.' })}
+    <div class="section-head"><div><h2>Preventive maintenance</h2><p>Recurring schedules advance automatically after every completed checklist.</p></div></div>
+    ${Core.table([
+      { label: 'Schedule', render: s => `<b>${Core.esc(s.title)}</b><br><small class="muted">${Core.esc(s.assetName)} · ${Core.esc(s.contractNumber)}</small>` },
+      { label: 'Next due', render: s => Core.fmtDate(s.nextDueDate) },
+      { label: 'Frequency', render: s => `${s.frequencyDays} days` },
+      { label: 'Checklist', render: s => `${(s.checklistItems || []).length} items` },
+      { label: '', render: s => Core.can('service', 'edit') ? `<button class="btn btn-outline btn-sm" onclick="Pages.completeMaintenance('${s.id}','${encodeURIComponent(JSON.stringify(s.checklistItems || []))}')">Complete</button>` : '' }
+    ], ops.schedules, { emptyTitle: 'No preventive schedules', emptyText: 'Register an AMC asset and create its maintenance schedule.' })}
+    <div class="section-head"><div><h2>AMC assets</h2><p>Serial, warranty and service-history register.</p></div></div>
+    ${Core.table([
+      { label: 'Asset', render: a => `<b>${Core.esc(a.name)}</b><br><small class="muted">${Core.esc(a.make)} ${Core.esc(a.model)}</small>` },
+      { label: 'Serial', key: 'serialNumber' }, { label: 'Customer', key: 'customerName' },
+      { label: 'Contract', key: 'contractNumber' }, { label: 'Warranty', render: a => a.warrantyUntil ? Core.fmtDate(a.warrantyUntil) : '-' },
+      { label: '', render: a => `<button class="btn btn-ghost btn-sm" onclick="Pages.showAssetHistory('${a.id}')">History</button>` }
+    ], ops.assets, { emptyTitle: 'No AMC assets', emptyText: 'Add equipment covered by a contract.' })}`;
 });
+
+Pages.openAmcAssetForm = async () => {
+  const d = await Core.get('/service/amc');
+  Core.formModal({ title: 'Register AMC asset', fields: [
+    { name: 'amcId', label: 'AMC contract *', type: 'select', required: true, options: d.contracts.filter(a => a.status === 'active' || a.status === 'expiring_soon').map(a => ({ value: a.id, label: `${a.number} · ${a.customerName}` })) },
+    { name: 'name', label: 'Equipment name *', required: true }, { name: 'serialNumber', label: 'Serial number', half: true },
+    { name: 'make', label: 'Make', half: true }, { name: 'model', label: 'Model', half: true }, { name: 'location', label: 'Installed location', half: true },
+    { name: 'installedAt', label: 'Installed on', type: 'date', half: true }, { name: 'warrantyUntil', label: 'Warranty until', type: 'date', half: true }
+  ], submitLabel: 'Register asset', onSubmit: async v => { await Core.post('/service/amc-assets', v); toast('Asset registered', 'Equipment history is now available', 'success'); Core.render(); } });
+};
+
+Pages.openMaintenanceForm = async () => {
+  const d = await Core.get('/service/amc-operations');
+  Core.formModal({ title: 'Preventive maintenance schedule', fields: [
+    { name: 'assetId', label: 'AMC asset *', type: 'select', required: true, options: d.assets.map(a => ({ value: a.id, label: `${a.name} · ${a.serialNumber || a.customerName}` })) },
+    { name: 'title', label: 'Schedule name', value: 'Preventive maintenance' },
+    { name: 'nextDueDate', label: 'Next due date *', type: 'date', required: true, half: true },
+    { name: 'frequencyDays', label: 'Repeat every (days) *', type: 'number', value: 90, required: true, half: true },
+    { name: 'checklistText', label: 'Checklist (one item per line)', type: 'textarea' }
+  ], submitLabel: 'Create schedule', onSubmit: async v => { v.checklistItems = String(v.checklistText || '').split(/\n/).map(x => x.trim()).filter(Boolean); delete v.checklistText; await Core.post('/service/maintenance-schedules', v); toast('Scheduled', 'Preventive maintenance added', 'success'); Core.render(); } });
+};
+
+Pages.completeMaintenance = (id, encodedLabels) => {
+  const labels = JSON.parse(decodeURIComponent(encodedLabels));
+  Core.formModal({ title: 'Complete preventive maintenance', fields: [
+    ...labels.map((label, index) => ({ name: `item_${index}`, label, type: 'checkbox' })),
+    { name: 'notes', label: 'Service notes', type: 'textarea' }
+  ], submitLabel: 'Complete checklist', onSubmit: async v => { const items = labels.map((label, index) => ({ label, done: Boolean(v[`item_${index}`]) })); await Core.post(`/service/maintenance-schedules/${id}/complete`, { items, notes: v.notes }); toast('Completed', 'History recorded and next due date calculated', 'success'); Core.render(); } });
+};
+
+Pages.showAssetHistory = async id => {
+  const d = await Core.get(`/service/amc-assets/${id}/history`);
+  const m = Core.openModal({ title: `${d.asset.name} service history`, wide: true, body: `<div class="meta-grid"><div class="meta-item"><span>Serial</span><b>${Core.esc(d.asset.serialNumber || '-')}</b></div><div class="meta-item"><span>Warranty</span><b>${d.asset.warrantyUntil ? Core.fmtDate(d.asset.warrantyUntil) : '-'}</b></div><div class="meta-item"><span>Completed checklists</span><b>${d.checklists.length}</b></div><div class="meta-item"><span>Linked tickets</span><b>${d.tickets.length}</b></div></div>${Core.table([{ label: 'Completed', render: x => new Date(x.completedAt).toLocaleString('en-IN') }, { label: 'Notes', key: 'notes' }, { label: 'Items', render: x => `${x.items.length} completed` }], d.checklists, { emptyTitle: 'No completed maintenance yet' })}`, footer: '<button class="btn btn-outline" data-cancel>Close</button>' });
+  m.el.querySelector('[data-cancel]').onclick = m.close;
+};
 
 Pages.renewAmc = async id => {
   Core.formModal({
@@ -270,7 +326,7 @@ Core.route('service/tickets', async () => {
       { label: 'Customer', key: 'customerName' },
       { label: 'Priority', render: t => Core.badge(t.priority) },
       { label: 'Assignee', key: 'assignedName' },
-      { label: 'SLA', render: t => t.slaBreached ? '<span class="badge b-danger">breached</span>' : `<small class="muted">due ${new Date(t.slaDueAt).toLocaleString('en-IN')}</small>` },
+      { label: 'SLA', render: t => t.slaBreached ? '<span class="badge b-danger">breached</span>' : `<small class="muted">due ${new Date(t.resolutionDueAt).toLocaleString('en-IN')}</small>` },
       { label: 'Status', render: t => Core.badge(t.status) },
       { label: '', render: t => canEdit ? `<div class="actions-cell">
           <button class="btn btn-outline btn-sm" onclick="Pages.openTicketDetail('${t.id}')">Manage</button>
@@ -326,6 +382,7 @@ Pages.openTicketDetail = async id => {
             <label class="field"><span>Note (goes to work log)</span><input name="note"></label>
             <button class="btn btn-dark btn-sm">Update status</button>
           </form>
+          ${['resolved', 'closed'].includes(t.status) ? `<form id="tl-feedback" style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px"><p style="font-weight:700;font-size:12px;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Customer satisfaction</p><label class="field"><span>Rating</span><select name="rating">${[5,4,3,2,1].map(v => `<option value="${v}">${v} / 5</option>`).join('')}</select></label><label class="field"><span>Comment</span><input name="comment"></label><button class="btn btn-outline btn-sm">Save feedback</button></form>` : ''}
           <form id="tl-part" style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
             <p style="font-weight:700;font-size:12px;text-transform:uppercase;color:var(--muted);margin-bottom:6px">Consume part from stock</p>
             <label class="field"><span>Part</span><select name="productId" id="part-select"></select></label>
@@ -360,6 +417,7 @@ Pages.openTicketDetail = async id => {
       m.close(); Core.render();
     } catch (err) { toast('Failed', err.message, 'error'); }
   });
+  m.el.querySelector('#tl-feedback')?.addEventListener('submit', async e => { e.preventDefault(); const fd = new FormData(e.target); try { await Core.post(`/service/tickets/${id}/feedback`, { rating: Number(fd.get('rating')), comment: fd.get('comment') }); toast('Feedback saved', 'CSAT dashboard updated', 'success'); m.close(); Core.render(); } catch (err) { toast('Failed', err.message, 'error'); } });
 
   Promise.all([Core.get('/inventory/products'), Core.get('/inventory/warehouses')]).then(([pd, wd]) => {
     const sel = m.el.querySelector('#part-select');
