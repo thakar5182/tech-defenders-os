@@ -40,6 +40,45 @@ function activeAdmins(orgId, excludingId) {
     user.role === 'admin' && user.active && !user.deletedAt && (user.moduleAccess || {}).admin !== false);
 }
 
+function nextEmployeeCode(orgId) {
+  const highest = store.find('employees', row => row.orgId === orgId).reduce((max, row) => {
+    const value = Number(String(row.empCode || '').match(/(\d+)$/)?.[1] || 0);
+    return Math.max(max, value);
+  }, 0);
+  return 'EMP-' + String(highest + 1).padStart(3, '0');
+}
+
+function linkWorkforceProfile(user, input = {}) {
+  if (!['employee', 'engineer'].includes(user.role)) return null;
+  const email = clean(user.email, 200).toLowerCase();
+  let employee = store.findOne('employees', row => row.orgId === user.orgId &&
+    (row.userId === user.id || (email && clean(row.email, 200).toLowerCase() === email)));
+  const patch = {
+    userId: user.id,
+    name: clean(input.name || user.name, 120),
+    email,
+    phone: clean(input.phone !== undefined ? input.phone : user.phone, 30),
+    department: clean(input.department !== undefined ? input.department : employee?.department, 100),
+    designation: clean(input.designation !== undefined ? input.designation : employee?.designation, 100),
+    managerEmployeeId: clean(input.managerEmployeeId !== undefined ? input.managerEmployeeId : employee?.managerEmployeeId, 80) || null,
+    joinDate: /^\d{4}-\d{2}-\d{2}$/.test(String(input.joinDate || '')) ? input.joinDate : (employee?.joinDate || new Date().toISOString().slice(0, 10)),
+    status: employee?.status || 'active',
+    loginActive: user.active !== false
+  };
+  if (patch.managerEmployeeId && !store.findOne('employees', row => row.id === patch.managerEmployeeId && row.orgId === user.orgId)) patch.managerEmployeeId = null;
+  employee = employee ? store.update('employees', employee.id, patch) : store.insert('employees', { orgId: user.orgId, empCode: nextEmployeeCode(user.orgId), ...patch });
+  if (user.employeeId !== employee.id) store.update('users', user.id, { employeeId: employee.id });
+  return employee;
+}
+
+function workforceOptions(orgId) {
+  return {
+    departments: store.find('departments', row => row.orgId === orgId && row.active !== false).map(row => ({ id: row.id, name: row.name })),
+    designations: store.find('designations', row => row.orgId === orgId && row.active !== false).map(row => ({ id: row.id, name: row.name, departmentId: row.departmentId || null })),
+    managers: store.find('employees', row => row.orgId === orgId && row.status !== 'inactive').map(row => ({ id: row.id, name: row.name, designation: row.designation || '' }))
+  };
+}
+
 function globalUserView(user) {
   const org = store.byId('organizations', user.orgId);
   return {
@@ -66,6 +105,8 @@ function deleteUserRecord(target, actorUserId) {
     passwordHash: bcrypt.hashSync(crypto.randomBytes(32).toString('hex'), 10),
     tokenVersion: (target.tokenVersion || 0) + 1
   });
+  const employee = store.findOne('employees', row => row.orgId === target.orgId && (row.userId === target.id || row.id === target.employeeId));
+  if (employee) store.update('employees', employee.id, { loginActive: false });
   audit(target.orgId, actorUserId, 'delete', 'user', target.id, { previousEmail });
 }
 
@@ -165,7 +206,7 @@ router.post('/global/users', requireSuperAdmin, (req, res) => {
   const email = String(body.email).trim().toLowerCase();
   if (store.findOne('users', user => user.email === email)) return res.status(409).json({ error: 'Email already in use' });
   const tempPassword = 'Td@' + crypto.randomBytes(4).toString('hex');
-  const user = store.insert('users', {
+  let user = store.insert('users', {
     orgId: org.id,
     name: body.name,
     email,
@@ -178,8 +219,10 @@ router.post('/global/users', requireSuperAdmin, (req, res) => {
     dashboardWidgets: {},
     mustChangePassword: true
   });
+  const employee = linkWorkforceProfile(user, body);
+  if (employee) user = store.byId('users', user.id);
   audit(org.id, req.user.id, 'global_create', 'user', user.id, { email, role: body.role });
-  res.json({ user: globalUserView(user), tempPassword });
+  res.json({ user: globalUserView(user), employee, tempPassword });
 });
 
 router.patch('/global/users/:id', requireSuperAdmin, (req, res) => {
@@ -202,8 +245,11 @@ router.patch('/global/users/:id', requireSuperAdmin, (req, res) => {
   if (Object.keys(patch).length === 0) return res.status(400).json({ error: 'No supported changes supplied' });
   patch.tokenVersion = (target.tokenVersion || 0) + 1;
   const updated = store.update('users', target.id, patch);
+  const employee = linkWorkforceProfile(updated, req.body || {});
+  const linkedEmployee = store.findOne('employees', row => row.orgId === target.orgId && (row.userId === target.id || row.id === updated.employeeId));
+  if (linkedEmployee && typeof req.body.active === 'boolean') store.update('employees', linkedEmployee.id, { loginActive: req.body.active });
   audit(target.orgId, req.user.id, 'global_update', 'user', target.id, { role: patch.role, active: patch.active });
-  res.json({ user: globalUserView(updated) });
+  res.json({ user: globalUserView(store.byId('users', updated.id)), employee });
 });
 
 router.patch('/global/users/:id/password', requireSuperAdmin, (req, res) => {
@@ -289,8 +335,11 @@ router.delete('/global/users/:id', requireSuperAdmin, (req, res) => {
 /* ================= USERS ================= */
 router.get('/users', requirePerm('admin', 'view'), (req, res) => {
   const users = store.find('users', u => u.orgId === req.org.id && !u.deletedAt)
-    .map(safeUser);
-  res.json({ users, roles: assignableRoles(req.user), canControlAdmins: req.user.role === 'super_admin' });
+    .map(user => {
+      const employee = store.findOne('employees', row => row.orgId === req.org.id && (row.userId === user.id || row.id === user.employeeId));
+      return { ...safeUser(user), employeeProfile: employee || null };
+    });
+  res.json({ users, roles: assignableRoles(req.user), canControlAdmins: req.user.role === 'super_admin', workforceOptions: workforceOptions(req.org.id) });
 });
 
 router.post('/users', requirePerm('admin', 'create'), (req, res) => {
@@ -301,7 +350,7 @@ router.post('/users', requirePerm('admin', 'create'), (req, res) => {
   if (store.findOne('users', u => u.email === email)) return res.status(409).json({ error: 'Email already in use' });
   /* generate a one-time temporary password; admin must share it securely */
   const tempPassword = 'Td@' + crypto.randomBytes(4).toString('hex');
-  const user = store.insert('users', {
+  let user = store.insert('users', {
     orgId: req.org.id, name: b.name, email,
     passwordHash: bcrypt.hashSync(tempPassword, 10),
     role: b.role, phone: b.phone || '',
@@ -310,9 +359,11 @@ router.post('/users', requirePerm('admin', 'create'), (req, res) => {
     dashboardWidgets: {},
     mustChangePassword: true
   });
+  const employee = linkWorkforceProfile(user, b);
+  if (employee) user = store.byId('users', user.id);
   audit(req.org.id, req.user.id, 'create', 'user', user.id, { email, role: b.role });
   notify(req.org.id, { title: 'New team member added', body: `${b.name} joined as ${b.role}`, type: 'info' });
-  res.json({ user: safeUser(user), tempPassword });
+  res.json({ user: safeUser(user), employee, tempPassword });
 });
 
 router.patch('/users/:id', requirePerm('admin', 'edit'), (req, res) => {
@@ -356,10 +407,13 @@ router.patch('/users/:id', requirePerm('admin', 'edit'), (req, res) => {
   const generatedTempPassword = patch._generatedTempPassword || null;
   delete patch._generatedTempPassword;
   const updated = store.update('users', target.id, patch);
+  const employee = linkWorkforceProfile(updated, req.body || {});
+  const linkedEmployee = store.findOne('employees', row => row.orgId === target.orgId && (row.userId === target.id || row.id === updated.employeeId));
+  if (linkedEmployee && typeof req.body.active === 'boolean') store.update('employees', linkedEmployee.id, { loginActive: req.body.active });
   audit(req.org.id, req.user.id, 'update', 'user', target.id, {
     role: patch.role, active: patch.active, passwordReset: !!req.body.resetPassword
   });
-  res.json({ user: safeUser(updated), tempPassword: generatedTempPassword });
+  res.json({ user: safeUser(store.byId('users', updated.id)), employee, tempPassword: generatedTempPassword });
 });
 
 router.delete('/users/:id', requirePerm('admin', 'delete'), (req, res) => {
@@ -381,6 +435,8 @@ router.delete('/users/:id', requirePerm('admin', 'delete'), (req, res) => {
     passwordHash: bcrypt.hashSync(crypto.randomBytes(32).toString('hex'), 10),
     tokenVersion: (target.tokenVersion || 0) + 1
   });
+  const employee = store.findOne('employees', row => row.orgId === target.orgId && (row.userId === target.id || row.id === target.employeeId));
+  if (employee) store.update('employees', employee.id, { loginActive: false });
   audit(req.org.id, req.user.id, 'delete', 'user', target.id, { previousEmail });
   res.json({ message: 'User deleted and existing sessions revoked' });
 });
