@@ -9,9 +9,11 @@ const store = require('../../db/store');
 const { requireAuth, requirePerm } = require('../middleware');
 const { audit, notify, r2, can } = require('../util');
 const { sendSystemEmail } = require('../services/integrations');
+const fileStorage = require('../services/file-storage');
 
 const router = express.Router();
 router.use(requireAuth);
+const asyncRoute = handler => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
 const LEAD_STATUSES = ['new', 'contacted', 'qualified', 'converted', 'lost'];
 function nextSerial(orgId, collection, prefix) {
   const max = store.find(collection, item => item.orgId === orgId).reduce((value, item) => Math.max(value, Number(String(item.serialNo || '').replace(/\D/g, '')) || 0), 0);
@@ -154,7 +156,7 @@ router.get('/customers/:id', requirePerm('crm', 'view'), (req, res) => {
 });
 
 /* Customer documents: compact, tenant-scoped attachments for quotations, POs and agreements. */
-router.post('/customers/:id/documents', requirePerm('crm', 'edit'), (req, res) => {
+router.post('/customers/:id/documents', requirePerm('crm', 'edit'), asyncRoute(async (req, res) => {
   const customer = store.findOne('customers', c => c.id === req.params.id && c.orgId === req.org.id);
   if (!customer) return res.status(404).json({ error: 'Customer not found' });
   const b = req.body || {};
@@ -164,28 +166,34 @@ router.post('/customers/:id/documents', requirePerm('crm', 'edit'), (req, res) =
   if (!title) return res.status(400).json({ error: 'Document title is required' });
   if (!match) return res.status(400).json({ error: 'Only PDF, PNG, JPG or WEBP files are allowed' });
   if (Buffer.byteLength(contentData, 'utf8') > 2 * 1024 * 1024) return res.status(400).json({ error: 'File must be smaller than 1.5 MB' });
-  const document = store.insert('customerDocuments', { orgId: req.org.id, customerId: customer.id, title, mimeType: match[1], contentData, uploadedBy: req.user.id });
+  const payload = Buffer.from(match[2], 'base64');
+  const stored = await fileStorage.put({ orgId: req.org.id, filename: title, mimeType: match[1], buffer: payload });
+  const document = store.insert('customerDocuments', { orgId: req.org.id, customerId: customer.id, title, mimeType: match[1], storageKey: stored.storageKey, sizeBytes: stored.sizeBytes, sha256: stored.sha256, uploadedBy: req.user.id });
   audit(req.org.id, req.user.id, 'upload', 'customer_document', document.id, { customerId: customer.id, title });
   const { contentData: _contentData, ...safeDocument } = document;
   res.json({ document: safeDocument });
-});
+}));
 
-router.get('/customers/:id/documents/:documentId/download', requirePerm('crm', 'view'), (req, res) => {
+router.get('/customers/:id/documents/:documentId/download', requirePerm('crm', 'view'), asyncRoute(async (req, res) => {
   const document = store.findOne('customerDocuments', doc => doc.id === req.params.documentId && doc.customerId === req.params.id && doc.orgId === req.org.id);
   if (!document) return res.status(404).json({ error: 'Document not found' });
   const extension = { 'application/pdf': 'pdf', 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' }[document.mimeType] || 'file';
   res.setHeader('Content-Type', document.mimeType);
   res.setHeader('Content-Disposition', `attachment; filename="${String(document.title).replace(/[^a-z0-9._ -]/gi, '_')}.${extension}"`);
-  res.send(Buffer.from(String(document.contentData).split(',')[1] || '', 'base64'));
-});
+  const stored = document.storageKey ? await fileStorage.get(document.storageKey, req.org.id) : null;
+  const payload = stored?.buffer || Buffer.from(String(document.contentData || '').split(',')[1] || '', 'base64');
+  if (!payload.length) return res.status(404).json({ error: 'Document file is unavailable' });
+  res.send(payload);
+}));
 
-router.delete('/customers/:id/documents/:documentId', requirePerm('crm', 'edit'), (req, res) => {
+router.delete('/customers/:id/documents/:documentId', requirePerm('crm', 'edit'), asyncRoute(async (req, res) => {
   const document = store.findOne('customerDocuments', doc => doc.id === req.params.documentId && doc.customerId === req.params.id && doc.orgId === req.org.id);
   if (!document) return res.status(404).json({ error: 'Document not found' });
   store.remove('customerDocuments', document.id);
+  if (document.storageKey) await fileStorage.remove(document.storageKey, req.org.id);
   audit(req.org.id, req.user.id, 'delete', 'customer_document', document.id, { customerId: req.params.id, title: document.title });
   res.json({ message: 'Document deleted' });
-});
+}));
 
 /* Customer portal invitation: only a token hash is stored. */
 router.post('/customers/:id/portal-invite', requirePerm('crm', 'edit'), async (req, res) => {

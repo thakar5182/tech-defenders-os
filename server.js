@@ -18,6 +18,9 @@ const cookieParser = require('cookie-parser');
 
 const store = require('./db/store');
 const { attachUser, enforceAppAccess } = require('./src/middleware');
+const monitoring = require('./src/services/monitoring');
+const jobQueue = require('./src/services/job-queue');
+const packageInfo = require('./package.json');
 
 /* Load durable storage before serving requests. JSON remains available for
  * local development/tests; production can require PostgreSQL explicitly. */
@@ -52,6 +55,7 @@ app.use(express.json({
   verify: (req, res, buffer) => { req.rawBody = Buffer.from(buffer); }
 }));
 app.use(cookieParser());
+app.use(monitoring.middleware);
 
 /* No API or static response is served before PostgreSQL hydration completes. */
 app.use(async (_req, res, next) => {
@@ -98,9 +102,9 @@ app.get('/api/health', (req, res) => {
   res.status(storage.ready ? 200 : 503).json({
     ok: storage.ready,
     name: 'Tech Defenders OS',
-    version: '4.3.0',
+    version: packageInfo.version,
     mobileApi: true,
-    storage: { mode: storage.mode, durable: storage.durable, ready: storage.ready },
+    storage: { mode: storage.mode, durable: storage.durable, ready: storage.ready, schemaVersion: storage.schemaVersion, normalizedRecords: storage.normalizedRecords },
     time: new Date().toISOString()
   });
 });
@@ -128,6 +132,7 @@ app.use('/api/report-controls', require('./src/routes/report-controls'));
 app.use('/api/admin', require('./src/routes/admin'));
 app.use('/api/workspace', require('./src/routes/document-self-service'));
 app.use('/api/backups', require('./src/routes/backup-controls'));
+app.use('/api/monitoring', require('./src/routes/monitoring'));
 app.use('/api/subscription', require('./src/routes/subscriptions'));
 app.use('/api/integrations', require('./src/routes/integrations'));
 app.use('/api/ops', require('./src/routes/operations'));
@@ -139,9 +144,6 @@ app.use('/api/v3', advancedRoutes);
 
 /* API 404 */
 app.use('/api', (req, res) => res.status(404).json({ error: 'API endpoint not found' }));
-
-const backupPolicyTimer = setInterval(() => require('./src/services/backup-service').runDuePolicies().catch(error => console.error('[backup-scheduler]', error.message)), 60_000);
-backupPolicyTimer.unref();
 
 /* ---------------- static frontend ---------------- */
 const PUBLIC_DIR = path.join(__dirname, 'public');
@@ -165,7 +167,7 @@ if (require.main === module) {
     server = app.listen(PORT, () => {
     console.log('');
     console.log('  ================================================');
-    console.log('   TECH DEFENDERS OS v4.3.0 Â· DURABLE + GOOGLE ID');
+    console.log(`   TECH DEFENDERS OS v${packageInfo.version} · FOUNDATION`);
     console.log(`   Running at  http://localhost:${PORT}`);
     console.log(`   Storage: ${store.status().mode}`);
     console.log('  ================================================');
@@ -193,29 +195,23 @@ if ((process.env.AUTO_BACKUP || 'true') === 'true' && process.env.NODE_ENV !== '
   }).catch(() => {});
 }
 
-if ((process.env.AUTO_AUTOMATION || 'true') === 'true' && process.env.NODE_ENV !== 'test') {
-  bootReady.then(() => {
-    setTimeout(() => {
-      try { advancedRoutes.runScheduledAutomations(); }
-      catch (error) { console.error('[automation] Startup run failed:', error.message); }
-    }, 15_000).unref();
-    setInterval(() => {
-      try { advancedRoutes.runScheduledAutomations(); }
-      catch (error) { console.error('[automation] Scheduled run failed:', error.message); }
-    }, 15 * 60 * 1000).unref();
-  }).catch(() => {});
-}
-
 if (process.env.NODE_ENV !== 'test') {
   const communications = require('./src/services/communications');
   const automations = require('./src/services/automation-engine');
-  const runWorkers = () => {
-    communications.runEmailWorker().catch(error => console.error('[email-worker]', error.message));
-    automations.runAutomationWorker().catch(error => console.error('[automation-worker]', error.message));
-  };
+  const backups = require('./src/services/backup-service');
+  jobQueue.register('system.maintenance', async () => {
+    const result = {};
+    if ((process.env.AUTO_BACKUP || 'true') === 'true') result.backups = await backups.runDuePolicies();
+    result.email = await communications.runEmailWorker();
+    result.automation = await automations.runAutomationWorker();
+    if ((process.env.AUTO_AUTOMATION || 'true') === 'true') result.scheduled = await advancedRoutes.runScheduledAutomations();
+    return result;
+  });
   bootReady.then(() => {
-    setTimeout(runWorkers, 5000).unref();
-    setInterval(runWorkers, 60_000).unref();
+    const scheduleMaintenance = () => jobQueue.enqueue('system.maintenance', {}, { idempotencyKey: 'maintenance:' + new Date().toISOString().slice(0, 16), maxAttempts: 3 });
+    scheduleMaintenance();
+    setInterval(scheduleMaintenance, 60_000).unref();
+    jobQueue.start();
   }).catch(() => {});
 }
 
