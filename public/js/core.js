@@ -110,7 +110,6 @@ const Core = {
     { group: 'Overview', items: [
       { path: '#/dashboard', label: 'Dashboard', icon: '&#9636;', mod: 'dashboard' },
       { path: '#/ai/command-centre', label: 'AI Command Centre', icon: '&#10022;', mod: 'dashboard' },
-      { path: '#/ai/command-centre', label: 'AI Command Centre', icon: '&#10022;', mod: 'dashboard' },
       { path: '#/my-plan', label: 'My Plan', icon: '&#128179;', mod: 'dashboard' },
       { path: '#/apps', label: 'All Apps', icon: '&#9638;', mod: 'dashboard' },
       { path: '#/onboarding', label: 'Get Started', icon: '&#10024;', mod: 'dashboard' }
@@ -136,7 +135,6 @@ const Core = {
     ]},
     { group: 'Sales', items: [
       { path: '#/sales/recurring', label: 'Recurring & Payments', icon: '&#8635;', mod: 'sales' },
-      { path: '#/sales/recurring', label: 'Recurring & Payments', icon: '&#8635;', mod: 'sales' },
       { path: '#/sales/quotations', label: 'Quotations', icon: '&#9998;', mod: 'sales' },
       { path: '#/sales/ai-quote', label: 'AI Quote Draft', icon: '&#10022;', mod: 'sales' },
       { path: '#/sales/documents', label: 'Sales Documents', icon: '&#9636;', mod: 'sales' },
@@ -157,7 +155,6 @@ const Core = {
       { path: '#/purchase/suppliers', label: 'Suppliers', icon: '&#9881;', mod: 'purchase' }
       ,{ path: '#/purchase/billing', label: 'Vendor Billing', icon: '&#8377;', mod: 'purchase' }
       ,{ path: '#/purchase/matching', label: '3-Way Match & Landed Cost', icon: '&#8801;', mod: 'purchase' }
-      ,{ path: '#/purchase/matching', label: '3-Way Match & Landed Cost', icon: '&#8801;', mod: 'purchase' }
     ]},
     { group: 'Inventory', items: [
       { path: '#/inventory/products', label: 'Products', icon: '&#9635;', mod: 'inventory' },
@@ -172,12 +169,10 @@ const Core = {
     ]},
     { group: 'Manufacturing', items: [
       { path: '#/manufacturing/planning', label: 'MRP & Work Centres', icon: '&#9881;', mod: 'manufacturing' },
-      { path: '#/manufacturing/planning', label: 'MRP & Work Centres', icon: '&#9881;', mod: 'manufacturing' },
       { path: '#/manufacturing/boms', label: 'BOMs', icon: '&#8981;', mod: 'manufacturing' },
       { path: '#/manufacturing/jobs', label: 'Job Orders', icon: '&#9883;', mod: 'manufacturing' }
     ]},
     { group: 'Service', items: [
-      { path: '#/service/dispatch', label: 'Dispatch & Knowledge', icon: '&#9992;', mod: 'service' },
       { path: '#/service/dispatch', label: 'Dispatch & Knowledge', icon: '&#9992;', mod: 'service' },
       { path: '#/service/amc', label: 'AMC Contracts', icon: '&#9742;', mod: 'service' },
       { path: '#/service/tickets', label: 'Service Tickets', icon: '&#9873;', mod: 'service' },
@@ -210,7 +205,6 @@ const Core = {
     ]},
     { group: 'Reports', items: [
       { path: '#/reports/builder', label: 'Custom Report Builder', icon: '&#9881;', mod: 'reports' },
-      { path: '#/reports/builder', label: 'Custom Report Builder', icon: '&#9881;', mod: 'reports' },
       { path: '#/reports/command', label: 'Report Centre', icon: '&#128202;', mod: 'reports' },
       { path: '#/reports/sales', label: 'Sales Report', icon: '&#8613;', mod: 'reports' },
       { path: '#/reports/receivables', label: 'Receivable Aging', icon: '&#8987;', mod: 'reports' },
@@ -219,7 +213,6 @@ const Core = {
       { path: '#/reports/service', label: 'Service Summary', icon: '&#9889;', mod: 'reports' }
     ]},
     { group: 'Communication', items: [
-      { path: '#/communication/governance', label: 'Consent & Segments', icon: '&#10003;', mod: 'communication' },
       { path: '#/communication/governance', label: 'Consent & Segments', icon: '&#10003;', mod: 'communication' },
       { path: '#/communication/email', label: 'Email Center', icon: '&#9993;', mod: 'communication' },
       { path: '#/communication/history', label: 'Communication History', icon: '&#8635;', mod: 'communication' },
@@ -236,8 +229,6 @@ const Core = {
     { group: 'Administration', items: [
       { path: '#/admin/api-hub', label: 'API & Integration Hub', icon: '&#8644;', mod: 'admin' },
       { path: '#/admin/security', label: 'Security Centre', icon: '&#128737;', mod: 'admin' },
-      { path: '#/sales/b2b-commerce', label: 'B2B Commerce', icon: '&#128722;', mod: 'sales' },
-      { path: '#/admin/api-hub', label: 'API & Integration Hub', icon: '&#8644;', mod: 'admin' },
       { path: '#/sales/b2b-commerce', label: 'B2B Commerce', icon: '&#128722;', mod: 'sales' },
       { path: '#/admin/subscription', label: 'Plan & Subscription', icon: '&#128179;', mod: 'admin' },
       { path: '#/admin/subscription-manager', label: 'Subscription Manager', icon: '&#128179;', mod: 'admin' },
