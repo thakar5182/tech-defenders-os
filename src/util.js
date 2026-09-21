@@ -174,7 +174,7 @@ const APP_CATALOG = [
   ...appGroup('manufacturing', [['manufacturing/planning','MRP & Work Centres'],['manufacturing/boms','BOMs'],['manufacturing/jobs','Job Orders']]),
   ...appGroup('service', [['service/dispatch','Dispatch & Knowledge'],['service/amc','AMC Contracts'],['service/tickets','Service Tickets'],['service/sla-control','SLA & Technician Control']]),
   ...appGroup('finance', [['finance/accounts','Chart of Accounts'],['finance/journals','Journal Entries'],['finance/expenses','Expenses'],['finance/banking','Banking & Reconciliation'],['finance/production-controls','Finance Production Controls'],['finance/petty-cash','Petty Cash'],['finance/cost-centers','Cost Centres'],['finance/cheques','Cheque Status'],['finance/gst-dashboard','GST Dashboard'],['finance/pnl','Profit & Loss'],['finance/ledgers','Ledgers & Statements']]),
-  ...appGroup('hr', [['hr/employees','Employees'],['hr/attendance','Attendance'],['hr/payroll','Payroll & Payslips'],['hr/leaves','Leave Requests']]),
+  ...appGroup('hr', [['hr/self-service','My Employee Desk'],['hr/employees','Employees'],['hr/attendance','Attendance'],['hr/payroll','Payroll & Payslips'],['hr/leaves','Leave Requests']]),
   ...appGroup('projects', [['projects/board','Projects & Work Orders']]),
   ...appGroup('operations', [['operations/inbox','Operations Inbox']]),
   ...appGroup('reports', [['reports/builder','Report Builder'],['reports/command','Reports Command Centre'],['reports/sales','Sales Report'],['reports/receivables','Receivables'],['reports/stock','Stock Report'],['reports/funnel','Lead Funnel'],['reports/service','Service Report']]),
@@ -196,6 +196,72 @@ const DASHBOARD_WIDGETS = [
   { key: 'leadFunnel', label: 'Lead Funnel Chart', description: 'Lead stage and conversion chart', requiredModule: 'crm' },
   { key: 'recentActivity', label: 'Recent Activity', description: 'Latest CRM activity timeline', requiredModule: 'crm' }
 ];
+
+/* Role categories are secure defaults, not just labels.  A user may only see
+ * apps relevant to their job even when their role needs limited read access to
+ * the parent module. Explicit per-user switches can further reduce access or
+ * grant an exception without changing the category for everyone else. */
+const ROLE_APP_ALLOWLIST = {
+  sales_exec: [
+    'dashboard', 'apps', 'crm/leads', 'crm/customers', 'crm/contacts', 'crm/deals',
+    'crm/tasks', 'crm/meetings', 'crm/daily-work', 'sales/quotations', 'sales/ai-quote',
+    'sales/documents', 'sales/orders', 'sales/invoices', 'sales/receipts', 'sales/visits',
+    'inventory/products', 'inventory/summary', 'reports/sales', 'reports/funnel',
+    'communication/email', 'communication/history'
+  ],
+  purchase_manager: [
+    'dashboard', 'apps', 'purchase/requisitions', 'purchase/rfqs', 'purchase/orders',
+    'purchase/grns', 'purchase/suppliers', 'purchase/billing', 'purchase/matching',
+    'inventory/products', 'inventory/summary', 'inventory/ledger', 'inventory/quality',
+    'reports/stock'
+  ],
+  store_manager: [
+    'dashboard', 'apps', 'inventory/products', 'inventory/summary', 'inventory/ledger',
+    'inventory/reservations', 'inventory/assets', 'inventory/damage-loss', 'inventory/quality',
+    'inventory/warehouse-operations', 'purchase/orders', 'purchase/grns',
+    'manufacturing/jobs', 'reports/stock'
+  ],
+  production_manager: [
+    'dashboard', 'apps', 'manufacturing/planning', 'manufacturing/boms',
+    'manufacturing/jobs', 'inventory/products', 'inventory/summary', 'inventory/ledger',
+    'inventory/reservations', 'reports/stock'
+  ],
+  accountant: [
+    'dashboard', 'apps', 'finance/accounts', 'finance/journals', 'finance/expenses',
+    'finance/banking', 'finance/production-controls', 'finance/petty-cash',
+    'finance/cost-centers', 'finance/cheques', 'finance/gst-dashboard', 'finance/pnl',
+    'finance/ledgers', 'sales/invoices', 'sales/receipts', 'sales/credit-notes',
+    'sales/collections', 'purchase/billing', 'purchase/matching', 'hr/payroll',
+    'hr/leaves', 'reports/builder', 'reports/command', 'reports/sales',
+    'reports/receivables', 'data-package', 'data-import', 'client-documents',
+    'communication/email', 'communication/history'
+  ],
+  service_manager: [
+    'dashboard', 'apps', 'service/dispatch', 'service/amc', 'service/tickets',
+    'service/sla-control', 'crm/customers', 'crm/contacts', 'crm/tasks',
+    'inventory/products', 'inventory/summary', 'inventory/assets', 'projects/board',
+    'operations/inbox', 'reports/service', 'communication/email', 'communication/history'
+  ],
+  engineer: [
+    'dashboard', 'apps', 'ai/command-centre', 'service/dispatch', 'service/tickets', 'service/sla-control',
+    'inventory/products', 'inventory/summary', 'inventory/assets', 'projects/board',
+    'operations/inbox'
+  ],
+  employee: [
+    'dashboard', 'hr/self-service', 'crm/tasks', 'projects/board', 'operations/inbox'
+  ]
+};
+
+const ROLE_WIDGET_ALLOWLIST = {
+  sales_exec: ['crmOverview', 'followUps', 'salesMonthly', 'salesTrend', 'leadFunnel', 'recentActivity'],
+  purchase_manager: ['inventoryAlerts', 'purchaseStatus'],
+  store_manager: ['inventoryAlerts', 'purchaseStatus'],
+  production_manager: ['inventoryAlerts'],
+  accountant: ['receivables', 'salesMonthly', 'purchaseStatus', 'salesTrend'],
+  service_manager: ['followUps', 'inventoryAlerts', 'serviceLoad', 'recentActivity'],
+  engineer: ['serviceLoad'],
+  employee: []
+};
 
 function can(subject, module, action) {
   const role = typeof subject === 'string' ? subject : subject && subject.role;
@@ -227,7 +293,9 @@ function canUseApp(user, key) {
   if (!app) return true;
   if (!can(user, app.module, 'view')) return false;
   if (user && user.role === 'super_admin') return true;
-  return !user || !user.appAccess || user.appAccess[key] !== false;
+  if (user && user.appAccess && typeof user.appAccess[key] === 'boolean') return user.appAccess[key];
+  const roleApps = user && ROLE_APP_ALLOWLIST[user.role];
+  return !roleApps || roleApps.includes(key);
 }
 
 function effectiveAppAccess(user) {
@@ -238,7 +306,9 @@ function canSeeDashboardWidget(user, key) {
   const widget = DASHBOARD_WIDGETS.find(item => item.key === key);
   if (!widget || !can(user, 'dashboard', 'view') || !can(user, widget.requiredModule, 'view')) return false;
   if (user && user.role === 'super_admin') return true;
-  return !user || !user.dashboardWidgets || user.dashboardWidgets[key] !== false;
+  if (user && user.dashboardWidgets && typeof user.dashboardWidgets[key] === 'boolean') return user.dashboardWidgets[key];
+  const roleWidgets = user && ROLE_WIDGET_ALLOWLIST[user.role];
+  return !roleWidgets || roleWidgets.includes(key);
 }
 
 function effectiveDashboardWidgets(user) {
@@ -248,5 +318,6 @@ function effectiveDashboardWidgets(user) {
 module.exports = {
   r2, fyOf, SEQ_PREFIX, nextNumber, peekNumber, computeDoc, audit, notify,
   postStock, stockBalance, ROLE_PERMS, MODULES, APP_CATALOG, DASHBOARD_WIDGETS, can,
-  permsForRole, effectiveAccess, canUseApp, effectiveAppAccess, canSeeDashboardWidget, effectiveDashboardWidgets
+  permsForRole, effectiveAccess, canUseApp, effectiveAppAccess, canSeeDashboardWidget, effectiveDashboardWidgets,
+  ROLE_APP_ALLOWLIST, ROLE_WIDGET_ALLOWLIST
 };

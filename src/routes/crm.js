@@ -7,7 +7,7 @@ const express = require('express');
 const crypto = require('crypto');
 const store = require('../../db/store');
 const { requireAuth, requirePerm } = require('../middleware');
-const { audit, notify, r2 } = require('../util');
+const { audit, notify, r2, can } = require('../util');
 const { sendSystemEmail } = require('../services/integrations');
 
 const router = express.Router();
@@ -389,7 +389,8 @@ router.patch('/deals/:id', requirePerm('crm', 'edit'), (req, res) => {
 
 /* ================= TASKS / FOLLOW-UPS ================= */
 router.get('/tasks', requirePerm('crm', 'view'), (req, res) => {
-  const tasks = store.find('tasks', t => t.orgId === req.org.id)
+  const personalWorkOnly = ['employee', 'engineer'].includes(req.user.role);
+  const tasks = store.find('tasks', t => t.orgId === req.org.id && (!personalWorkOnly || t.assignee === req.user.id))
     .sort((a, b) => (a.dueDate || '9999').localeCompare(b.dueDate || '9999'))
     .map(t => ({ ...t, assigneeName: (store.byId('users', t.assignee) || {}).name || 'Unassigned' }));
   res.json({ tasks });
@@ -414,12 +415,20 @@ router.post('/tasks', requirePerm('crm', 'create'), (req, res) => {
   res.json({ task });
 });
 
-router.patch('/tasks/:id', requirePerm('crm', 'edit'), (req, res) => {
+router.patch('/tasks/:id', (req, res) => {
   const t = store.findOne('tasks', x => x.id === req.params.id && x.orgId === req.org.id);
   if (!t) return res.status(404).json({ error: 'Task not found' });
+  const personalWorker = ['employee', 'engineer'].includes(req.user.role);
+  if (!can(req.user, 'crm', 'edit') && !(personalWorker && t.assignee === req.user.id)) {
+    return res.status(403).json({ error: 'You can update only tasks assigned to you' });
+  }
   const allowed = ['title', 'status', 'dueDate', 'priority', 'assignee', 'notes'];
   const patch = {};
   for (const k of allowed) if (k in req.body) patch[k] = req.body[k];
+  if (personalWorker) {
+    delete patch.assignee;
+    for (const key of Object.keys(patch)) if (!['status', 'notes'].includes(key)) delete patch[key];
+  }
   if (patch.assignee && !store.findOne('users', user => user.id === patch.assignee && user.orgId === req.org.id && user.active && !user.deletedAt)) {
     return res.status(400).json({ error: 'Invalid assignee' });
   }

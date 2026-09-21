@@ -193,6 +193,11 @@ router.patch('/global/users/:id', requireSuperAdmin, (req, res) => {
   if (req.body.role) {
     if (!SUPER_ADMIN_ASSIGNABLE_ROLES.includes(req.body.role)) return res.status(400).json({ error: 'Invalid role' });
     patch.role = req.body.role;
+    if (req.body.role !== target.role) {
+      patch.moduleAccess = {};
+      patch.appAccess = {};
+      patch.dashboardWidgets = {};
+    }
   }
   if (Object.keys(patch).length === 0) return res.status(400).json({ error: 'No supported changes supplied' });
   patch.tokenVersion = (target.tokenVersion || 0) + 1;
@@ -331,6 +336,11 @@ router.patch('/users/:id', requirePerm('admin', 'edit'), (req, res) => {
   if (req.body.role) {
     if (!assignableRoles(req.user).includes(req.body.role)) return res.status(403).json({ error: 'You cannot assign this role' });
     patch.role = req.body.role;
+    if (req.body.role !== target.role) {
+      patch.moduleAccess = {};
+      patch.appAccess = {};
+      patch.dashboardWidgets = {};
+    }
   }
   if (typeof req.body.active === 'boolean') patch.active = req.body.active;
   if (req.body.resetPassword) {
