@@ -93,12 +93,15 @@ router.get('/customers/:id/intelligence', requirePerm('crm', 'view'), (req, res)
     if (Number.isFinite(delay)) delayDays.push(delay);
   }));
   const products = new Map();
+  let estimatedCost = 0;
   invoices.forEach(inv => (inv.lines || []).forEach(line => {
     const name = String(line.productName || line.name || line.description || 'Manual item');
     const row = products.get(name) || { name, quantity: 0, sales: 0 };
     row.quantity += Number(line.qty) || 0;
     row.sales += Number(line.amount || line.taxableValue || ((Number(line.qty) || 0) * (Number(line.rate) || 0))) || 0;
     products.set(name, row);
+    const product = line.productId ? store.findOne('products', item => item.id === line.productId && item.orgId === req.org.id) : null;
+    estimatedCost += (Number(product?.purchasePrice) || 0) * (Number(line.qty) || 0);
   }));
   const lastInvoice = invoices.slice().sort((a, b) => String(b.date || '').localeCompare(String(a.date || '')))[0] || null;
   const limit = Number(customer.creditLimit) || 0;
@@ -110,9 +113,41 @@ router.get('/customers/:id/intelligence', requirePerm('crm', 'view'), (req, res)
       overdueInvoices: overdue.length,
       overdueAmount: r2(overdue.reduce((sum, inv) => sum + Math.max(0, (Number(inv.totals?.grandTotal) || 0) - (Number(inv.paidAmount) || 0)), 0)),
       topProducts: [...products.values()].sort((a, b) => b.sales - a.sales).slice(0, 5).map(row => ({ ...row, sales: r2(row.sales) })),
+      estimatedProfit: r2(Math.max(0, totalSales - estimatedCost)),
+      profitContributionPercent: totalSales ? r2(Math.max(0, totalSales - estimatedCost) / totalSales * 100) : null,
       credit: { limit, available: limit > 0 ? r2(limit - outstanding) : null, exceeded: limit > 0 && outstanding > limit }
     }
   });
+});
+
+router.get('/customers/:id/workspace', requirePerm('crm', 'view'), (req, res) => {
+  const customer = customerFor(req);
+  if (!customer) return res.status(404).json({ error: 'Customer not found' });
+  const orgId = req.org.id;
+  const contacts = store.find('customerContacts', row => row.orgId === orgId && row.customerId === customer.id)
+    .sort((a, b) => Number(b.primary) - Number(a.primary) || String(a.name).localeCompare(String(b.name)));
+  const projects = store.find('projects', row => row.orgId === orgId && row.customerId === customer.id);
+  const rows = [
+    ...store.find('quotations', row => row.orgId === orgId && row.customerId === customer.id).map(row => ({ type: 'Quotation', date: row.date || row.createdAt, title: row.number, status: row.status, amount: row.totals?.grandTotal || row.total || 0 })),
+    ...store.find('salesOrders', row => row.orgId === orgId && row.customerId === customer.id).map(row => ({ type: 'Sales order', date: row.date || row.createdAt, title: row.number, status: row.status, amount: row.totals?.grandTotal || row.total || 0 })),
+    ...store.find('invoices', row => row.orgId === orgId && row.customerId === customer.id).map(row => ({ type: 'Invoice', date: row.date || row.createdAt, title: row.number, status: row.status, amount: row.totals?.grandTotal || 0 })),
+    ...store.find('receipts', row => row.orgId === orgId && row.customerId === customer.id).map(row => ({ type: 'Payment', date: row.date || row.createdAt, title: row.number || 'Receipt', status: row.status || 'received', amount: row.amount || 0 })),
+    ...store.find('tickets', row => row.orgId === orgId && row.customerId === customer.id).map(row => ({ type: 'Ticket', date: row.createdAt, title: row.number + ' · ' + row.subject, status: row.status, amount: null })),
+    ...projects.map(row => ({ type: 'Project', date: row.startDate || row.createdAt, title: row.name || row.title || 'Project', status: row.status, amount: row.value || null }))
+  ].sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))).slice(0, 100);
+  res.json({ contacts, projects, timeline: rows });
+});
+
+router.post('/customers/:id/contacts', requirePerm('crm', 'edit'), (req, res) => {
+  const customer = customerFor(req);
+  if (!customer) return res.status(404).json({ error: 'Customer not found' });
+  const b = req.body || {};
+  const name = String(b.name || '').trim().slice(0, 120);
+  if (!name) return res.status(400).json({ error: 'Contact name is required' });
+  if (b.primary) store.find('customerContacts', row => row.orgId === req.org.id && row.customerId === customer.id && row.primary).forEach(row => store.update('customerContacts', row.id, { primary: false }));
+  const contact = store.insert('customerContacts', { orgId: req.org.id, customerId: customer.id, name, designation: String(b.designation || '').trim().slice(0, 100), phone: String(b.phone || '').trim().slice(0, 30), email: String(b.email || '').trim().slice(0, 150), whatsapp: String(b.whatsapp || b.phone || '').trim().slice(0, 30), primary: Boolean(b.primary) });
+  audit(req.org.id, req.user.id, 'create', 'customer_contact', contact.id, { customerId: customer.id, name });
+  res.status(201).json({ contact });
 });
 
 module.exports = router;

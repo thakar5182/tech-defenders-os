@@ -27,6 +27,8 @@ Core.route('dashboard', async () => {
       ${k.pipelineValue != null ? Core.kpi('Pipeline Value', Core.moneyShort(k.pipelineValue), 'open deals total', 'k-gold', '#/crm/deals') : ''}
       ${k.weightedForecast != null ? Core.kpi('Weighted Forecast', Core.moneyShort(k.weightedForecast), 'probability adjusted', '', '#/crm/deals') : ''}
       ${k.outstandingReceivable != null ? Core.kpi('Outstanding Receivable', Core.moneyShort(k.outstandingReceivable), k.overdueReceivable ? Core.moneyShort(k.overdueReceivable) + ' overdue' : 'nothing overdue', k.overdueReceivable ? 'k-danger' : '', d.access.reports ? '#/reports/receivables' : '#/sales/invoices') : ''}
+      ${k.creditRiskCustomers != null ? Core.kpi('Credit Risk', k.creditRiskCustomers, 'customers need review', k.creditRiskCustomers ? 'k-danger' : 'k-success', '#/sales/collections') : ''}
+      ${k.collectionsDueToday != null ? Core.kpi('Collections Due Today', k.collectionsDueToday, 'scheduled follow-ups', k.collectionsDueToday ? 'k-gold' : '', '#/sales/collections') : ''}
     </div>
     <div class="grid-kpi">
       ${k.dueToday != null ? Core.kpi('Follow-ups Due Today', k.dueToday, k.overdueTasks + ' overdue', k.dueToday ? 'k-gold' : '', '#/crm/tasks') : ''}

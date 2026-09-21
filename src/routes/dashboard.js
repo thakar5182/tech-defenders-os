@@ -49,6 +49,12 @@ router.get('/summary', requireModule('dashboard'), (req, res) => {
     }
   }
   outstanding = r2(outstanding); overdueAmount = r2(overdueAmount);
+  const customerExposure = access.sales ? store.find('customers', customer => customer.orgId === orgId).map(customer => {
+    const open = invoices.filter(inv => inv.customerId === customer.id && inv.status !== 'paid');
+    const balance = r2(open.reduce((sum, inv) => sum + Math.max(0, Number(inv.totals?.grandTotal || 0) - Number(inv.paidAmount || 0)), 0));
+    const overdue = open.some(inv => inv.dueDate && inv.dueDate < today);
+    return { customer, balance, overdue, exceeded: Number(customer.creditLimit || 0) > 0 && balance > Number(customer.creditLimit || 0) };
+  }) : [];
 
   /* low stock: balance <= minStock */
   const lowStock = [];
@@ -86,6 +92,8 @@ router.get('/summary', requireModule('dashboard'), (req, res) => {
       overdueTasks: widgets.followUps ? overdueTasks.length : null,
       outstandingReceivable: widgets.receivables ? outstanding : null,
       overdueReceivable: widgets.receivables ? overdueAmount : null,
+      creditRiskCustomers: widgets.receivables ? customerExposure.filter(row => row.exceeded || row.overdue).length : null,
+      collectionsDueToday: widgets.receivables ? customerExposure.filter(row => row.customer.nextCollectionDate && row.customer.nextCollectionDate <= today).length : null,
       lowStockCount: widgets.inventoryAlerts ? lowStock.length : null,
       openTickets: widgets.serviceLoad ? tickets.filter(t => !['resolved', 'closed'].includes(t.status)).length : null,
       pendingPOs: widgets.purchaseStatus ? pos.filter(p => ['draft', 'sent', 'partial'].includes(p.status)).length : null,

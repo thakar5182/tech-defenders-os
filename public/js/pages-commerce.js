@@ -242,6 +242,8 @@ Core.route('sales/invoices/new', async () => {
           <label class="field"><span>Invoice date *</span><input type="date" id="inv-date" value="${today}" onchange="Pages.invoiceDateChanged()"></label>
           <label class="field"><span>Due date *</span><input type="date" id="inv-due" value="${dueDate}"></label>
           <label class="field"><span>Notes</span><input type="text" id="inv-notes" maxlength="2000" placeholder="Payment, delivery or reference notes"></label>
+          <label class="field"><span>Billing address</span><select id="inv-billing-address"><option value="">Customer billing address</option></select></label>
+          <label class="field"><span>Delivery / branch address</span><select id="inv-shipping-address"><option value="">Customer delivery address</option></select></label>
         </div>
         <div class="lines-editor">
           <table class="manual-lines-table"><thead><tr><th>Description *</th><th>HSN / SAC</th><th>Unit</th><th>Qty *</th><th>Rate *</th><th>Disc %</th><th>GST %</th><th></th></tr></thead>
@@ -252,7 +254,7 @@ Core.route('sales/invoices/new', async () => {
         <div class="document-actions"><button class="btn btn-gold" id="inv-save" onclick="Pages.saveDirectInvoice()">Create GST Invoice</button></div>`
         : `<div class="empty-state"><div class="big">&#9823;</div><h3>Create a customer first</h3><p>A GST invoice needs a billing customer.</p><button class="btn btn-gold" style="margin-top:14px" onclick="location.hash='#/crm/customers'">Open Customers</button></div>`}
     </div>`;
-  if (custD.customers.length) Pages.addSalesLine('inv');
+  if (custD.customers.length) { Pages.addSalesLine('inv'); Pages.loadInvoiceAddresses(firstCustomer.id); }
 });
 
 Pages.invoiceDueDate = (invoiceDate, termsDays) => {
@@ -266,7 +268,15 @@ Pages.invoiceCustomerChanged = () => {
   const invoiceDate = document.getElementById('inv-date')?.value;
   const dueInput = document.getElementById('inv-due');
   if (dueInput) dueInput.value = Pages.invoiceDueDate(invoiceDate, customer?.paymentTermsDays);
+  if (customer) Pages.loadInvoiceAddresses(customer.id);
   Pages.salesTotalsPreview('inv');
+};
+
+Pages.loadInvoiceAddresses = async customerId => {
+  const billing = document.getElementById('inv-billing-address'), shipping = document.getElementById('inv-shipping-address');
+  if (!billing || !shipping) return;
+  billing.innerHTML = '<option value="">Customer billing address</option>'; shipping.innerHTML = '<option value="">Customer delivery address</option>';
+  try { const data = await Core.get('/customer-tools/customers/' + encodeURIComponent(customerId) + '/addresses'); (data.addresses || []).forEach(address => { const label = `${address.label} · ${[address.line1,address.city].filter(Boolean).join(', ')}`; const option = `<option value="${Core.esc(address.id)}">${Core.esc(label)}</option>`; if (['billing','branch','other'].includes(address.type)) billing.insertAdjacentHTML('beforeend',option); if (['delivery','godown','branch','other'].includes(address.type)) shipping.insertAdjacentHTML('beforeend',option); }); } catch (_) {}
 };
 
 Pages.invoiceDateChanged = () => {
@@ -281,6 +291,8 @@ Pages.saveDirectInvoice = async () => {
   const date = document.getElementById('inv-date').value;
   const dueDate = document.getElementById('inv-due').value;
   const notes = document.getElementById('inv-notes').value;
+  const billingAddressId = document.getElementById('inv-billing-address')?.value || null;
+  const shippingAddressId = document.getElementById('inv-shipping-address')?.value || null;
   const lines = Pages._invLines.filter(line => line.name.trim() && line.qty > 0)
     .map(line => ({
       name: line.name.trim(), hsn: line.hsn.trim(), uom: line.uom.trim() || 'Nos',
@@ -293,13 +305,13 @@ Pages.saveDirectInvoice = async () => {
   try {
     let result;
     try {
-      result = await Core.post('/sales/invoices', { customerId, date, dueDate, notes, lines });
+      result = await Core.post('/sales/invoices', { customerId, date, dueDate, notes, lines, billingAddressId, shippingAddressId });
     } catch (error) {
       if (error.code !== 'CREDIT_WARNING') throw error;
       const w = error.details || {};
       const message = `Outstanding: ${Core.money(w.outstanding || 0)}\\nNew invoice: ${Core.money(w.proposedInvoice || 0)}\\nProjected outstanding: ${Core.money(w.projectedOutstanding || 0)}${w.creditLimit ? `\\nCredit limit: ${Core.money(w.creditLimit)}` : ''}${w.overdueCount ? `\\nOverdue invoices: ${w.overdueCount}` : ''}\\n\\nCreate this invoice anyway?`;
       if (!window.confirm(message)) { saveButton.disabled = false; return; }
-      result = await Core.post('/sales/invoices', { customerId, date, dueDate, notes, lines, overrideCreditWarning: true });
+      result = await Core.post('/sales/invoices', { customerId, date, dueDate, notes, lines, billingAddressId, shippingAddressId, overrideCreditWarning: true });
     }
     toast('Invoice created', result.invoice.number + ' is ready to view or print', 'success');
     location.hash = '#/print/invoice/' + result.invoice.id;
