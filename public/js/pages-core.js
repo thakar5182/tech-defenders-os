@@ -207,6 +207,7 @@ Pages.openLeadForm = async id => {
       { name: 'company', label: 'Company', half: true, value: lead?.company },
       { name: 'phone', label: 'Phone', half: true, value: lead?.phone },
       { name: 'email', label: 'Email', type: 'email', value: lead?.email },
+      { name: 'address', label: 'Address', type: 'textarea', value: lead?.address },
       { name: 'source', label: 'Source', type: 'select', half: true, options: ['manual', 'IndiaMART', 'Justdial', 'TradeIndia', 'Website', 'Referral', 'Campaign'].map(s => ({ value: s, label: s })), value: lead?.source || 'manual' },
       { name: 'priority', label: 'Priority', type: 'select', half: true, options: ['low', 'medium', 'high'].map(s => ({ value: s, label: s })), value: lead?.priority || 'medium' },
       { name: 'productInterest', label: 'Product interest', value: lead?.productInterest },

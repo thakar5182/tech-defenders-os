@@ -22,3 +22,34 @@ Pages.runReorder=async()=>{try{const d=await Core.post('/inventory-controls/reor
 Pages.inspectionForm=()=>Core.formModal({title:'New quality inspection',fields:[{name:'productId',label:'Product *',type:'select',required:true,options:(Pages._ip||[]).map(x=>({value:x.id,label:x.name}))},{name:'type',label:'Inspection type',type:'select',options:[{value:'incoming',label:'Incoming goods'},{value:'production',label:'Production'},{value:'dispatch',label:'Pre-dispatch'},{value:'return',label:'Customer return'}]},{name:'qty',label:'Quantity inspected *',type:'number',required:true,half:true},{name:'reference',label:'GRN / Job / reference',half:true},{name:'checks',label:'Check plan / observations',type:'textarea'}],submitLabel:'Create inspection',onSubmit:async v=>{await Core.post('/inventory-controls/inspections',v);toast('Inspection created','Quality result is pending','success');Core.render();}});
 Pages.completeInspection=id=>Core.formModal({title:'Complete quality inspection',fields:[{name:'result',label:'Result',type:'select',options:[{value:'passed',label:'Passed'},{value:'failed',label:'Failed'},{value:'conditional',label:'Conditional'}]},{name:'passedQty',label:'Passed quantity',type:'number',half:true},{name:'failedQty',label:'Failed quantity',type:'number',half:true},{name:'note',label:'Inspection note',type:'textarea'}],submitLabel:'Save result',onSubmit:async v=>{const r=await Core.patch('/inventory-controls/inspections/'+id,v);toast('Inspection completed',r.hold?'Failed quantity placed on stock hold.':'Stock passed quality control.','success');Core.render();}});
 Pages.releaseHold=async function(id){const decision=await Core.confirm('Release this held stock? Choose Cancel to keep it held.','Release stock');if(!decision)return;try{await Core.patch('/inventory-controls/holds/'+id+'/release',{decision:'release',note:'Approved quality release'});toast('Stock released','Hold was resolved with audit history','success');Core.render();}catch(error){toast('Release failed',error.message,'error');}};
+
+Core.route('inventory/warehouses', async () => {
+  const d = await Core.get('/inventory/warehouses');
+  document.getElementById('content').innerHTML = 
+    Core.pageHead('Warehouses', 'Manage storage locations', '<button class="btn btn-outline" onclick="Pages.newWarehouse()">+ New Warehouse</button>') + 
+    Core.table([
+      { label: 'Name', key: 'name' },
+      { label: 'Code', key: 'code' },
+      { label: 'Address', key: 'address' },
+      { label: 'Status', render: r => r.active !== false ? Core.badge('Active') : Core.badge('Inactive') },
+      { label: 'Default', render: r => r.isDefault ? Core.badge('Default') : '' }
+    ], d.warehouses, { emptyTitle: 'No warehouses' });
+});
+
+Pages.newWarehouse = () => Core.formModal({
+  title: 'New Warehouse',
+  fields: [
+    { name: 'name', label: 'Warehouse Name *', required: true, half: true },
+    { name: 'code', label: 'Warehouse Code', half: true },
+    { name: 'address', label: 'Address', type: 'textarea' },
+    { name: 'active', label: 'Active', type: 'checkbox', value: true },
+    { name: 'isDefault', label: 'Set as Default', type: 'checkbox' }
+  ],
+  submitLabel: 'Create Warehouse',
+  onSubmit: async v => {
+    await Core.post('/inventory/warehouses', v);
+    toast('Warehouse created', '', 'success');
+    Core.render();
+  }
+});
+

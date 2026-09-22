@@ -821,7 +821,7 @@ Core.route('purchase/grns', async () => {
 });
 
 Pages.openGRNForm = async poId => {
-  const [poD, prodD] = await Promise.all([Core.get('/purchase/purchase-orders'), Core.get('/inventory/products')]);
+  const [poD, prodD, whD] = await Promise.all([Core.get('/purchase/purchase-orders'), Core.get('/inventory/products'), Core.get('/inventory/warehouses')]);
   const po = poD.purchaseOrders.find(p => p.id === poId);
   const pending = po.lines.map((l, idx) => ({ idx, ...l })).filter(l => l.qty > (l.receivedQty || 0));
   const m = Core.openModal({
@@ -840,6 +840,7 @@ Pages.openGRNForm = async poId => {
         <td><input name="batch_${l.idx}" placeholder="optional" style="width:90px"></td>
       </tr>`).join('')}</tbody></table></div>
       <div class="grid-2" style="margin-top:12px">
+        <label class="field"><span>Warehouse</span><select name="warehouseId">${whD.warehouses.map(w => `<option value="${w.id}" ${w.isDefault ? 'selected' : ''}>${Core.esc(w.name)}</option>`).join('')}</select></label>
         <label class="field"><span>Supplier invoice no.</span><input name="invoiceNo"></label>
         <label class="field"><span>QC result</span><select name="qcStatus"><option value="pass">Pass</option><option value="fail">Fail</option><option value="pending">Pending</option></select></label>
       </div>
@@ -852,13 +853,14 @@ Pages.openGRNForm = async poId => {
     e.preventDefault();
     const fd = new FormData(e.target);
     const lines = pending.map(l => ({
-      receivedQty: Number(fd.get('rec_' + l.idx)) || 0,
-      rejectedQty: Number(fd.get('rej_' + l.idx)) || 0,
+      poLineIndex: l.idx,
       productId: fd.get('prod_' + l.idx) || null,
-      batchNo: fd.get('batch_' + l.idx) || ''
-    }));
+      receivedQty: Number(fd.get('rec_' + l.idx)),
+      rejectedQty: Number(fd.get('rej_' + l.idx)),
+      batch: fd.get('batch_' + l.idx)
+    })).filter(l => l.receivedQty > 0 || l.rejectedQty > 0);
     try {
-      const r = await Core.post('/purchase/grns', { poId, lines, qcStatus: fd.get('qcStatus'), invoiceNo: fd.get('invoiceNo') });
+      const r = await Core.post('/purchase/grns', { poId, lines, qcStatus: fd.get('qcStatus'), invoiceNo: fd.get('invoiceNo'), warehouseId: fd.get('warehouseId') });
       m.close();
       toast('GRN posted', r.grn.number + ' - stock updated for accepted qty', 'success');
       Core.render();

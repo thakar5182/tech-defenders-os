@@ -94,7 +94,19 @@ router.get('/warehouses', requirePerm('inventory', 'view'), (req, res) => {
 router.post('/warehouses', requirePerm('inventory', 'create'), (req, res) => {
   const b = req.body || {};
   if (!b.name) return res.status(400).json({ error: 'Warehouse name is required' });
-  const wh = store.insert('warehouses', { orgId: req.org.id, name: b.name, location: b.location || '' });
+  const wh = store.insert('warehouses', { 
+    orgId: req.org.id, 
+    name: b.name, 
+    code: b.code || '', 
+    address: b.address || '', 
+    active: b.active !== false, 
+    isDefault: !!b.isDefault,
+    location: b.location || '' 
+  });
+  if (wh.isDefault) {
+    store.find('warehouses', w => w.orgId === req.org.id && w.id !== wh.id)
+      .forEach(w => store.update('warehouses', w.id, { isDefault: false }));
+  }
   audit(req.org.id, req.user.id, 'create', 'warehouse', wh.id, { name: wh.name });
   res.json({ warehouse: wh });
 });

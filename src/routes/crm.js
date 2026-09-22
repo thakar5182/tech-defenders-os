@@ -34,6 +34,7 @@ router.post('/leads', requirePerm('crm', 'create'), (req, res) => {
     orgId: req.org.id,
     serialNo: nextSerial(req.org.id, 'leads', 'LEAD'),
     name: b.name, company: b.company || '', email: b.email || '', phone: b.phone || '',
+    address: b.address || '',
     source: b.source || 'manual', productInterest: b.productInterest || '',
     value: Number(b.value) || 0, priority: b.priority || 'medium',
     status: 'new', owner: req.user.id,
@@ -47,7 +48,7 @@ router.post('/leads', requirePerm('crm', 'create'), (req, res) => {
 router.patch('/leads/:id', requirePerm('crm', 'edit'), (req, res) => {
   const lead = store.findOne('leads', l => l.id === req.params.id && l.orgId === req.org.id);
   if (!lead) return res.status(404).json({ error: 'Lead not found' });
-  const allowed = ['name', 'company', 'email', 'phone', 'source', 'productInterest', 'value', 'priority', 'status', 'nextFollowUp'];
+  const allowed = ['name', 'company', 'email', 'phone', 'address', 'source', 'productInterest', 'value', 'priority', 'status', 'nextFollowUp'];
   const patch = {};
   for (const k of allowed) if (k in req.body) patch[k] = req.body[k];
   if (patch.status && !LEAD_STATUSES.includes(patch.status)) return res.status(400).json({ error: 'Invalid lead status' });

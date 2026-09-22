@@ -166,6 +166,7 @@ const Core = {
       ,{ path: '#/inventory/assets', label: 'Assets', icon: '&#127970;', mod: 'inventory' }
       ,{ path: '#/inventory/damage-loss', label: 'Damage / Loss', icon: '&#9888;', mod: 'inventory' }
       ,{ path: '#/inventory/quality', label: 'Quality & Traceability', icon: '&#10003;', mod: 'inventory' }
+      ,{ path: '#/inventory/warehouses', label: 'Warehouses', icon: '&#127970;', mod: 'inventory' }
       ,{ path: '#/inventory/warehouse-operations', label: 'Warehouse Operations', icon: '&#9638;', mod: 'inventory' }
     ]},
     { group: 'Manufacturing', items: [
@@ -319,11 +320,34 @@ const Core = {
     });
   },
 
+  filterLauncherApps(q) {
+    const term = q.toLowerCase();
+    document.querySelectorAll('.app-module').forEach(mod => {
+      let modMatch = false;
+      mod.querySelectorAll('.app-module-items a').forEach(a => {
+        const match = a.textContent.toLowerCase().includes(term);
+        a.style.display = match ? 'flex' : 'none';
+        if (match) modMatch = true;
+      });
+      const groupName = mod.querySelector('b').textContent.toLowerCase();
+      if (groupName.includes(term)) {
+        modMatch = true;
+        mod.querySelectorAll('.app-module-items a').forEach(a => a.style.display = 'flex');
+      }
+      mod.style.display = modMatch ? 'block' : 'none';
+      if (term && modMatch) mod.classList.add('open');
+      if (!term && mod.dataset.dashboardApp !== this.state.openDashboardApp) mod.classList.remove('open');
+    });
+  },
+
   appLauncher() {
     const groups = this.visibleNavGroups().filter(group => group.group !== 'Overview');
     if (!groups.length) return '';
     return `<section class="app-launcher" aria-labelledby="app-launcher-title">
-      <div class="app-launcher-head"><div><span class="eyebrow">YOUR WORKSPACE</span><h2 id="app-launcher-title">Business apps</h2><p>Tap a module to open the apps you are allowed to use.</p></div><span class="app-launcher-count">${groups.length} modules</span></div>
+      <div class="app-launcher-head">
+        <div><span class="eyebrow">YOUR WORKSPACE</span><h2 id="app-launcher-title">Business apps</h2><p>Tap a module to open the apps you are allowed to use.</p></div>
+        <div style="flex: 1; text-align: right;"><input type="text" placeholder="Search apps..." style="max-width: 250px; padding: 8px 12px; border-radius: 20px; border: 1px solid #494532; background: #15140f; color: #fff;" oninput="Core.filterLauncherApps(this.value)"></div>
+      </div>
       <div class="app-module-grid">${groups.map(group => {
         const key = this.navGroupKey(group.group);
         const open = this.state.openDashboardApp === key;
