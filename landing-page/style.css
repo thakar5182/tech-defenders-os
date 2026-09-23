@@ -1,0 +1,29 @@
+.transform-style-3d {
+    transform-style: preserve-3d;
+}
+
+.perspective-\[2500px\] {
+    perspective: 2500px;
+}
+
+/* Hide scrollbar for the inner website inside the laptop */
+.inner-website {
+    /* Smooth hardware acceleration */
+    will-change: transform;
+}
+
+/* Intro glowing text */
+.intro-logo {
+    filter: drop-shadow(0 0 30px rgba(56, 189, 248, 0.5));
+}
+
+/* Ensure smooth scrolling behavior on the body */
+html {
+    scroll-behavior: smooth;
+}
+
+/* Background for overall body */
+body {
+    background-color: #000;
+}
+

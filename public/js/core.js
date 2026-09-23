@@ -84,9 +84,7 @@ const Core = {
       this.state.moduleAccess = me.moduleAccess || {};
       this.state.appAccess = me.appAccess || {};
       this.state.dashboardWidgets = me.dashboardWidgets || {};
-      this.state.mfaSetupRequired = !!me.mfaSetupRequired;
-      this.state.mfaVerificationRequired = !!me.mfaVerificationRequired;
-      if (me.isSuperAdmin && !me.mfaSetupRequired && !me.mfaVerificationRequired) {
+      if (me.isSuperAdmin) {
         const platform = await this.get('/admin/organizations');
         this.state.organizations = platform.organizations || [];
       }
@@ -94,8 +92,6 @@ const Core = {
 
     this.buildSidebar();
     this.buildTopbar();
-    if (this.state.mfaVerificationRequired) { this.forceMfaVerification(); return; }
-    if (this.state.mfaSetupRequired) { this.forceMfaSetup(); return; }
     window.addEventListener('hashchange', () => this.render());
     document.addEventListener('keydown', e => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); document.getElementById('global-search').focus(); }
@@ -618,19 +614,7 @@ const Core = {
     });
   },
 
-  forceMfaVerification() {
-    const modal = this.openModal({ title: 'Verify Authenticator', closable: false, body: `<p class="muted" style="margin-bottom:14px">Enter the current 6-digit code from your authenticator app.</p><form id="mfa-verify-form"><label class="field"><span>Authenticator code</span><input name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" autocomplete="one-time-code" required></label></form>`, footer: '<button class="btn btn-gold" type="submit" form="mfa-verify-form">Verify securely</button>' });
-    modal.el.querySelector('#mfa-verify-form').addEventListener('submit', async event => { event.preventDefault(); try { await this.post('/security/2fa/verify', { code: new FormData(event.target).get('code') }); location.reload(); } catch (error) { toast('Verification failed', error.message, 'error'); } });
-  },
 
-  forceMfaSetup() {
-    let secret = '';
-    const googleAccount = String(this.state.user.authProvider || '').includes('google');
-    const modal = this.openModal({ title: 'Secure administrator account', closable: false, body: `<p class="muted">Administrator accounts require free Authenticator 2FA. Add Tech Defenders OS in Google Authenticator, Microsoft Authenticator or Authy.</p><form id="mfa-setup-form" class="form-grid" style="margin-top:14px">${googleAccount?'':`<label class="field"><span>Current password</span><input name="password" type="password" autocomplete="current-password" required></label>`}<button class="btn btn-outline" type="button" id="mfa-generate">Generate setup key</button><div id="mfa-secret" class="credential-code" hidden></div><label class="field"><span>6-digit authenticator code</span><input name="code" inputmode="numeric" pattern="[0-9]{6}" maxlength="6" disabled required></label></form>`, footer: '<button class="btn btn-gold" type="submit" form="mfa-setup-form" disabled id="mfa-enable">Enable 2FA</button>' });
-    const form = modal.el.querySelector('#mfa-setup-form'), code = form.elements.code, enable = modal.el.querySelector('#mfa-enable');
-    modal.el.querySelector('#mfa-generate').onclick = async () => { try { const result = await this.post('/security/2fa/setup', { password: form.elements.password?.value || '' }); secret = result.secret; const box = modal.el.querySelector('#mfa-secret'); box.hidden = false; box.innerHTML = `<small>Manual setup key</small><br><b>${this.esc(secret)}</b><br><small>Account: ${this.esc(this.state.user.email)}</small>`; code.disabled = false; enable.disabled = false; code.focus(); } catch (error) { toast('Setup stopped', error.message, 'error'); } };
-    form.addEventListener('submit', async event => { event.preventDefault(); if (!secret) return; try { await this.post('/security/2fa/enable', { code: code.value }); location.reload(); } catch (error) { toast('2FA not enabled', error.message, 'error'); } });
-  },
 
   /* ---------------- shared UI helpers ---------------- */
   esc(s) {

@@ -1,151 +1,285 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Sign in - Tech Defenders Business OS</title>
-<link rel="stylesheet" href="/css/styles.css">
-<link rel="icon" type="image/webp" href="/assets/tech-defenders-logo.webp">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tech Defenders OS - Business Operating System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+    <link rel="stylesheet" href="style.css">
 </head>
-<body class="auth-body">
+<body class="bg-[#0f172a] text-slate-200 m-0 p-0 overflow-x-hidden font-sans">
 
-<div class="auth-wrap">
-
-  <!-- ============ LEFT : BRAND PANEL (black + gold) ============ -->
-  <aside class="auth-brand">
-    <div class="brand-glow brand-glow-1"></div>
-    <div class="brand-glow brand-glow-2"></div>
-
-    <div class="brand-top">
-      <img class="brand-logo" src="/assets/tech-defenders-logo.webp" alt="Tech Defenders logo">
-      <div>
-        <div class="brand-name">TECH DEFENDERS</div>
-        <div class="brand-sub">BUSINESS&nbsp;OS</div>
-      </div>
-    </div>
-
-    <div class="brand-mid">
-      <h1>Run your entire business<br><span class="gold-text">from one command centre.</span></h1>
-      <p class="brand-lede">CRM, sales, purchase, inventory, manufacturing, accounts and service &mdash; connected end to end, so data flows from first enquiry to final payment without re-entry.</p>
-
-      <ul class="feature-list">
-        <li><span class="f-ico">&#9670;</span><div><strong>Lead-to-Cash</strong><small>Quotations, orders, GST invoices & receipts in one chain</small></div></li>
-        <li><span class="f-ico">&#9670;</span><div><strong>Procure-to-Pay</strong><small>Requisitions, vendor comparison, POs & GRN with QC</small></div></li>
-        <li><span class="f-ico">&#9670;</span><div><strong>Plan-to-Produce</strong><small>BOMs, job orders, material issue & production output</small></div></li>
-        <li><span class="f-ico">&#9670;</span><div><strong>Ticket-to-Renewal</strong><small>AMC contracts, SLA tickets & engineer visits</small></div></li>
-      </ul>
-    </div>
-
-    <div class="brand-stats">
-      <div><b id="stat-mods">11</b><span>Modules</span></div>
-      <div><b>4</b><span>Core workflows</span></div>
-      <div><b>100%</b><span>Connected data</span></div>
-    </div>
-
-    <div class="brand-foot">Original interface &middot; Workflow-grade ERP &middot; Built for Indian business</div>
-  </aside>
-
-  <!-- ============ RIGHT : AUTH CARD (white) ============ -->
-  <main class="auth-main">
-    <div class="auth-card">
-
-      <div class="tabs" role="tablist">
-        <button class="tab active" id="tab-signin" onclick="Auth.showTab('signin')">Sign In</button>
-        <button class="tab" id="tab-register" onclick="Auth.showTab('register')">Create Account</button>
-        <span class="tab-slider"></span>
-      </div>
-
-      <!-- SIGN IN -->
-      <form id="form-signin" class="auth-form" autocomplete="on">
-        <h2>Welcome back</h2>
-        <p class="muted">Sign in to your workspace to continue.</p>
-
-        <label class="field">
-          <span>Work email</span>
-          <input type="email" id="si-email" placeholder="you@company.com" required>
-        </label>
-
-        <label class="field">
-          <span>Password</span>
-          <div class="pw-box">
-            <input type="password" id="si-password" placeholder="Enter your password" required>
-            <button type="button" class="pw-toggle" onclick="Auth.togglePw('si-password', this)">Show</button>
-          </div>
-        </label>
-
-        <div class="row-between">
-          <label class="check"><input type="checkbox" id="si-remember" checked> Remember me</label>
-          <a href="#" class="link" onclick="Auth.openForgot(); return false;">Forgot password?</a>
+<div class="master-container">
+    
+    <!-- Intro Section -->
+    <section class="intro h-screen flex flex-col items-center justify-center fixed top-0 w-full z-0 bg-[#0f172a]">
+        <h1 class="text-4xl md:text-6xl lg:text-8xl font-bold mb-4 intro-logo tracking-tight text-center px-4 overflow-hidden flex flex-wrap justify-center gap-4">
+            <span class="intro-word inline-block opacity-0 translate-y-12 text-slate-100">TECH</span>
+            <span class="intro-word inline-block opacity-0 translate-y-12 text-blue-400">DEFENDERS</span>
+            <span class="intro-word inline-block opacity-0 translate-y-12 text-slate-100">OS</span>
+        </h1>
+        <p class="intro-sub text-xl md:text-2xl text-slate-400 font-light text-center px-4 opacity-0 translate-y-8">
+            Business Operating System
+        </p>
+        <div class="scroll-indicator mt-16 animate-bounce flex flex-col items-center opacity-0">
+            <span class="text-sm uppercase tracking-widest text-blue-400 mb-2">Scroll Down</span>
+            <svg class="w-8 h-8 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg>
         </div>
+    </section>
 
-        <button type="submit" class="btn btn-gold btn-block" id="si-submit">Sign In</button>
-        <section class="google-auth hidden" id="google-auth" aria-label="Google sign in">
-          <div class="google-button-shell" id="google-button"></div>
-          <p class="google-auth-note" id="google-auth-note" role="status" aria-live="polite"></p>
-        </section>
-        <div class="auth-divider"><span>or</span></div>
-        <button type="button" class="btn btn-outline btn-block" id="si-otp" onclick="Auth.startLoginOtp()">Sign in with Email OTP</button>
-        <p class="otp-hint">Brevo free-tier email delivery is used when configured by the administrator.</p>
-</form>
+    <!-- Laptop Animation Section -->
+    <section class="laptop-section h-[600vh] relative z-10 w-full mt-[100vh]">
+        <div class="laptop-sticky h-screen sticky top-0 flex items-center justify-center">
+            
+            <!-- REALISTIC PHYSICAL MACBOOK MODEL -->
+            <div class="macbook-wrapper w-[90vw] md:w-[80vw] lg:w-[65vw] max-w-[1200px]">
+                <!-- Desktop tilt view -->
+                <div class="macbook relative w-full aspect-[16/10] transform-style-3d origin-center" style="transform: rotateX(60deg) rotateZ(0deg);">
+                    
+                    <!-- BASE (Keyboard Deck sitting on desk) -->
+                    <div class="macbook-base absolute inset-0 transform-style-3d">
+                        
+                        <!-- Stacked layers for solid 3D thickness with perfect rounded corners -->
+                        <div class="absolute inset-0 bg-[#71717a] rounded-[20px] shadow-2xl" style="transform: translateZ(-10px);"></div>
+                        <div class="absolute inset-0 bg-[#8f8f94] rounded-[20px]" style="transform: translateZ(-8px);"></div>
+                        <div class="absolute inset-0 bg-[#a1a1aa] rounded-[20px]" style="transform: translateZ(-6px);"></div>
+                        <div class="absolute inset-0 bg-[#b4b4b8] rounded-[20px]" style="transform: translateZ(-4px);"></div>
+                        <div class="absolute inset-0 bg-[#c1c1c5] rounded-[20px]" style="transform: translateZ(-2px);"></div>
+                        
+                        <!-- Top Surface -->
+                        <div class="absolute inset-0 bg-gradient-to-b from-[#e5e5ea] to-[#d4d4d8] rounded-[20px] border border-[#a1a1aa]">
+                            <!-- Keyboard Cutout -->
+                            <div class="absolute bg-[#1a1a1a] rounded-lg shadow-[inset_0_4px_10px_rgba(0,0,0,0.9)]" style="top:15%; left:10%; right:10%; bottom:38%;">
+                                <div class="absolute inset-1 border border-[#333] rounded opacity-30" style="background-image: linear-gradient(#222 2px, transparent 2px), linear-gradient(90deg, #222 2px, transparent 2px); background-size: 20px 20px;"></div>
+                            </div>
+                            
+                            <!-- Trackpad -->
+                            <div class="absolute bg-[#c1c1c5] rounded-md shadow-[inset_0_2px_4px_rgba(0,0,0,0.3)] border border-[#a1a1aa]" style="bottom:6%; left:35%; right:35%; height:25%;"></div>
+                            
+                            <!-- Hinge Cover -->
+                            <div class="absolute bg-[#222]" style="top:0; left:18%; right:18%; height:14px; border-radius: 0 0 6px 6px;"></div>
+                        </div>
+                    </div>
 
-      <!-- REGISTER -->
-      <form id="form-register" class="auth-form hidden" autocomplete="off">
-        <h2>Create your workspace</h2>
-        <p class="muted">Start a new organization. You become its administrator.</p>
+                    <!-- LID (Hinges from TOP edge of base) -->
+                    <!-- Elevated slightly (translateZ: 4px) so it doesn't clip into the keyboard when closed -->
+                    <div class="macbook-hinge absolute inset-0 transform-style-3d origin-top" style="transform: translateZ(4px);">
+                        <div class="macbook-lid absolute inset-0 transform-style-3d origin-top shadow-2xl" style="transform: rotateX(0deg);">
+                            
+                            <!-- Back of the lid (Silver Cover seen when closed) -->
+                            <div class="lid-face back absolute inset-0 bg-gradient-to-tr from-[#c1c1c5] to-[#f4f4f5] rounded-[20px] flex items-center justify-center border border-[#a1a1aa] backface-hidden" style="transform: translateZ(1px);">
+                                <div class="w-24 h-24 bg-gradient-to-tr from-gray-300 to-gray-100 rounded-full flex items-center justify-center shadow-[inset_0_2px_5px_rgba(0,0,0,0.3)]" style="transform: rotateZ(180deg);">
+                                    <span class="text-gray-400 font-black text-3xl tracking-tighter drop-shadow-md">TD</span>
+                                </div>
+                            </div>
 
-        <div class="grid-2">
-          <label class="field"><span>Your name *</span><input id="rg-name" required placeholder="Full name"></label>
-          <label class="field"><span>Company name *</span><input id="rg-company" required placeholder="Company Pvt Ltd"></label>
+                            <!-- Front of the lid (Screen side) -->
+                            <div class="lid-face front absolute inset-0 bg-[#0a0a0a] rounded-[20px] border-[2px] border-[#444] backface-hidden" style="transform: rotateX(180deg) translateZ(1px);">
+                                
+                                <div class="absolute bg-[#020617] overflow-hidden rounded-md shadow-[inset_0_0_20px_rgba(0,0,0,1)]" style="top:4%; left:3%; right:3%; bottom:6%;">
+                                
+                                <!-- The Inner Website -->
+                                <div class="inner-website absolute w-full top-0 left-0 bg-[#020617] will-change-transform font-sans text-slate-200">
+                                    
+                                    <!-- Fake Navbar -->
+                                    <div class="flex items-center justify-between p-4 border-b border-slate-800 bg-[#020617]/90 backdrop-blur sticky top-0 z-50">
+                                        <div class="text-blue-400 font-bold text-sm md:text-lg flex items-center gap-2">
+                                            <div class="w-5 h-5 bg-blue-600 rounded flex items-center justify-center text-white text-[10px]">TD</div>
+                                            Tech Defenders OS
+                                        </div>
+                                        <div class="hidden md:flex gap-6 text-xs text-slate-400">
+                                            <span>Features</span>
+                                            <span>Modules</span>
+                                            <span>Why Us</span>
+                                        </div>
+                                        <div class="px-4 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-xs font-semibold cursor-pointer">Login</div>
+                                    </div>
+
+                                    <!-- Hero Section -->
+                                    <div class="py-16 md:py-24 px-6 md:px-12 text-center bg-gradient-to-b from-[#0a192f] to-[#020617]">
+                                        <h2 class="text-2xl md:text-5xl font-black text-blue-300 mb-6 leading-tight">
+                                            Run your entire business from <br class="hidden md:block"/> one command centre.
+                                        </h2>
+                                        <p class="text-sm md:text-xl text-slate-400 max-w-3xl mx-auto mb-10 leading-relaxed">
+                                            All your operations. One platform. Connected end-to-end. <br/> Zero re-entry. <span class="text-blue-400 font-semibold">100% Control.</span>
+                                        </p>
+                                        <div class="flex flex-wrap justify-center gap-4">
+                                            <div class="px-6 py-3 bg-blue-600 rounded-full font-bold text-sm shadow-lg shadow-blue-500/20">Start Workspace</div>
+                                            <div class="px-6 py-3 bg-slate-800 rounded-full font-bold text-sm border border-slate-700">View Demo</div>
+                                        </div>
+                                    </div>
+
+                                    <!-- 4 Pillars Section -->
+                                    <div class="py-12 px-6 md:px-12 bg-[#020617]">
+                                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-5xl mx-auto">
+                                            <div class="bg-slate-800/40 p-6 md:p-8 rounded-2xl border border-slate-700/50 flex items-start gap-4">
+                                                <div class="w-10 h-10 rounded-full bg-blue-900/50 flex items-center justify-center text-blue-400 flex-shrink-0">
+                                                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"></path></svg>
+                                                </div>
+                                                <div>
+                                                    <h3 class="text-blue-300 font-bold text-base md:text-lg mb-2">ONE PLATFORM</h3>
+                                                    <p class="text-xs md:text-sm text-slate-400 leading-relaxed">All modules fully integrated under a single roof. No more jumping between tools.</p>
+                                                </div>
+                                            </div>
+                                            <div class="bg-slate-800/40 p-6 md:p-8 rounded-2xl border border-slate-700/50 flex items-start gap-4">
+                                                <div class="w-10 h-10 rounded-full bg-blue-900/50 flex items-center justify-center text-blue-400 flex-shrink-0">
+                                                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 7v10c0 2.21 3.582 4 8 4s8-1.79 8-4V7M4 7c0 2.21 3.582 4 8 4s8-1.79 8-4"></path></svg>
+                                                </div>
+                                                <div>
+                                                    <h3 class="text-blue-300 font-bold text-base md:text-lg mb-2">CONNECTED DATA</h3>
+                                                    <p class="text-xs md:text-sm text-slate-400 leading-relaxed">Real-time sync across every department ensures a single source of truth.</p>
+                                                </div>
+                                            </div>
+                                            <div class="bg-slate-800/40 p-6 md:p-8 rounded-2xl border border-slate-700/50 flex items-start gap-4">
+                                                <div class="w-10 h-10 rounded-full bg-blue-900/50 flex items-center justify-center text-blue-400 flex-shrink-0">
+                                                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path></svg>
+                                                </div>
+                                                <div>
+                                                    <h3 class="text-blue-300 font-bold text-base md:text-lg mb-2">SECURE & RELIABLE</h3>
+                                                    <p class="text-xs md:text-sm text-slate-400 leading-relaxed">Bank-grade data protection with precise role-based access controls.</p>
+                                                </div>
+                                            </div>
+                                            <div class="bg-slate-800/40 p-6 md:p-8 rounded-2xl border border-slate-700/50 flex items-start gap-4">
+                                                <div class="w-10 h-10 rounded-full bg-blue-900/50 flex items-center justify-center text-blue-400 flex-shrink-0">
+                                                    <svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2"></path></svg>
+                                                </div>
+                                                <div>
+                                                    <h3 class="text-blue-300 font-bold text-base md:text-lg mb-2">SMART REPORTS</h3>
+                                                    <p class="text-xs md:text-sm text-slate-400 leading-relaxed">Real insights and analytics for better, faster business decisions.</p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
+                                    <!-- 13 Modules Section -->
+                                    <div class="py-16 md:py-24 px-6 md:px-12 bg-slate-900/30 border-y border-slate-800/50">
+                                        <div class="text-center mb-12">
+                                            <h3 class="text-2xl md:text-4xl font-bold text-slate-200 mb-4">13 Powerful Business Modules</h3>
+                                            <p class="text-sm md:text-base text-slate-400 max-w-2xl mx-auto">Everything you need to scale your operations.</p>
+                                        </div>
+                                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 max-w-6xl mx-auto">
+                                            <div class="bg-slate-800/80 p-6 rounded-xl border border-slate-700 hover:border-blue-500 transition-colors">
+                                                <h4 class="text-blue-400 font-bold text-base mb-2 flex items-center gap-2"><span class="w-6 h-6 rounded bg-slate-700 flex items-center justify-center text-xs text-slate-300">1</span> CRM</h4>
+                                                <p class="text-sm text-slate-400">Leads, Customers, Pipeline & Follow-ups</p>
+                                            </div>
+                                            <div class="bg-slate-800/80 p-6 rounded-xl border border-slate-700 hover:border-blue-500 transition-colors">
+                                                <h4 class="text-blue-400 font-bold text-base mb-2 flex items-center gap-2"><span class="w-6 h-6 rounded bg-slate-700 flex items-center justify-center text-xs text-slate-300">2</span> SALES</h4>
+                                                <p class="text-sm text-slate-400">Quotations, Orders, Invoices, Receipts & Credit Notes</p>
+                                            </div>
+                                            <div class="bg-slate-800/80 p-6 rounded-xl border border-slate-700 hover:border-blue-500 transition-colors">
+                                                <h4 class="text-blue-400 font-bold text-base mb-2 flex items-center gap-2"><span class="w-6 h-6 rounded bg-slate-700 flex items-center justify-center text-xs text-slate-300">3</span> PURCHASE</h4>
+                                                <p class="text-sm text-slate-400">Requisitions, PO, GRN, Bills & Vendor Management</p>
+                                            </div>
+                                            <div class="bg-slate-800/80 p-6 rounded-xl border border-slate-700 hover:border-blue-500 transition-colors">
+                                                <h4 class="text-blue-400 font-bold text-base mb-2 flex items-center gap-2"><span class="w-6 h-6 rounded bg-slate-700 flex items-center justify-center text-xs text-slate-300">4</span> INVENTORY</h4>
+                                                <p class="text-sm text-slate-400">Products, Stock, Warehouse, Stock Ledger</p>
+                                            </div>
+                                            <div class="bg-slate-800/80 p-6 rounded-xl border border-slate-700 hover:border-blue-500 transition-colors">
+                                                <h4 class="text-blue-400 font-bold text-base mb-2 flex items-center gap-2"><span class="w-6 h-6 rounded bg-slate-700 flex items-center justify-center text-xs text-slate-300">5</span> MANUFACTURING</h4>
+                                                <p class="text-sm text-slate-400">BOMs, Job Orders, Production & Material Issue</p>
+                                            </div>
+                                            <div class="bg-slate-800/80 p-6 rounded-xl border border-slate-700 hover:border-blue-500 transition-colors">
+                                                <h4 class="text-blue-400 font-bold text-base mb-2 flex items-center gap-2"><span class="w-6 h-6 rounded bg-slate-700 flex items-center justify-center text-xs text-slate-300">6</span> SERVICE</h4>
+                                                <p class="text-sm text-slate-400">AMC, Tickets, SLA, Engineer Visits</p>
+                                            </div>
+                                            <div class="bg-slate-800/80 p-6 rounded-xl border border-slate-700 hover:border-blue-500 transition-colors">
+                                                <h4 class="text-blue-400 font-bold text-base mb-2 flex items-center gap-2"><span class="w-6 h-6 rounded bg-slate-700 flex items-center justify-center text-xs text-slate-300">7</span> ACCOUNTS</h4>
+                                                <p class="text-sm text-slate-400">Chart of Accounts, Journal, Expenses, P&L</p>
+                                            </div>
+                                            <div class="bg-slate-800/80 p-6 rounded-xl border border-slate-700 hover:border-blue-500 transition-colors">
+                                                <h4 class="text-blue-400 font-bold text-base mb-2 flex items-center gap-2"><span class="w-6 h-6 rounded bg-slate-700 flex items-center justify-center text-xs text-slate-300">8</span> HR</h4>
+                                                <p class="text-sm text-slate-400">Employees, Leave, Attendance & HR Reports</p>
+                                            </div>
+                                            <div class="bg-slate-800/80 p-6 rounded-xl border border-slate-700 hover:border-blue-500 transition-colors">
+                                                <h4 class="text-blue-400 font-bold text-base mb-2 flex items-center gap-2"><span class="w-6 h-6 rounded bg-slate-700 flex items-center justify-center text-xs text-slate-300">9</span> REPORTS</h4>
+                                                <p class="text-sm text-slate-400">Employees, Leave, Inventory, Financial & Custom</p>
+                                            </div>
+                                            <div class="bg-slate-800/80 p-6 rounded-xl border border-slate-700 hover:border-blue-500 transition-colors">
+                                                <h4 class="text-blue-400 font-bold text-base mb-2 flex items-center gap-2"><span class="w-6 h-6 rounded bg-slate-700 flex items-center justify-center text-xs text-slate-300">10</span> COMMUNICATION</h4>
+                                                <p class="text-sm text-slate-400">Email Center, History, Broadcast & Templates</p>
+                                            </div>
+                                            <div class="bg-slate-800/80 p-6 rounded-xl border border-slate-700 hover:border-blue-500 transition-colors">
+                                                <h4 class="text-blue-400 font-bold text-base mb-2 flex items-center gap-2"><span class="w-6 h-6 rounded bg-slate-700 flex items-center justify-center text-xs text-slate-300">11</span> AUTOMATIONS</h4>
+                                                <p class="text-sm text-slate-400">Tasks, Reminders, Approvals & Auto Workflows</p>
+                                            </div>
+                                            <div class="bg-slate-800/80 p-6 rounded-xl border border-slate-700 hover:border-blue-500 transition-colors">
+                                                <h4 class="text-blue-400 font-bold text-base mb-2 flex items-center gap-2"><span class="w-6 h-6 rounded bg-slate-700 flex items-center justify-center text-xs text-slate-300">12</span> DATA IMPORT</h4>
+                                                <p class="text-sm text-slate-400">Smart Import, Data Package Studio & Docs</p>
+                                            </div>
+                                            <div class="bg-slate-800/80 p-6 rounded-xl border border-slate-700 hover:border-blue-500 transition-colors sm:col-span-2 lg:col-span-3">
+                                                <h4 class="text-blue-400 font-bold text-base mb-2 flex items-center gap-2"><span class="w-6 h-6 rounded bg-slate-700 flex items-center justify-center text-xs text-slate-300">13</span> ADMINISTRATION</h4>
+                                                <p class="text-sm text-slate-400">Users, Roles, Branches, Integrations, Audit Log & Settings</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    
+                                    <!-- Footer Section -->
+                                    <div class="py-16 md:py-24 px-6 md:px-12 text-center bg-[#020617]">
+                                        <h3 class="text-2xl md:text-3xl font-bold text-slate-200 mb-8">Built for Indian Businesses</h3>
+                                        <div class="flex flex-wrap justify-center gap-4 mb-16">
+                                            <span class="px-5 py-2 bg-slate-800 rounded-full text-xs md:text-sm text-slate-300 border border-slate-700">Workflow-based ERP</span>
+                                            <span class="px-5 py-2 bg-slate-800 rounded-full text-xs md:text-sm text-slate-300 border border-slate-700">GST Compliant</span>
+                                            <span class="px-5 py-2 bg-slate-800 rounded-full text-xs md:text-sm text-slate-300 border border-slate-700">Multi-Branch Support</span>
+                                            <span class="px-5 py-2 bg-slate-800 rounded-full text-xs md:text-sm text-slate-300 border border-slate-700">Cloud + Secure Backup</span>
+                                            <span class="px-5 py-2 bg-slate-800 rounded-full text-xs md:text-sm text-slate-300 border border-slate-700">Mobile Friendly</span>
+                                        </div>
+                                        
+                                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 text-left max-w-5xl mx-auto">
+                                            <div class="p-6 bg-slate-900 rounded-xl border border-slate-800">
+                                                <h4 class="text-blue-400 font-bold text-base mb-2">100% Made in India</h4>
+                                                <p class="text-sm text-slate-400">Proudly built for Indian businesses</p>
+                                            </div>
+                                            <div class="p-6 bg-slate-900 rounded-xl border border-slate-800">
+                                                <h4 class="text-blue-400 font-bold text-base mb-2">All-in-one Solution</h4>
+                                                <p class="text-sm text-slate-400">Manage everything from one command centre</p>
+                                            </div>
+                                            <div class="p-6 bg-slate-900 rounded-xl border border-slate-800">
+                                                <h4 class="text-blue-400 font-bold text-base mb-2">Save Time & Cost</h4>
+                                                <p class="text-sm text-slate-400">Automate tasks & reduce manual work</p>
+                                            </div>
+                                            <div class="p-6 bg-slate-900 rounded-xl border border-slate-800">
+                                                <h4 class="text-blue-400 font-bold text-base mb-2">Grow Your Business</h4>
+                                                <p class="text-sm text-slate-400">Better data, decisions, bigger growth</p>
+                                            </div>
+                                        </div>
+                                        <!-- Buffer space to ensure scroll finishes completely before closing -->
+                                        <div class="h-[20vh]"></div>
+                                    </div>
+                                </div>
+                            </div>
+                            <!-- Bezel Logo (Near the hinge at bottom of screen) -->
+                            <div class="absolute bottom-[2%] left-1/2 transform -translate-x-1/2 text-[#777] text-[9px] md:text-[11px] tracking-widest font-sans font-bold">TECH DEFENDERS</div>
+                        </div>
+                        
+                    </div>
+                </div>
+            </div>
+            
         </div>
-        <label class="field"><span>Work email *</span><input type="email" id="rg-email" required placeholder="you@company.com"></label>
-        <div class="grid-2">
-          <label class="field"><span>Password * <small>(min 8 chars)</small></span>
-            <div class="pw-box"><input type="password" id="rg-password" minlength="8" required><button type="button" class="pw-toggle" onclick="Auth.togglePw('rg-password', this)">Show</button></div>
-          </label>
-          <label class="field"><span>Confirm password *</span><input type="password" id="rg-confirm" minlength="8" required></label>
+    </section>
+
+    <!-- Outro Section -->
+    <section class="outro h-screen flex flex-col items-center justify-center relative z-20 bg-[#0f172a] overflow-hidden">
+        <div class="absolute inset-0 bg-blue-900/10 blur-[120px] rounded-full w-[80vw] h-[80vw] top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2"></div>
+        
+        <div class="outro-content text-center z-10 opacity-0 scale-90">
+            <h1 class="text-4xl md:text-6xl lg:text-7xl font-bold text-slate-100 mb-4 tracking-tight">
+                TECH <span class="text-blue-400">DEFENDERS</span> OS
+            </h1>
+            <p class="text-lg md:text-xl text-slate-400 mb-10 font-light max-w-2xl mx-auto px-4">
+                Stop juggling multiple tools. <br/>Start running your business the smart way.
+            </p>
+            <a href="/login" class="inline-flex items-center gap-2 px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white font-medium rounded-full text-lg transition-all shadow-lg hover:shadow-blue-500/25 hover:-translate-y-1">
+                Enter Command Centre
+                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14 5l7 7m0 0l-7 7m7-7H3"></path></svg>
+            </a>
         </div>
-        <div class="grid-2">
-          <label class="field"><span>Mobile</span><input id="rg-phone" placeholder="+91 ..."></label>
-          <label class="field"><span>State code (GST)</span>
-            <select id="rg-state">
-              <option value="27">Maharashtra (27)</option>
-              <option value="29">Karnataka (29)</option>
-              <option value="24" selected>Gujarat (24)</option>
-              <option value="33">Tamil Nadu (33)</option>
-              <option value="36">Telangana (36)</option>
-              <option value="07">Delhi (07)</option>
-              <option value="09">Uttar Pradesh (09)</option>
-              <option value="03">Punjab (03)</option>
-              <option value="06">Haryana (06)</option>
-              <option value="23">Madhya Pradesh (23)</option>
-            </select>
-          </label>
-        </div>
-
-        <label class="check terms"><input type="checkbox" id="rg-terms" required> I agree to the Terms of Service and confirm this workspace is for legitimate business use.</label>
-
-        <button type="submit" class="btn btn-dark btn-block" id="rg-submit">Email OTP &amp; Create Workspace</button>
-        <p class="fine muted">A 6-digit code verifies your email before the workspace is created. Your account then becomes the Organization Owner.</p>
-      </form>
-
-      <!-- RESET -->
-      <form id="form-reset" class="auth-form hidden" autocomplete="off">
-        <h2>Reset password</h2>
-        <p class="muted">Choose a secure new password for your account.</p>
-        <label class="field"><span>Reset token</span><input id="rs-token" required></label>
-        <label class="field"><span>New password</span><input type="password" id="rs-password" minlength="8" required></label>
-        <button type="submit" class="btn btn-gold btn-block">Update Password</button>
-        <a href="#" class="link center" onclick="Auth.showTab('signin'); return false;">Back to sign in</a>
-      </form>
-
-    </div>
-    <div class="auth-foot">&copy; 2026 Tech Defenders OS &middot; v4.3 Durable Cloud + Google Sign-In</div>
-  </main>
+    </section>
+    
 </div>
 
-<!-- toast host -->
-<div id="toast-host" class="toast-host"></div>
-
-<script src="/js/auth.js"></script>
+<script src="script.js"></script>
 </body>
 </html>
