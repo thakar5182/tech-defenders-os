@@ -1,30 +1,27 @@
-/* Real Physical MacBook CSS */
-.macbook-wrapper {
-    perspective: 3000px;
-}
+*{box-sizing:border-box}body{margin:0;background:#0a0a09;color:#f8f5ec;font:15px Arial;overflow-x:hidden}header{height:74px;display:flex;align-items:center;gap:22px;padding:0 6%;position:sticky;top:0;background:#0a0a09e8;backdrop-filter:blur(12px);z-index:4;border-bottom:1px solid #26231b}header b{letter-spacing:.1em}header i,.eyebrow,em{color:#dcb02a;font-style:normal;font-size:10px}nav{margin-left:auto;color:#aaa391}.gold{display:inline-block;background:#dcb02a;color:#191407!important;padding:13px 18px;border-radius:6px;font-weight:bold;text-decoration:none}.login{color:#fff;text-decoration:none}.hero,section{max-width:1160px;margin:auto;padding:100px 6%;opacity:0;transform:translateY(26px);transition:.7s}.hero.in,section.in,.module-grid article.in{opacity:1;transform:none}.hero{min-height:650px;display:grid;grid-template-columns:1fr 1fr;align-items:center;gap:40px;background:radial-gradient(circle at 82% 45%,#48370d 0,transparent 28%)}h1{font-size:75px;line-height:.94;letter-spacing:-.07em;margin:15px 0}.lead{max-width:500px;color:#c6c0b1;font-size:17px;line-height:1.6;margin-bottom:26px}.scene{height:410px;position:relative;perspective:900px}.screen{position:absolute;inset:25px;background:#15140f;border:1px solid #786121;border-radius:16px;padding:25px;transform:rotateY(-10deg) rotateX(5deg);box-shadow:35px 35px 70px #000}.screen h2{font-size:25px}.kpis{display:flex;gap:8px}.kpis b{flex:1;background:#28251d;padding:11px;border-radius:7px}.kpis small,.module-grid span{display:block;color:#aaa391;font-size:11px;margin-top:4px}.chart{height:100px;margin:15px 0;background:linear-gradient(155deg,transparent 46%,#dcb02a 48%,transparent 50%),repeating-linear-gradient(0deg,#2b281e 0 1px,transparent 1px 25px)}.screen strong{float:right;color:#dcb02a}.scene aside{position:absolute;right:-8px;top:2px;background:#f4eee0;color:#17130b;padding:13px;border-radius:8px;box-shadow:0 14px 30px #0008;animation:float 4s ease-in-out infinite}.scene .security{left:-16px;right:auto;top:auto;bottom:5px;animation-delay:-2s}@keyframes float{50%{transform:translateY(-12px)}}h2{font-size:39px;letter-spacing:-.05em}.modules{max-width:none;background:#f2efe7;color:#17140e;padding-left:max(6%,calc((100% - 1040px)/2));padding-right:max(6%,calc((100% - 1040px)/2))}.module-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:1px;background:#d2cbbb;margin-top:28px}.module-grid article{background:#f2efe7;padding:24px;min-height:135px;opacity:0;transform:translateY(22px);transition:.5s}.module-grid b{font-size:18px}.trust{text-align:center}.trust h2{margin:auto}.trust div{display:flex;justify-content:center;gap:9px;flex-wrap:wrap;margin-top:25px}.trust span{border:1px solid #51472c;padding:11px;border-radius:5px;color:#ddd5c3}.price{text-align:center;background:#14130f;max-width:none}.price h2{margin:auto}.price article{margin:28px auto 0;max-width:430px;text-align:left;border:1px solid #66521a;border-radius:12px;padding:27px;background:#0c0c0a}.price strong{display:block;font-size:30px;margin:7px 0}.price p{color:#b9b2a2;line-height:1.5}.price hr{border:0;border-top:1px solid #373222;margin:19px 0}.price .gold{width:100%;text-align:center;margin-top:14px}footer{text-align:center;padding:28px;color:#928b7d;border-top:1px solid #28251c}@media(max-width:700px){header{padding:0 15px}header nav,.login{display:none}.hero{grid-template-columns:1fr;min-height:auto;padding-top:70px}h1{font-size:52px}.scene{height:340px}.module-grid{grid-template-columns:1fr}section{padding:70px 20px}h2{font-size:31px}}
 
-.transform-style-3d {
-    transform-style: preserve-3d;
+.social-links {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
 }
-
-.backface-hidden {
-    backface-visibility: hidden;
+.social-links a {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 40px;
+  padding: 0 13px;
+  color: #e9dfc7;
+  text-decoration: none;
+  border: 1px solid #443b25;
+  border-radius: 6px;
+  transition: transform .2s ease, border-color .2s ease, color .2s ease;
 }
-
-/* Ensure smooth scrolling inside the screen */
-.inner-website {
-    will-change: transform;
-}
-
-/* Subtle glow for intro */
-.intro-logo {
-    filter: drop-shadow(0 0 15px rgba(96, 165, 250, 0.2));
-}
-
-html {
-    scroll-behavior: smooth;
-}
-
-body {
-    background-color: #0f172a; 
+.social-links a:hover {
+  color: #17130a;
+  background: #dcb02a;
+  border-color: #dcb02a;
+  transform: translateY(-2px);
 }
