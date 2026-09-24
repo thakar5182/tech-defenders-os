@@ -124,6 +124,75 @@ function createAmcFromInvoice(inv, user) {
 }
 
 /* ================= QUOTATIONS ================= */
+router.get('/quotations/:id', requirePerm('sales', 'view'), (req, res) => {
+  const q = store.findOne('quotations', x => x.id === req.params.id && x.orgId === req.org.id);
+  if (!q) return res.status(404).json({ error: 'Quotation not found' });
+  const customer = store.byId('customers', q.customerId);
+  const documents = store.find('salesDocuments', d => d.orgId === req.org.id && d.entityType === 'quotation' && d.entityId === q.id);
+  res.json({ quotation: { ...q, customerName: customer?.name, customer: customer }, documents });
+});
+
+router.patch('/quotations/:id', requirePerm('sales', 'edit'), (req, res) => {
+  const q = store.findOne('quotations', x => x.id === req.params.id && x.orgId === req.org.id);
+  if (!q) return res.status(404).json({ error: 'Quotation not found' });
+  
+  const b = req.body || {};
+  const patch = {};
+  if (b.customerId) patch.customerId = b.customerId;
+  if (b.date) patch.date = b.date;
+  if (b.validUntil !== undefined) patch.validUntil = b.validUntil;
+  if (b.lines) {
+     const customer = store.byId('customers', patch.customerId || q.customerId);
+     patch.lines = b.lines;
+     const doc = computeDoc(b.lines, req.org.stateCode, customer?.stateCode);
+     patch.totals = doc.totals;
+  }
+  if (b.notes !== undefined) patch.notes = b.notes;
+
+  const updated = store.update('quotations', q.id, patch);
+  audit(req.org.id, req.user.id, 'update', 'quotation', q.id, patch);
+  res.json({ quotation: updated });
+});
+
+/* ================= SALES DOCUMENTS ================= */
+const asyncRoute = handler => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
+const { fileStorage } = require('../../plugins/storage');
+
+router.post('/documents', requirePerm('sales', 'edit'), asyncRoute(async (req, res) => {
+  const b = req.body || {};
+  if (!b.entityType || !b.entityId || !b.title || !b.contentData) return res.status(400).json({ error: 'Missing required fields' });
+  
+  const match = b.contentData.match(/^data:(.*?);base64,(.*)$/);
+  if (!match) return res.status(400).json({ error: 'Invalid file format' });
+  const mimeType = match[1];
+  const buffer = Buffer.from(match[2], 'base64');
+  if (buffer.length > 2 * 1024 * 1024) return res.status(400).json({ error: 'File too large' });
+
+  const stored = await fileStorage.put({ orgId: req.org.id, filename: b.title, mimeType, buffer });
+  const doc = store.insert('salesDocuments', {
+    orgId: req.org.id, entityType: b.entityType, entityId: b.entityId,
+    title: b.title, mimeType, storageKey: stored.storageKey
+  });
+  res.json({ document: doc });
+}));
+
+router.delete('/documents/:id', requirePerm('sales', 'edit'), asyncRoute(async (req, res) => {
+  const doc = store.findOne('salesDocuments', d => d.id === req.params.id && d.orgId === req.org.id);
+  if (!doc) return res.status(404).json({ error: 'Document not found' });
+  if (doc.storageKey) await fileStorage.remove(doc.storageKey, req.org.id);
+  store.remove('salesDocuments', doc.id);
+  res.json({ message: 'Deleted' });
+}));
+
+router.get('/documents/:id/download', requirePerm('sales', 'view'), asyncRoute(async (req, res) => {
+  const doc = store.findOne('salesDocuments', d => d.id === req.params.id && d.orgId === req.org.id);
+  if (!doc) return res.status(404).json({ error: 'Document not found' });
+  const stored = await fileStorage.get(doc.storageKey, req.org.id);
+  res.setHeader('Content-Type', doc.mimeType);
+  res.setHeader('Content-Disposition', `inline; filename="${doc.title}"`);
+  res.send(stored.buffer);
+}));
+
 router.get('/quotations', requirePerm('sales', 'view'), (req, res) => {
   const list = store.find('quotations', q => q.orgId === req.org.id)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))

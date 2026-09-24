@@ -13,7 +13,7 @@ Core.route('sales/quotations', async () => {
     ${Core.pageHead('Quotations', 'Estimates you send to customers - accept and convert to orders',
       Core.can('sales', 'create') ? '<button class="btn btn-gold" onclick="location.hash=\'#/sales/quotations/new\'">+ New Quotation</button>' : '')}
     ${Core.table([
-      { label: 'Number', render: q => `<b>${Core.esc(q.number)}</b>` },
+      { label: 'Number', render: q => `<a href="#/sales/quotations/${q.id}"><b>${Core.esc(q.number)}</b></a>` },
       { label: 'Customer', key: 'customerName' },
       { label: 'Date', render: q => Core.fmtDate(q.date) },
       { label: 'Valid until', render: q => Core.fmtDate(q.validUntil) },
@@ -44,7 +44,8 @@ Pages.quoteToSO = async id => {
 };
 
 /* ---- new quotation page with live line editor ---- */
-Core.route('sales/quotations/new', async () => {
+Core.route('sales/quotations/:id', async (p) => {
+  const isNew = p.id === 'new';
   if (!Core.can('sales', 'create')) { location.hash = '#/sales/quotations'; return; }
   const custD = await Core.get('/crm/customers');
   Pages._qLines = [];
@@ -58,10 +59,10 @@ Core.route('sales/quotations/new', async () => {
       <div class="manual-entry-callout"><b>Manual quotation mode</b><span>Type the description, HSN/SAC, unit, quantity, rate, discount and GST for each line. GST totals are recalculated live and verified again by the server.</span></div>
       <div class="grid-2 document-meta">
         <label class="field"><span>Customer *</span>
-          <select id="q-cust" onchange="Pages.salesTotalsPreview('q')">${custD.customers.map(c => `<option value="${c.id}">${Core.esc(c.name)} (${Core.esc(c.stateCode || '-')})</option>`).join('')}</select></label>
-        <label class="field"><span>Quotation date</span><input type="date" id="q-date" value="${today}"></label>
-        <label class="field"><span>Valid until</span><input type="date" id="q-valid"></label>
-        <label class="field"><span>Notes</span><input type="text" id="q-notes" maxlength="2000" placeholder="Commercial terms or delivery notes"></label>
+          <select id="q-cust" onchange="Pages.salesTotalsPreview('q')">${custD.customers.map(c => `<option value="${c.id}" ${existing?.customerId===c.id?'selected':''}>${Core.esc(c.name)} (${Core.esc(c.stateCode || '-')})</option>`).join('')}</select></label>
+        <label class="field"><span>Quotation date</span><input type="date" id="q-date" value="${existing?.date || today}"></label>
+        <label class="field"><span>Valid until</span><input type="date" id="q-valid" value="${existing?.validUntil || ''}"></label>
+        <label class="field"><span>Notes</span><input type="text" id="q-notes" maxlength="2000" placeholder="Commercial terms or delivery notes" value="${Core.esc(existing?.notes || '')}"></label>
       </div>
       <div class="lines-editor">
         <table class="manual-lines-table"><thead><tr><th>Description *</th><th>HSN / SAC</th><th>Unit</th><th>Qty *</th><th>Rate *</th><th>Disc %</th><th>GST %</th><th></th></tr></thead>

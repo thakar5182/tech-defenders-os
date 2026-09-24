@@ -61,6 +61,38 @@ router.patch('/leads/:id', requirePerm('crm', 'edit'), (req, res) => {
   res.json({ lead: updated });
 });
 
+router.post('/leads/:id/generate-quotation', requirePerm('crm', 'edit'), (req, res) => {
+  const lead = store.findOne('leads', l => l.id === req.params.id && l.orgId === req.org.id);
+  if (!lead) return res.status(404).json({ error: 'Lead not found' });
+  
+  let customerId = lead.customerId;
+  if (!customerId) {
+    const customer = store.insert('customers', {
+      orgId: req.org.id, serialNo: nextSerial(req.org.id, 'customers', 'CUS'),
+      name: lead.company || lead.name, contactPerson: lead.name,
+      email: lead.email, phone: lead.phone, gstin: lead.gstDetails || '',
+      stateCode: req.org.stateCode || '27',
+      billingAddress: { line1: lead.address || '', city: '', state: '', pincode: '', country: 'India' },
+      shippingAddress: { line1: lead.address || '', city: '', state: '', pincode: '', country: 'India' },
+      creditLimit: 0, paymentTermsDays: 30
+    });
+    store.update('leads', lead.id, { customerId: customer.id });
+    customerId = customer.id;
+  }
+  
+  const quotation = store.insert('quotations', {
+    orgId: req.org.id, number: nextSerial(req.org.id, 'quotations', 'QT'),
+    customerId: customerId, date: new Date().toISOString().slice(0, 10),
+    validUntil: null, placeOfSupply: req.org.stateCode || '27',
+    lines: [{ name: lead.description || 'Consultation / Service', hsn: '', uom: 'NOS', qty: 1, rate: Number(lead.value) || 0, disc: 0, gstRate: 18, taxable: Number(lead.value) || 0 }],
+    totals: { taxable: Number(lead.value) || 0, cgst: (Number(lead.value)||0)*0.09, sgst: (Number(lead.value)||0)*0.09, igst: 0, grandTotal: (Number(lead.value)||0)*1.18 },
+    notes: lead.referenceDetails ? `Ref: ${lead.referenceDetails}` : '',
+    status: 'draft'
+  });
+  
+  audit(req.org.id, req.user.id, 'create', 'quotation', quotation.id, { sourceLeadId: lead.id });
+  res.json({ quotation });
+});
 router.delete('/leads/:id', requirePerm('crm', 'delete'), (req, res) => {
   const lead = store.findOne('leads', l => l.id === req.params.id && l.orgId === req.org.id);
   if (!lead) return res.status(404).json({ error: 'Lead not found' });
@@ -113,12 +145,10 @@ router.post('/customers', requirePerm('crm', 'create'), (req, res) => {
     orgId: req.org.id,
     serialNo: nextSerial(req.org.id, 'customers', 'CUS'),
     name: b.name, contactPerson: b.contactPerson || '',
-    designation: b.designation || '',
-    email: b.email || '', phone: b.phone || '', mobileNumber: b.mobileNumber || '',
-    website: b.website || '',
+    email: b.email || '', phone: b.phone || '',
     gstin: b.gstin || '', stateCode: String(b.stateCode || req.org.stateCode || '27'),
-    billingAddress: b.billingAddress || { line1: '', city: '', state: '', pincode: '', country: 'India' },
-    shippingAddress: b.shippingAddress || { line1: '', city: '', state: '', pincode: '', country: 'India' },
+    billingAddress: b.billingAddress || { line1: '', city: '', state: '', pincode: '' },
+    shippingAddress: b.shippingAddress || { line1: '', city: '', state: '', pincode: '' },
     creditLimit: Number(b.creditLimit) || 0,
     paymentTermsDays: Number(b.paymentTermsDays) || 30
   });
@@ -153,8 +183,9 @@ router.get('/customers/:id', requirePerm('crm', 'view'), (req, res) => {
     invoices,
     receipts: store.find('receipts', r => r.orgId === orgId && r.customerId === c.id),
     tickets: store.find('tickets', t => t.orgId === orgId && t.customerId === c.id),
-    amcContracts: store.find('amcContracts', a => a.orgId === orgId && a.customerId === c.id),
+    amcContracts: store.find('amcContracts', a => a.orgId === orgId && a.customerId === c.id && !['cancelled', 'expired'].includes(a.status)),
     documents,
+    notes: store.find('notes', n => n.orgId === orgId && n.customerId === c.id).sort((a,b) => b.createdAt.localeCompare(a.createdAt)).map(n => ({ ...n, userName: (store.byId('users', n.userId) || {}).name || 'System' })),
     summary: { billed: r2(billed), paid: r2(paid), outstanding: r2(billed - paid), overdueAmount: r2(overdueInvoices.reduce((sum, inv) => sum + ((Number(inv.totals?.grandTotal) || 0) - (Number(inv.paidAmount) || 0)), 0)), overdueInvoices: overdueInvoices.length, openTickets: openTickets.length, health, amcDaysRemaining: daysToExpiry.length ? Math.min(...daysToExpiry) : null }
   });
 });
@@ -197,6 +228,58 @@ router.delete('/customers/:id/documents/:documentId', requirePerm('crm', 'edit')
   if (document.storageKey) await fileStorage.remove(document.storageKey, req.org.id);
   audit(req.org.id, req.user.id, 'delete', 'customer_document', document.id, { customerId: req.params.id, title: document.title });
   res.json({ message: 'Document deleted' });
+}));
+
+/* ================= NOTES ================= */
+router.get('/customers/:id/notes', requirePerm('crm', 'view'), (req, res) => {
+  const notes = store.find('notes', n => n.orgId === req.org.id && n.customerId === req.params.id)
+    .sort((a,b) => b.createdAt.localeCompare(a.createdAt))
+    .map(n => ({ ...n, userName: (store.byId('users', n.userId) || {}).name || 'System' }));
+  res.json({ notes });
+});
+
+router.post('/customers/:id/notes', requirePerm('crm', 'edit'), asyncRoute(async (req, res) => {
+  const b = req.body || {};
+  if (!b.text) return res.status(400).json({ error: 'Note text is required' });
+  const noteObj = {
+    orgId: req.org.id, customerId: req.params.id,
+    text: b.text, userId: req.user.id
+  };
+  
+  if (b.attachmentBase64 && b.attachmentTitle && b.attachmentMime) {
+     const payload = Buffer.from(b.attachmentBase64, 'base64');
+     const stored = await fileStorage.put({ orgId: req.org.id, filename: b.attachmentTitle, mimeType: b.attachmentMime, buffer: payload });
+     noteObj.attachment = { title: b.attachmentTitle, mimeType: b.attachmentMime, storageKey: stored.storageKey };
+  }
+  
+  const note = store.insert('notes', noteObj);
+  res.json({ note: { ...note, userName: req.user.name } });
+}));
+
+router.patch('/customers/:id/notes/:noteId', requirePerm('crm', 'edit'), (req, res) => {
+  const note = store.findOne('notes', n => n.id === req.params.noteId && n.orgId === req.org.id);
+  if (!note) return res.status(404).json({ error: 'Note not found' });
+  const updated = store.update('notes', note.id, { text: req.body.text });
+  res.json({ note: updated });
+});
+
+router.delete('/customers/:id/notes/:noteId', requirePerm('crm', 'edit'), asyncRoute(async (req, res) => {
+  const note = store.findOne('notes', n => n.id === req.params.noteId && n.orgId === req.org.id);
+  if (!note) return res.status(404).json({ error: 'Note not found' });
+  if (note.attachment?.storageKey) {
+     await fileStorage.remove(note.attachment.storageKey, req.org.id);
+  }
+  store.remove('notes', note.id);
+  res.json({ message: 'Deleted' });
+}));
+
+router.get('/customers/:id/notes/:noteId/attachment', requirePerm('crm', 'view'), asyncRoute(async (req, res) => {
+  const note = store.findOne('notes', n => n.id === req.params.noteId && n.orgId === req.org.id);
+  if (!note || !note.attachment) return res.status(404).json({ error: 'Attachment not found' });
+  const stored = await fileStorage.get(note.attachment.storageKey, req.org.id);
+  res.setHeader('Content-Type', note.attachment.mimeType);
+  res.setHeader('Content-Disposition', `inline; filename="${note.attachment.title}"`);
+  res.send(stored.buffer);
 }));
 
 /* Customer portal invitation: only a token hash is stored. */
@@ -250,7 +333,7 @@ router.post('/customers/:id/portal-revoke', requirePerm('crm', 'edit'), (req, re
 router.patch('/customers/:id', requirePerm('crm', 'edit'), (req, res) => {
   const c = store.findOne('customers', x => x.id === req.params.id && x.orgId === req.org.id);
   if (!c) return res.status(404).json({ error: 'Customer not found' });
-  const allowed = ['name', 'contactPerson', 'designation', 'email', 'phone', 'mobileNumber', 'website', 'gstin', 'stateCode', 'billingAddress', 'shippingAddress', 'creditLimit', 'paymentTermsDays'];
+  const allowed = ['name', 'contactPerson', 'email', 'phone', 'gstin', 'stateCode', 'billingAddress', 'shippingAddress', 'creditLimit', 'paymentTermsDays'];
   const patch = {};
   for (const k of allowed) if (k in req.body) patch[k] = req.body[k];
   const updated = store.update('customers', c.id, patch);
