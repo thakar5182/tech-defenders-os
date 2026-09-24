@@ -113,10 +113,12 @@ router.post('/customers', requirePerm('crm', 'create'), (req, res) => {
     orgId: req.org.id,
     serialNo: nextSerial(req.org.id, 'customers', 'CUS'),
     name: b.name, contactPerson: b.contactPerson || '',
-    email: b.email || '', phone: b.phone || '',
+    designation: b.designation || '',
+    email: b.email || '', phone: b.phone || '', mobileNumber: b.mobileNumber || '',
+    website: b.website || '',
     gstin: b.gstin || '', stateCode: String(b.stateCode || req.org.stateCode || '27'),
-    billingAddress: b.billingAddress || { line1: '', city: '', state: '', pincode: '' },
-    shippingAddress: b.shippingAddress || { line1: '', city: '', state: '', pincode: '' },
+    billingAddress: b.billingAddress || { line1: '', city: '', state: '', pincode: '', country: 'India' },
+    shippingAddress: b.shippingAddress || { line1: '', city: '', state: '', pincode: '', country: 'India' },
     creditLimit: Number(b.creditLimit) || 0,
     paymentTermsDays: Number(b.paymentTermsDays) || 30
   });
@@ -248,7 +250,7 @@ router.post('/customers/:id/portal-revoke', requirePerm('crm', 'edit'), (req, re
 router.patch('/customers/:id', requirePerm('crm', 'edit'), (req, res) => {
   const c = store.findOne('customers', x => x.id === req.params.id && x.orgId === req.org.id);
   if (!c) return res.status(404).json({ error: 'Customer not found' });
-  const allowed = ['name', 'contactPerson', 'email', 'phone', 'gstin', 'stateCode', 'billingAddress', 'shippingAddress', 'creditLimit', 'paymentTermsDays'];
+  const allowed = ['name', 'contactPerson', 'designation', 'email', 'phone', 'mobileNumber', 'website', 'gstin', 'stateCode', 'billingAddress', 'shippingAddress', 'creditLimit', 'paymentTermsDays'];
   const patch = {};
   for (const k of allowed) if (k in req.body) patch[k] = req.body[k];
   const updated = store.update('customers', c.id, patch);

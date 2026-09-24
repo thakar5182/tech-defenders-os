@@ -278,13 +278,13 @@ Pages.generateQuotationFromLead = async id => {
   }
 };
 
-/* ================= CUSTOMERS ================= */
+/* ================= CONTACTS & CUSTOMERS ================= */
 Core.route('crm/customers', async () => {
   const d = await Core.get('/crm/customers');
   const canCreate = Core.can('crm', 'create');
   document.getElementById('content').innerHTML = `
-    ${Core.pageHead('Customers', `${d.customers.length} customers with full 360-degree history`,
-      canCreate ? '<button class="btn btn-gold" onclick="Pages.openCustomerForm()">+ New Customer</button>' : '')}
+    ${Core.pageHead('Contacts & Customers', `${d.customers.length} contacts/customers with full 360-degree history`,
+      canCreate ? '<button class="btn btn-gold" onclick="Pages.openCustomerForm()">+ New Contact</button>' : '')}
     <div id="cust-table"></div>`;
   document.getElementById('cust-table').innerHTML = Core.table([
     { label: 'Customer', render: c => `<a href="#/crm/customers/${c.id}"><b>${Core.esc(c.name)}</b></a><br><small class="muted">${Core.esc(c.contactPerson || '')}</small>` },
@@ -329,11 +329,14 @@ Core.route('crm/customers/:id', async p => {
     <div class="customer-health customer-health-${Core.esc(d.summary.health)}"><b>${healthLabel}</b><span>${d.summary.overdueInvoices ? `${d.summary.overdueInvoices} overdue invoice(s): ${Core.money(d.summary.overdueAmount)}` : 'No overdue invoice'} &middot; ${d.summary.openTickets} open ticket(s)${d.summary.amcDaysRemaining != null ? ` &middot; AMC ${d.summary.amcDaysRemaining < 0 ? 'expired' : `expires in ${d.summary.amcDaysRemaining} day(s)`}` : ''}</span></div>
     <div class="meta-grid" style="margin-bottom:16px">
       <div class="meta-item"><span>Contact person</span><b>${Core.esc(c.contactPerson || '-')}</b></div>
+      <div class="meta-item"><span>Designation</span><b>${Core.esc(c.designation || '-')}</b></div>
       <div class="meta-item"><span>Email</span><b>${Core.esc(c.email || '-')}</b></div>
       <div class="meta-item"><span>Phone</span><b>${Core.esc(c.phone || '-')}</b></div>
-      <div class="meta-item"><span>GSTIN</span><b>${Core.esc(c.gstin || '-')}</b></div>
-      <div class="meta-item"><span>Billing address</span><b>${Core.esc([c.billingAddress?.line1, c.billingAddress?.city, c.billingAddress?.state].filter(Boolean).join(', ') || '-')}</b></div>
-      <div class="meta-item"><span>Godown / delivery address</span><b>${Core.esc([c.shippingAddress?.line1, c.shippingAddress?.city, c.shippingAddress?.state].filter(Boolean).join(', ') || '-')}</b></div>
+      <div class="meta-item"><span>Mobile Number</span><b>${Core.esc(c.mobileNumber || '-')}</b></div>
+      <div class="meta-item"><span>Website</span><b>${Core.esc(c.website || '-')}</b></div>
+      <div class="meta-item"><span>GSTIN Details</span><b>${Core.esc(c.gstin || '-')}</b></div>
+      <div class="meta-item"><span>Billing address</span><b>${Core.esc([c.billingAddress?.line1, c.billingAddress?.city, c.billingAddress?.state, c.billingAddress?.country].filter(Boolean).join(', ') || '-')}</b></div>
+      <div class="meta-item"><span>Godown / delivery address</span><b>${Core.esc([c.shippingAddress?.line1, c.shippingAddress?.city, c.shippingAddress?.state, c.shippingAddress?.country].filter(Boolean).join(', ') || '-')}</b></div>
       <div class="meta-item"><span>Place of supply</span><b>State code ${Core.esc(c.stateCode)}</b></div>
     </div>
     <div class="grid-even">
@@ -396,13 +399,16 @@ Pages.manageCustomerPortal = async id => {
 Pages.openCustomerForm = async function (id) {
   const existing = id ? (await Core.get('/crm/customers/' + id)).customer : null;
   Core.formModal({
-    title: existing ? 'Edit customer' : 'New customer',
+    title: existing ? 'Edit Contact / Customer' : 'New Contact / Customer',
     fields: [
       { name: 'name', label: 'Company / customer name *', required: true, value: existing?.name },
       { name: 'contactPerson', label: 'Contact person', half: true, value: existing?.contactPerson },
+      { name: 'designation', label: 'Designation', half: true, value: existing?.designation },
+      { name: 'email', label: 'Email', type: 'email', half: true, value: existing?.email },
       { name: 'phone', label: 'Phone', half: true, value: existing?.phone },
-      { name: 'email', label: 'Email', type: 'email', value: existing?.email },
-      { name: 'gstin', label: 'GSTIN', half: true, value: existing?.gstin },
+      { name: 'mobileNumber', label: 'Mobile Number', half: true, value: existing?.mobileNumber },
+      { name: 'website', label: 'Website', half: true, value: existing?.website },
+      { name: 'gstin', label: 'GSTIN Details', half: true, value: existing?.gstin },
       { name: 'stateCode', label: 'State code (place of supply)', type: 'select', half: true,
         options: [['27', 'Maharashtra (27)'], ['29', 'Karnataka (29)'], ['24', 'Gujarat (24)'], ['33', 'Tamil Nadu (33)'], ['36', 'Telangana (36)'], ['07', 'Delhi (07)']].map(([v, l]) => ({ value: v, label: l })), value: existing?.stateCode || '24' },
       { name: 'creditLimit', label: 'Credit limit (INR)', type: 'number', half: true, value: existing?.creditLimit },
@@ -411,19 +417,21 @@ Pages.openCustomerForm = async function (id) {
       ,{ name: 'billingCity', label: 'Billing city', half: true, value: existing?.billingAddress?.city }
       ,{ name: 'billingState', label: 'Billing state', half: true, value: existing?.billingAddress?.state }
       ,{ name: 'billingPincode', label: 'Billing PIN code', half: true, value: existing?.billingAddress?.pincode }
+      ,{ name: 'billingCountry', label: 'Billing country', half: true, value: existing?.billingAddress?.country || 'India' }
       ,{ name: 'shippingLine1', label: 'Godown / delivery address', type: 'textarea', value: existing?.shippingAddress?.line1, placeholder: 'Optional warehouse or delivery address' }
       ,{ name: 'shippingCity', label: 'Godown / delivery city', half: true, value: existing?.shippingAddress?.city }
       ,{ name: 'shippingState', label: 'Godown / delivery state', half: true, value: existing?.shippingAddress?.state }
       ,{ name: 'shippingPincode', label: 'Godown / delivery PIN code', half: true, value: existing?.shippingAddress?.pincode }
+      ,{ name: 'shippingCountry', label: 'Godown / delivery country', half: true, value: existing?.shippingAddress?.country || 'India' }
     ],
-    submitLabel: existing ? 'Save changes' : 'Create customer',
+    submitLabel: existing ? 'Save changes' : 'Create Contact',
     onSubmit: async v => {
-      v.billingAddress = { line1: v.billingLine1 || '', city: v.billingCity || '', state: v.billingState || '', pincode: v.billingPincode || '' };
-      v.shippingAddress = { line1: v.shippingLine1 || '', city: v.shippingCity || '', state: v.shippingState || '', pincode: v.shippingPincode || '' };
-      delete v.billingLine1; delete v.billingCity; delete v.billingState; delete v.billingPincode;
-      delete v.shippingLine1; delete v.shippingCity; delete v.shippingState; delete v.shippingPincode;
+      v.billingAddress = { line1: v.billingLine1 || '', city: v.billingCity || '', state: v.billingState || '', pincode: v.billingPincode || '', country: v.billingCountry || 'India' };
+      v.shippingAddress = { line1: v.shippingLine1 || '', city: v.shippingCity || '', state: v.shippingState || '', pincode: v.shippingPincode || '', country: v.shippingCountry || 'India' };
+      delete v.billingLine1; delete v.billingCity; delete v.billingState; delete v.billingPincode; delete v.billingCountry;
+      delete v.shippingLine1; delete v.shippingCity; delete v.shippingState; delete v.shippingPincode; delete v.shippingCountry;
       if (existing) await Core.patch('/crm/customers/' + existing.id, v); else await Core.post('/crm/customers', v);
-      toast('Saved', existing ? 'Customer updated' : 'Customer added', 'success');
+      toast('Saved', existing ? 'Contact updated' : 'Contact added', 'success');
       Core.render();
     }
   });
