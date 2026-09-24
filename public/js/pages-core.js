@@ -171,7 +171,8 @@ Core.route('crm/leads', async () => {
       { label: 'Lead', render: r => `<b>${Core.esc(r.name)}</b><br><small class="muted">${Core.esc(r.company || '')}</small>` },
       { label: 'Contact', render: r => `${Core.esc(r.email || '-')}<br><small class="muted">${Core.esc(r.phone || '')}</small>` },
       { label: 'Source', key: 'source' },
-      { label: 'Interest', key: 'productInterest' },
+      { label: 'Material Code', key: 'materialCode' },
+      { label: 'Description', render: r => `<div style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${Core.esc(r.description || '')}</div>` },
       { label: 'Value', num: true, render: r => Core.money(r.value) },
       { label: 'Status', render: r => Core.badge(r.status) },
       { label: 'Next follow-up', render: r => Core.fmtDate(r.nextFollowUp) },
@@ -179,6 +180,7 @@ Core.route('crm/leads', async () => {
           ${canEdit && r.status !== 'converted' ? `<button class="btn btn-outline btn-sm" onclick="Pages.convertLead('${r.id}')">Convert</button>` : ''}
           ${canEdit ? `<button class="btn btn-ghost btn-sm" onclick="Pages.openLeadForm('${r.id}')">Edit</button>` : ''}
           ${canEdit && r.status !== 'converted' ? `<button class="btn btn-ghost btn-sm" title="Delete" onclick="Pages.deleteLead('${r.id}')">&#128465;</button>` : ''}
+          <button class="btn btn-gold btn-sm" onclick="Pages.generateQuotationFromLead('${r.id}')">Generate Quotation</button>
         </div>` }
     ], rows, { emptyTitle: 'No leads yet', emptyText: 'Capture your first enquiry to start the Lead-to-Cash chain.' });
   };
@@ -208,9 +210,13 @@ Pages.openLeadForm = async id => {
       { name: 'phone', label: 'Phone', half: true, value: lead?.phone },
       { name: 'email', label: 'Email', type: 'email', value: lead?.email },
       { name: 'address', label: 'Address', type: 'textarea', value: lead?.address },
+      { name: 'materialCode', label: 'Material Code', half: true, value: lead?.materialCode },
+      { name: 'gstDetails', label: 'GST Details', half: true, value: lead?.gstDetails },
+      { name: 'referenceDetails', label: 'Reference Details', half: true, value: lead?.referenceDetails },
+      { name: 'referenceDate', label: 'Reference Date', type: 'date', half: true, value: lead?.referenceDate },
+      { name: 'description', label: 'Description', type: 'textarea', value: lead?.description },
       { name: 'source', label: 'Source', type: 'select', half: true, options: ['manual', 'IndiaMART', 'Justdial', 'TradeIndia', 'Website', 'Referral', 'Campaign'].map(s => ({ value: s, label: s })), value: lead?.source || 'manual' },
       { name: 'priority', label: 'Priority', type: 'select', half: true, options: ['low', 'medium', 'high'].map(s => ({ value: s, label: s })), value: lead?.priority || 'medium' },
-      { name: 'productInterest', label: 'Product interest', value: lead?.productInterest },
       { name: 'value', label: 'Expected value (INR)', type: 'number', step: '0.01', half: true, value: lead?.value },
       { name: 'nextFollowUp', label: 'Next follow-up date', type: 'date', half: true, value: lead?.nextFollowUp },
       { name: 'status', label: 'Status', type: 'select', options: ['new', 'contacted', 'qualified', 'lost'].map(s => ({ value: s, label: s })), value: lead?.status || 'new' }
@@ -240,6 +246,36 @@ Pages.deleteLead = async id => {
   if (!ok) return;
   try { await Core.del('/crm/leads/' + id); toast('Deleted', 'Lead removed', 'success'); Core.render(); }
   catch (e) { toast('Delete failed', e.message, 'error'); }
+};
+
+Pages.generateQuotationFromLead = async id => {
+  const d = await Core.get('/crm/leads');
+  const lead = d.leads.find(l => l.id === id);
+  if (!lead) return toast('Error', 'Lead not found', 'error');
+  
+  // Assuming a sales/quotations route or creation function exists. We will prefill the quotation form.
+  if (typeof Pages.openQuotationForm === 'function') {
+    Pages.openQuotationForm(null, {
+      customerId: lead.customerId,
+      customerName: lead.name,
+      company: lead.company,
+      email: lead.email,
+      phone: lead.phone,
+      address: lead.address,
+      description: lead.description,
+      gstDetails: lead.gstDetails
+    });
+  } else {
+    // If we need to direct to commerce module:
+    location.hash = '#/sales/quotations';
+    setTimeout(() => {
+      if (typeof Pages.openQuotationForm === 'function') {
+        Pages.openQuotationForm(null, { customerName: lead.name, company: lead.company, phone: lead.phone, email: lead.email, address: lead.address, gstDetails: lead.gstDetails, description: lead.description });
+      } else {
+        toast('Info', 'Please create quotation manually for now', 'info');
+      }
+    }, 500);
+  }
 };
 
 /* ================= CUSTOMERS ================= */
