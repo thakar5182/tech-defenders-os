@@ -84,7 +84,7 @@ Core.route('sales/quotations/:id', async (p) => {
       </div>
       <div class="totals-box" id="q-totals" style="margin-top:18px"></div>
       <div class="document-actions">
-        <button class="btn btn-gold" id="q-save" onclick="Pages.saveQuotation('${existing ? existing.id : ''}')">Save Quotation</button>
+        <a class="btn btn-outline" style="margin-right:8px; display: ${existing ? 'inline-block' : 'none'}" id="q-print" href="#/print/quotation/${existing ? existing.id : 'new'}">Print PDF</a> <button class="btn btn-gold" id="q-save" onclick="Pages.saveQuotation('${existing ? existing.id : ''}')">Save Quotation</button>
       </div>
     </div>`;
   Pages.addSalesLine('q');

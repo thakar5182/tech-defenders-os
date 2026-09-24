@@ -1445,6 +1445,38 @@ Core.route('admin/audit', async () => {
 });
 
 /* ================= PRINT DOCUMENTS ================= */
+Core.route('print/quotation/:id', async p => {
+    const d = await Core.get('/sales/quotations/' + p.id);
+    const q = d.quotation, cust = d.customer, org = d.org;
+    const t = q.totals || {};
+    const isInterState = Number(t.igst || 0) > 0;
+    const customerAddress = [cust?.billingAddress?.line1, cust?.billingAddress?.city, cust?.billingAddress?.state, cust?.billingAddress?.pincode].filter(Boolean).join(', ') || '-';
+    const orgAddress = [org.address?.line1, org.address?.city, org.address?.state, org.address?.pincode].filter(Boolean).join(', ') || '-';
+    document.getElementById('content').innerHTML = `
+      <div class="no-print" style="max-width:900px;margin:0 auto 14px;display:flex;gap:10px;justify-content:flex-end">
+        <button class="btn btn-outline" onclick="location.hash='#/sales/quotations'">Back to List</button>
+        <button class="btn btn-outline" onclick="location.hash='#/sales/quotations/${p.id}'">Edit Quotation</button>
+        <button class="btn btn-gold" onclick="window.print()">Print / Save PDF</button>
+      </div>
+      <div class="print-doc gst-print">
+        <header class="gst-brand"><img src="${Core.esc(org.logoData || '/assets/tech-defenders-logo.webp')}" alt="${Core.esc(org.name)} logo"><div><b>${Core.esc(org.legalName || org.name)}</b><p>${Core.esc(orgAddress)}</p><p>GSTIN: <strong>${Core.esc(org.gstin || '-')}</strong> &nbsp; PAN: ${Core.esc(org.pan || '-')} &nbsp; Phone: ${Core.esc(org.phone || '-')}</p><p>${org.msmeNo ? `MSME / UDYAM: <strong>${Core.esc(org.msmeNo)}</strong> &nbsp;` : ''}${Core.esc(org.email || '')}</p></div></header>
+        <div class="gst-titlebar"><strong>GSTIN: ${Core.esc(org.gstin || '-')}</strong><h1>QUOTATION / ESTIMATE</h1><strong>${q.status.toUpperCase()}</strong></div>
+        <section class="gst-party-grid">
+          <div class="gst-recipient"><b>M/S&nbsp; ${Core.esc(cust?.name || '-')}</b><p><strong>Address</strong> ${Core.esc(customerAddress)}</p><p><strong>Phone</strong> ${Core.esc(cust?.phone || '-')}</p><p><strong>GSTIN</strong> ${Core.esc(cust?.gstin || '-')}</p></div>
+          <div class="gst-document"><div><b>Quote No.</b><span>${Core.esc(q.number)}</span><b>Date</b><span>${Core.fmtDate(q.date)}</span></div><div><b>Valid Until</b><span>${q.validUntil ? Core.fmtDate(q.validUntil) : '-'}</span></div></div>
+        </section>
+        <table class="gst-lines">
+          <thead><tr><th rowspan="2">Sr.<br>No.</th><th rowspan="2">Name of Product / Service</th><th rowspan="2">HSN / SAC</th><th rowspan="2">Qty</th><th rowspan="2">Rate</th><th rowspan="2">Taxable Value</th><th colspan="2">${isInterState ? 'IGST' : 'CGST + SGST'}</th><th rowspan="2">Total</th></tr><tr><th>%</th><th>Amount</th></tr></thead>
+          <tbody>
+            ${(q.lines || []).map((l, i) => `<tr>
+              <td>${i + 1}</td><td>${Core.esc(l.name)}</td><td>${Core.esc(l.hsn || '-')}</td><td>${l.qty} ${Core.esc(l.uom || '')}</td><td class="num">${Core.money(l.rate)}</td><td class="num">${Core.money(l.taxableValue || (l.qty * l.rate))}</td><td>${l.gstRate || 0}%</td><td class="num">${Core.money(isInterState ? l.igst : ((l.cgst || 0) + (l.sgst || 0)))}</td><td class="num">${Core.money(l.lineTotal || 0)}</td></tr>`).join('')}
+          </tbody>
+          <tfoot><tr><th colspan="3">Total</th><th>${(q.lines || []).reduce((sum, line) => sum + Number(line.qty || 0), 0)} NOS</th><th></th><th class="num">${Core.money(t.taxable)}</th><th></th><th class="num">${Core.money((t.cgst || 0) + (t.sgst || 0) + (t.igst || 0))}</th><th class="num">${Core.money(t.grandTotal)}</th></tr></tfoot>
+        </table>
+        <section class="gst-bottom"><div class="gst-left"><div class="gst-words"><b>Total in words:</b> ${Core.esc(Pages.amountInWords(t.grandTotal))} Rupees Only</div><div class="gst-terms"><b>Notes & Terms</b><br>${Core.esc(q.notes || org.invoiceTerms || `Subject to ${org.address?.state || 'local'} jurisdiction.`)}</div><div class="gst-customer-sign"><b>Customer Signature / Seal</b></div></div><div class="gst-qr"></div><div class="gst-summary"><div><span>Taxable Amount</span><b>${Core.money(t.taxable)}</b></div><div><span>Total Tax</span><b>${Core.money((t.cgst || 0) + (t.sgst || 0) + (t.igst || 0))}</b></div><div class="gst-grand"><span>Grand Total</span><b>${Core.money(t.grandTotal)}</b></div><div class="gst-signatory"><b>For ${Core.esc(org.legalName || org.name)}</b><span>Authorised Signatory</span></div></div></section>
+      </div>`;
+  });
+
 Core.route('print/invoice/:id', async p => {
   const d = await Core.get('/sales/invoices/' + p.id);
   const inv = d.invoice, cust = d.customer, org = d.org;
