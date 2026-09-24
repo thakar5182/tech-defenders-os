@@ -249,32 +249,12 @@ Pages.deleteLead = async id => {
 };
 
 Pages.generateQuotationFromLead = async id => {
-  const d = await Core.get('/crm/leads');
-  const lead = d.leads.find(l => l.id === id);
-  if (!lead) return toast('Error', 'Lead not found', 'error');
-  
-  // Assuming a sales/quotations route or creation function exists. We will prefill the quotation form.
-  if (typeof Pages.openQuotationForm === 'function') {
-    Pages.openQuotationForm(null, {
-      customerId: lead.customerId,
-      customerName: lead.name,
-      company: lead.company,
-      email: lead.email,
-      phone: lead.phone,
-      address: lead.address,
-      description: lead.description,
-      gstDetails: lead.gstDetails
-    });
-  } else {
-    // If we need to direct to commerce module:
-    location.hash = '#/sales/quotations';
-    setTimeout(() => {
-      if (typeof Pages.openQuotationForm === 'function') {
-        Pages.openQuotationForm(null, { customerName: lead.name, company: lead.company, phone: lead.phone, email: lead.email, address: lead.address, gstDetails: lead.gstDetails, description: lead.description });
-      } else {
-        toast('Info', 'Please create quotation manually for now', 'info');
-      }
-    }, 500);
+  try {
+    const res = await Core.post('/crm/leads/' + id + '/generate-quotation', {});
+    toast('Quotation created', 'Redirecting to quotation edit page...', 'success');
+    location.hash = '#/sales/quotations/' + res.quotation.id;
+  } catch (e) {
+    toast('Error', e.message, 'error');
   }
 };
 
