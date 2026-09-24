@@ -35,6 +35,7 @@ Pages.openBomForm = async () => {
         <label class="field"><span>Output product *</span><select name="outputProductId" required>
           ${pd.products.filter(p => p.type !== 'service').map(p => `<option value="${p.id}">${Core.esc(p.name)}</option>`).join('')}</select></label>
         <label class="field"><span>Output quantity per batch</span><input type="number" name="outputQty" value="1" step="any"></label>
+          <label class="field"><span>Linked Sales Order</span><select name="salesOrderId"><option value="">-- None --</option>${sod.salesOrders.map(so => `<option value="${so.id}" ${so.id === defaultSO ? 'selected' : ''}>${so.number} (${Core.esc(so.customerName)})</option>`).join('')}</select></label>
         <label class="field"><span>Labor cost / unit</span><input type="number" step="any" name="laborCostPerUnit" value="0"></label>
         <label class="field"><span>Overhead / unit</span><input type="number" step="any" name="overheadPerUnit" value="0"></label>
       </div>

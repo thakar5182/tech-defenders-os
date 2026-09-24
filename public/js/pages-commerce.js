@@ -191,6 +191,9 @@ Pages.openSOEdit = async function(soId) {
     } else {
       extraHTML += '<h4>Associated BOMs</h4><p class="muted">No BOMs linked.</p>';
     }
+    if (Core.can('manufacturing', 'create')) {
+      extraHTML += `<button type="button" class="btn btn-outline btn-sm" style="margin-top:8px" onclick="Core.closeModal(); setTimeout(() => { location.hash = '#/manufacturing/boms'; Pages.openBomForm('${soId}'); }, 300)">+ Create BOM for this Order</button>`;
+    }
 
     const d = await Core.get('/sales/sales-orders');
     const so = d.salesOrders.find(s => s.id === soId);
