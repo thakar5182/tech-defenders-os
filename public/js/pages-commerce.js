@@ -14,7 +14,7 @@ Core.route('sales/quotations', async () => {
       Core.can('sales', 'create') ? '<button class="btn btn-gold" onclick="location.hash=\'#/sales/quotations/new\'">+ New Quotation</button>' : '')}
     ${Core.table([
       { label: 'Number', render: q => `<a href="#/sales/quotations/${q.id}"><b>${Core.esc(q.number)}</b></a>` },
-      { label: 'Customer', key: 'customerName' },
+      { label: 'Customer', render: s => `<b>${Core.esc(s.customerName)}</b><br><small class="muted">#${Core.esc(s.customerNumber)}</small>` },
       { label: 'Date', render: q => Core.fmtDate(q.date) },
       { label: 'Valid until', render: q => Core.fmtDate(q.validUntil) },
       { label: 'Total', num: true, render: q => Core.money(q.totals?.grandTotal) },
@@ -183,7 +183,36 @@ Core.route('sales/orders', async () => {
     ], d.salesOrders, { emptyTitle: 'No sales orders', emptyText: 'Accept a quotation and convert it into an order.' })}`;
 });
 
-Pages.openInvoiceFromSO = async soId => {
+Pages.openSOEdit = async function(soId) {
+    const data = await Core.get('/sales/sales-orders/' + soId);
+    let extraHTML = '';
+    if (data.boms && data.boms.length) {
+      extraHTML += '<h4>Associated BOMs</h4><ul>' + data.boms.map(b => '<li>' + Core.esc(b.code) + ' - ' + Core.esc(b.notes) + '</li>').join('') + '</ul>';
+    } else {
+      extraHTML += '<h4>Associated BOMs</h4><p class="muted">No BOMs linked.</p>';
+    }
+
+    const d = await Core.get('/sales/sales-orders');
+    const so = d.salesOrders.find(s => s.id === soId);
+    Core.formModal({
+      title: 'Edit Sales Order Details',
+      afterBody: extraHTML,
+      fields: [
+        { name: 'poNumber', label: 'PO Number', value: so.poNumber },
+        { name: 'transportDetails', label: 'Transport Details', value: so.transportDetails },
+        { name: 'packingDetails', label: 'Packing Details', value: so.packingDetails },
+        { name: 'notes', label: 'Notes', type: 'textarea', value: so.notes }
+      ],
+      submitLabel: 'Save',
+      onSubmit: async v => {
+        await Core.patch('/sales/sales-orders/' + soId, v);
+        toast('Updated', 'Sales order updated', 'success');
+        Core.render();
+      }
+    });
+  };
+
+  Pages.openInvoiceFromSO = async soId => {
   const d = await Core.get('/sales/sales-orders');
   const so = d.salesOrders.find(s => s.id === soId);
   const remaining = so.lines.map((l, idx) => ({ idx, name: l.name, qty: l.qty, invoiced: l.invoicedQty || 0 }))
@@ -496,6 +525,7 @@ Core.route('sales/receipts', async () => {
       { label: 'Number', render: r => `<b>${Core.esc(r.number)}</b>` },
       { label: 'Customer', key: 'customerName' },
       { label: 'Date', render: r => Core.fmtDate(r.date) },
+        { label: 'Sales Order(s)', render: r => Core.esc(r.salesOrderNumbers) },
       { label: 'Amount', num: true, render: r => Core.money(r.amount) },
       { label: 'Mode', render: r => Core.badge(r.mode === 'bank' ? 'confirmed' : r.mode) },
       { label: 'Reference', key: 'reference' },

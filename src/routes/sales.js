@@ -258,7 +258,10 @@ router.post('/quotations/:id/convert-sales-order', requirePerm('sales', 'edit'),
 router.get('/sales-orders', requirePerm('sales', 'view'), (req, res) => {
   const list = store.find('salesOrders', s => s.orgId === req.org.id)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-    .map(s => ({ ...s, customerName: (store.byId('customers', s.customerId) || {}).name || '-' }));
+    .map(s => {
+      const c = store.byId('customers', s.customerId) || {};
+      return { ...s, customerName: c.name || '-', customerNumber: c.serialNo || '-' };
+    });
   res.json({ salesOrders: list });
 });
 
@@ -277,10 +280,34 @@ router.post('/sales-orders', requirePerm('sales', 'create'), (req, res) => {
     expectedDate: b.expectedDate || null, placeOfSupply: customer.stateCode,
     status: 'confirmed',
     lines: doc.lines.map(l => ({ ...l, fulfilledQty: 0, invoicedQty: 0 })),
-    totals: doc.totals, sourceType: 'manual', sourceId: null, notes: b.notes || ''
+    totals: doc.totals, sourceType: 'manual', sourceId: null, notes: b.notes || '',
+    poNumber: b.poNumber || '', transportDetails: b.transportDetails || '', packingDetails: b.packingDetails || ''
   });
   audit(req.org.id, req.user.id, 'create', 'sales_order', so.id, { number: so.number });
   res.json({ salesOrder: so });
+});
+
+router.patch('/sales-orders/:id', requirePerm('sales', 'edit'), (req, res) => {
+  const so = store.findOne('salesOrders', s => s.id === req.params.id && s.orgId === req.org.id);
+  if (!so) return res.status(404).json({ error: 'Sales order not found' });
+  const b = req.body || {};
+  const patch = {};
+  if (b.poNumber !== undefined) patch.poNumber = b.poNumber;
+  if (b.transportDetails !== undefined) patch.transportDetails = b.transportDetails;
+  if (b.packingDetails !== undefined) patch.packingDetails = b.packingDetails;
+  if (b.notes !== undefined) patch.notes = b.notes;
+  
+  const updated = store.update('salesOrders', so.id, patch);
+  audit(req.org.id, req.user.id, 'update', 'sales_order', so.id, patch);
+  res.json({ salesOrder: updated });
+});
+
+router.get('/sales-orders/:id', requirePerm('sales', 'view'), (req, res) => {
+  const so = store.findOne('salesOrders', s => s.id === req.params.id && s.orgId === req.org.id);
+  if (!so) return res.status(404).json({ error: 'Sales order not found' });
+  const boms = store.find('boms', b => b.orgId === req.org.id && b.salesOrderId === so.id);
+  const receipts = store.find('receipts', r => r.orgId === req.org.id && r.salesOrderId === so.id);
+  res.json({ salesOrder: so, boms, receipts });
 });
 
 /* SO -> Invoice (remaining uninvoiced quantity; partial supported) */
@@ -668,7 +695,23 @@ router.post('/credit-notes', requirePerm('sales', 'edit'), (req, res) => {
 router.get('/receipts', requirePerm('sales', 'view'), (req, res) => {
   const list = store.find('receipts', r => r.orgId === req.org.id)
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-    .map(r => ({ ...r, customerName: (store.byId('customers', r.customerId) || {}).name || '-' }));
+    .map(r => {
+      const salesOrderNumbers = Array.from(new Set((r.allocations || []).map(a => {
+        const inv = store.byId('invoices', a.invoiceId);
+        if (inv && inv.sourceType === 'sales_order' && inv.sourceId) {
+          const so = store.byId('salesOrders', inv.sourceId);
+          return so ? so.number : null;
+        }
+        // Also check if receipt was explicitly linked to an SO directly (if we added such a field)
+        return r.salesOrderId ? store.byId('salesOrders', r.salesOrderId)?.number : null;
+      }).filter(Boolean)));
+      
+      return { 
+        ...r, 
+        customerName: (store.byId('customers', r.customerId) || {}).name || '-',
+        salesOrderNumbers: salesOrderNumbers.join(', ') || '-'
+      };
+    });
   res.json({ receipts: list });
 });
 
@@ -698,9 +741,11 @@ router.post('/receipts', requirePerm('sales', 'edit'), (req, res) => {
     allocations.push({ invoiceId: inv.id, amount: amt, invoice: inv });
     allocated = r2(allocated + amt);
   }
-  if (allocated <= 0) return res.status(400).json({ error: 'No valid allocations (check invoice balances)' });
-  if (allocated > amount + 0.01) return res.status(400).json({ error: 'Allocated total exceeds receipt amount' });
-  if (Math.abs(allocated - amount) > 0.01) return res.status(400).json({ error: 'Receipt amount must be fully allocated' });
+  
+  if (allocations.length > 0) {
+    if (allocated > amount + 0.01) return res.status(400).json({ error: 'Allocated total exceeds receipt amount' });
+    if (Math.abs(allocated - amount) > 0.01) return res.status(400).json({ error: 'Receipt amount must be fully allocated' });
+  }
 
   for (const allocation of allocations) {
     const newPaid = r2((allocation.invoice.paidAmount || 0) + allocation.amount);
@@ -713,8 +758,9 @@ router.post('/receipts', requirePerm('sales', 'edit'), (req, res) => {
   const rcp = store.insert('receipts', {
     orgId: req.org.id, number: nextNumber(req.org.id, 'receipt'),
     customerId: customer.id, date: b.date || new Date().toISOString().slice(0, 10),
-    amount: allocated, mode: b.mode || 'bank',
+    amount: allocated || amount, mode: b.mode || 'bank',
     reference: b.reference || '',
+    salesOrderId: b.salesOrderId || null,
     allocations: allocations.map(({ invoiceId, amount: allocationAmount }) => ({ invoiceId, amount: allocationAmount })),
     note: b.note || ''
   });
