@@ -71,7 +71,7 @@ Core.route('sales/quotations/:id', async (p) => {
       </div>
       <div class="totals-box" id="q-totals" style="margin-top:18px"></div>
       <div class="document-actions">
-        <button class="btn btn-gold" id="q-save" onclick="Pages.saveQuotation()">Save Quotation</button>
+        <button class="btn btn-gold" id="q-save" onclick="Pages.saveQuotation('${existing ? existing.id : ''}')">Save Quotation</button>
       </div>
     </div>`;
   Pages.addSalesLine('q');
@@ -139,7 +139,7 @@ Pages.salesTotalsPreview = function (kind) {
     <div class="tr grand"><span>Grand total</span><span>${Core.money(r2(taxable + cg + sg + ig))}</span></div>`;
 };
 
-Pages.saveQuotation = async function () {
+Pages.saveQuotation = async function (id) {
   const customerId = document.getElementById('q-cust').value;
   const date = document.getElementById('q-date').value;
   const validUntil = document.getElementById('q-valid').value || null;
