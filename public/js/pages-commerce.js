@@ -547,6 +547,7 @@ Pages.openReceiptForm = async (selectedCustomerId) => {
       { name: 'mode', label: 'Mode', type: 'select', half: true,
         options: ['bank', 'cash', 'upi', 'cheque', 'card'].map(v => ({ value: v, label: v.toUpperCase() })) },
       { name: 'date', label: 'Date', type: 'date', half: true },
+        { name: 'salesOrderId', label: 'Link to Sales Order (optional)', type: 'select', options: [{value: '', label: '-- None --'}].concat(soD.salesOrders.map(so => ({ value: so.id, label: so.number + ' (' + so.customerName + ')' }))) },
       { name: 'reference', label: 'Reference (UTR / cheque no.)', half: true },
       { name: 'note', label: 'Note' }
     ],
