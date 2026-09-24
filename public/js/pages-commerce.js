@@ -48,7 +48,20 @@ Core.route('sales/quotations/:id', async (p) => {
   const isNew = p.id === 'new';
   if (!Core.can('sales', 'create')) { location.hash = '#/sales/quotations'; return; }
   const custD = await Core.get('/crm/customers');
-  Pages._qLines = [];
+  
+  let existing = null;
+  if (!isNew) {
+    try {
+      const res = await Core.get('/sales/quotations/' + p.id);
+      existing = res.quotation;
+    } catch(e) {
+      toast('Error', 'Could not load quotation', 'error');
+      location.hash = '#/sales/quotations';
+      return;
+    }
+  }
+  Pages._qLines = existing ? (existing.lines || []) : [];
+
   Pages._qCust = custD.customers;
   const today = new Date().toISOString().slice(0, 10);
 
