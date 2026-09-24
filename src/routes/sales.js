@@ -156,7 +156,7 @@ router.patch('/quotations/:id', requirePerm('sales', 'edit'), (req, res) => {
 
 /* ================= SALES DOCUMENTS ================= */
 const asyncRoute = handler => (req, res, next) => Promise.resolve(handler(req, res, next)).catch(next);
-const { fileStorage } = require('../../plugins/storage');
+const fileStorage = require('../services/file-storage');
 
 router.post('/documents', requirePerm('sales', 'edit'), asyncRoute(async (req, res) => {
   const b = req.body || {};

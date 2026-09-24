@@ -171,7 +171,8 @@ Core.route('crm/leads', async () => {
       { label: 'Lead', render: r => `<b>${Core.esc(r.name)}</b><br><small class="muted">${Core.esc(r.company || '')}</small>` },
       { label: 'Contact', render: r => `${Core.esc(r.email || '-')}<br><small class="muted">${Core.esc(r.phone || '')}</small>` },
       { label: 'Source', key: 'source' },
-      { label: 'Interest', key: 'productInterest' },
+      { label: 'Material Code', key: 'materialCode' },
+      { label: 'Description', render: r => `<div style="max-width: 150px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${Core.esc(r.description || '')}</div>` },
       { label: 'Value', num: true, render: r => Core.money(r.value) },
       { label: 'Status', render: r => Core.badge(r.status) },
       { label: 'Next follow-up', render: r => Core.fmtDate(r.nextFollowUp) },
@@ -179,6 +180,7 @@ Core.route('crm/leads', async () => {
           ${canEdit && r.status !== 'converted' ? `<button class="btn btn-outline btn-sm" onclick="Pages.convertLead('${r.id}')">Convert</button>` : ''}
           ${canEdit ? `<button class="btn btn-ghost btn-sm" onclick="Pages.openLeadForm('${r.id}')">Edit</button>` : ''}
           ${canEdit && r.status !== 'converted' ? `<button class="btn btn-ghost btn-sm" title="Delete" onclick="Pages.deleteLead('${r.id}')">&#128465;</button>` : ''}
+          <button class="btn btn-gold btn-sm" onclick="Pages.generateQuotationFromLead('${r.id}')">Generate Quotation</button>
         </div>` }
     ], rows, { emptyTitle: 'No leads yet', emptyText: 'Capture your first enquiry to start the Lead-to-Cash chain.' });
   };
@@ -208,9 +210,13 @@ Pages.openLeadForm = async id => {
       { name: 'phone', label: 'Phone', half: true, value: lead?.phone },
       { name: 'email', label: 'Email', type: 'email', value: lead?.email },
       { name: 'address', label: 'Address', type: 'textarea', value: lead?.address },
+      { name: 'materialCode', label: 'Material Code', half: true, value: lead?.materialCode },
+      { name: 'gstDetails', label: 'GST Details', half: true, value: lead?.gstDetails },
+      { name: 'referenceDetails', label: 'Reference Details', half: true, value: lead?.referenceDetails },
+      { name: 'referenceDate', label: 'Reference Date', type: 'date', half: true, value: lead?.referenceDate },
+      { name: 'description', label: 'Description', type: 'textarea', value: lead?.description },
       { name: 'source', label: 'Source', type: 'select', half: true, options: ['manual', 'IndiaMART', 'Justdial', 'TradeIndia', 'Website', 'Referral', 'Campaign'].map(s => ({ value: s, label: s })), value: lead?.source || 'manual' },
       { name: 'priority', label: 'Priority', type: 'select', half: true, options: ['low', 'medium', 'high'].map(s => ({ value: s, label: s })), value: lead?.priority || 'medium' },
-      { name: 'productInterest', label: 'Product interest', value: lead?.productInterest },
       { name: 'value', label: 'Expected value (INR)', type: 'number', step: '0.01', half: true, value: lead?.value },
       { name: 'nextFollowUp', label: 'Next follow-up date', type: 'date', half: true, value: lead?.nextFollowUp },
       { name: 'status', label: 'Status', type: 'select', options: ['new', 'contacted', 'qualified', 'lost'].map(s => ({ value: s, label: s })), value: lead?.status || 'new' }
@@ -243,12 +249,32 @@ Pages.deleteLead = async id => {
 };
 
 Pages.generateQuotationFromLead = async id => {
-  try {
-    const res = await Core.post('/crm/leads/' + id + '/generate-quotation', {});
-    toast('Quotation created', 'Redirecting to quotation edit page...', 'success');
-    location.hash = '#/sales/quotations/' + res.quotation.id;
-  } catch (e) {
-    toast('Error', e.message, 'error');
+  const d = await Core.get('/crm/leads');
+  const lead = d.leads.find(l => l.id === id);
+  if (!lead) return toast('Error', 'Lead not found', 'error');
+  
+  // Assuming a sales/quotations route or creation function exists. We will prefill the quotation form.
+  if (typeof Pages.openQuotationForm === 'function') {
+    Pages.openQuotationForm(null, {
+      customerId: lead.customerId,
+      customerName: lead.name,
+      company: lead.company,
+      email: lead.email,
+      phone: lead.phone,
+      address: lead.address,
+      description: lead.description,
+      gstDetails: lead.gstDetails
+    });
+  } else {
+    // If we need to direct to commerce module:
+    location.hash = '#/sales/quotations';
+    setTimeout(() => {
+      if (typeof Pages.openQuotationForm === 'function') {
+        Pages.openQuotationForm(null, { customerName: lead.name, company: lead.company, phone: lead.phone, email: lead.email, address: lead.address, gstDetails: lead.gstDetails, description: lead.description });
+      } else {
+        toast('Info', 'Please create quotation manually for now', 'info');
+      }
+    }, 500);
   }
 };
 
@@ -326,13 +352,6 @@ Core.route('crm/customers/:id', async p => {
     <div class="card customer-documents" style="margin-top:16px"><div class="card-head"><div><h3>Customer Documents</h3><small class="muted">PO, agreement, GST certificate or approved quotation</small></div>${Core.can('crm', 'edit') ? `<button class="btn btn-outline btn-sm" onclick="Pages.openCustomerDocumentForm('${c.id}')">Upload document</button>` : ''}</div>
       ${d.documents.length ? `<div class="document-list">${d.documents.map(doc => `<div class="document-item"><span><b>${Core.esc(doc.title)}</b><small>${Core.esc((doc.mimeType || '').replace('application/', '').replace('image/', '').toUpperCase())} &middot; ${Core.fmtDate(doc.createdAt)}</small></span><span><a class="btn btn-outline btn-sm" href="/api/crm/customers/${c.id}/documents/${doc.id}/download">Download</a>${Core.can('crm', 'edit') ? `<button class="btn btn-ghost btn-sm" onclick="Pages.deleteCustomerDocument('${c.id}','${doc.id}')">Remove</button>` : ''}</span></div>`).join('')}</div>` : '<div class="empty-state">No documents uploaded yet.</div>'}
     </div>
-    
-    <div class="card customer-notes" style="margin-top:16px"><div class="card-head"><div><h3>Notes</h3></div>${Core.can('crm', 'edit') ? `<button class="btn btn-outline btn-sm" onclick="Pages.openNoteForm('${c.id}')">+ Add Note</button>` : ''}</div>
-      ${d.notes && d.notes.length ? `<ul class="timeline" style="padding:16px 20px">${d.notes.map(n => `<li><b>${Core.esc(n.userName)}</b> <small>${Core.fmtDate(n.createdAt)}</small><p style="margin-top:4px">${Core.esc(n.text)}</p>
-      ${n.attachment ? `<div style="margin-top:8px"><a class="btn btn-outline btn-sm" href="/api/crm/customers/${c.id}/notes/${n.id}/attachment" target="_blank">📎 ${Core.esc(n.attachment.title)}</a></div>` : ''}
-      <div style="margin-top:4px">${Core.can('crm', 'edit') ? `<button class="btn btn-ghost btn-sm" onclick="Pages.openNoteForm('${c.id}', '${n.id}')">Edit</button> <button class="btn btn-ghost btn-sm" onclick="Pages.deleteNote('${c.id}', '${n.id}')">Delete</button>` : ''}</div></li>`).join('')}</ul>` : '<div class="empty-state">No notes added.</div>'}
-    </div>
-
     ${Core.can('communication', 'view') ? `<div class="card" style="margin-top:16px"><div class="card-head"><h3>Communication Timeline</h3><a class="link" href="#/communication/history">View all</a></div>${comm.communications.length ? `<ul class="timeline" style="padding:16px 20px">${comm.communications.slice(0,20).map(item => `<li><b>${Core.esc(String(item.messageType || 'message').replace(/_/g,' '))} · ${Core.esc(item.channel)}</b><small>${Core.fmtDate(item.createdAt)} · ${Core.badge(item.status)}</small></li>`).join('')}</ul>` : '<div class="empty-state">No communication history for this customer.</div>'}</div>` : ''}`;
 });
 
@@ -359,47 +378,6 @@ Pages.deleteCustomerDocument = async function (customerId, documentId) {
   if (!await Core.confirm('Remove this document? This cannot be undone.', 'Remove document')) return;
   try { await Core.del('/crm/customers/' + customerId + '/documents/' + documentId); toast('Removed', 'Customer document removed', 'success'); Core.render(); }
   catch (error) { toast('Remove failed', error.message, 'error'); }
-};
-
-Pages.openNoteForm = async function(customerId, noteId) {
-  const d = await Core.get('/crm/customers/' + customerId);
-  const note = noteId ? (d.notes || []).find(n => n.id === noteId) : null;
-  const modal = Core.openModal({
-    title: note ? 'Edit Note' : 'Add Note',
-    wide: false,
-    body: `<form id="customer-note-form">
-      <label class="field"><span>Note Text *</span><textarea name="text" required rows="4">${Core.esc(note?.text || '')}</textarea></label>
-      ${!note ? `<label class="field"><span>Attachment (Optional)</span><input name="file" type="file"></label>` : '<small class="muted">Attachments cannot be edited. Delete note and create new one if needed.</small>'}
-    </form>`,
-    footer: '<button class="btn btn-outline" data-cancel>Cancel</button><button class="btn btn-gold" type="submit" form="customer-note-form">Save Note</button>'
-  });
-  modal.el.querySelector('[data-cancel]').onclick = modal.close;
-  modal.el.querySelector('#customer-note-form').addEventListener('submit', async event => {
-    event.preventDefault();
-    const form = event.currentTarget;
-    const button = modal.el.querySelector('[type="submit"]');
-    button.disabled = true;
-    try {
-      const payload = { text: form.text.value };
-      if (!note && form.file.files.length > 0) {
-         const file = form.file.files[0];
-         if (file.size > 1536 * 1024) throw new Error('Choose a file smaller than 1.5 MB');
-         payload.attachmentBase64 = (await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = rej; r.readAsDataURL(file); })).split(',')[1];
-         payload.attachmentTitle = file.name;
-         payload.attachmentMime = file.type || 'application/octet-stream';
-      }
-      if (note) await Core.patch('/crm/customers/' + customerId + '/notes/' + noteId, payload);
-      else await Core.post('/crm/customers/' + customerId + '/notes', payload);
-      toast('Saved', note ? 'Note updated' : 'Note added', 'success');
-      modal.close(); Core.render();
-    } catch (e) { toast('Error', e.message, 'error'); button.disabled = false; }
-  });
-};
-
-Pages.deleteNote = async function(customerId, noteId) {
-  if (!await Core.confirm('Delete this note? This cannot be undone.', 'Delete note')) return;
-  try { await Core.del('/crm/customers/' + customerId + '/notes/' + noteId); toast('Deleted', 'Note removed', 'success'); Core.render(); }
-  catch (e) { toast('Error', e.message, 'error'); }
 };
 
 Pages.createPortalInvite = async id => { try { const r = await Core.post('/crm/customers/' + id + '/portal-invite', {}); const value = r.inviteUrl || r.token; if (value) await navigator.clipboard.writeText(value); toast('Portal invite ready', r.emailStatus === 'sent' ? 'Invitation emailed and secure link copied.' : 'Secure link copied. Email could not be sent automatically.', r.emailStatus === 'sent' ? 'success' : 'warning'); return r; } catch (e) { toast('Invite failed', e.message, 'error'); } };
