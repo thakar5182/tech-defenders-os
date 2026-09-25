@@ -129,7 +129,7 @@ router.get('/quotations/:id', requirePerm('sales', 'view'), (req, res) => {
   if (!q) return res.status(404).json({ error: 'Quotation not found' });
   const customer = store.byId('customers', q.customerId);
   const documents = store.find('salesDocuments', d => d.orgId === req.org.id && d.entityType === 'quotation' && d.entityId === q.id);
-  res.json({ quotation: { ...q, customerName: customer?.name, customer: customer }, documents });
+  res.json({ quotation: { ...q, customerName: customer?.name, customer: customer }, documents, org: req.org });
 });
 
 router.patch('/quotations/:id', requirePerm('sales', 'edit'), (req, res) => {

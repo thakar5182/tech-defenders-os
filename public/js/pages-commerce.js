@@ -21,6 +21,7 @@ Core.route('sales/quotations', async () => {
       { label: 'Status', render: q => Core.badge(q.status) },
       { label: '', render: q => `<div class="actions-cell">
         <a class="btn btn-outline btn-sm" href="#/print/quotation/${q.id}">Print</a>
+        <a class="btn btn-outline btn-sm" href="#/sales/quotations/${q.id}">Edit</a>
         ${canEdit && ['draft'].includes(q.status) ? `<button class="btn btn-outline btn-sm" onclick="Pages.setQuoteStatus('${q.id}','sent')">Mark sent</button>` : ''}
         ${canEdit && ['draft', 'sent'].includes(q.status) ? `<button class="btn btn-outline btn-sm" onclick="Pages.setQuoteStatus('${q.id}','accepted')">Accept</button>` : ''}
         ${canEdit && q.status === 'accepted' && !q.convertedToId ? `<button class="btn btn-gold btn-sm" onclick="Pages.quoteToSO('${q.id}')">Convert to Order</button>` : ''}
@@ -1099,3 +1100,30 @@ Core.route('inventory/ledger', async () => {
   render(ledD.entries);
   Pages.filterLedger = pid => render(pid ? ledD.entries.filter(e => e.productId === pid) : ledD.entries);
 });
+
+
+Pages.uploadQuotationAttachment = async function(id) {
+  const title = document.getElementById('q-attach-title').value;
+  const fileInput = document.getElementById('q-attach-file');
+  if (!title || !fileInput.files.length) return toast('Missing details', 'Please provide a title and select a file', 'error');
+  
+  const file = fileInput.files[0];
+  if (file.size > 1.5 * 1024 * 1024) return toast('File too large', 'Must be under 1.5 MB', 'error');
+  
+  const reader = new FileReader();
+  reader.onload = async () => {
+    try {
+      await Core.post('/sales/sales-documents', {
+        entityType: 'quotation',
+        entityId: id,
+        title: title,
+        contentData: reader.result
+      });
+      toast('Attached', 'Document attached successfully', 'success');
+      Core.render(); // refresh to show attachment
+    } catch(e) {
+      toast('Error', e.message, 'error');
+    }
+  };
+  reader.readAsDataURL(file);
+};
