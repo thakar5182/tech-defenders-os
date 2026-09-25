@@ -50,7 +50,7 @@ const COLLECTIONS = [
   ,'communicationSegments', 'communicationConsents', 'templateApprovals', 'inboundCommunications'
   ,'unsubscribeEvents', 'campaignEvents', 'communicationTimelines'
   ,'commerceCatalogs', 'commercePrices', 'commerceCarts', 'commerceOrders'
-  ,'aiConversations', 'aiRecommendations', 'aiActionRequests'
+  ,'aiConversations', 'aiRecommendations', 'aiActionRequests', 'salesDocuments'
 ];
 
 const db = {};

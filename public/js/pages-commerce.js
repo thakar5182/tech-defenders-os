@@ -1113,7 +1113,7 @@ Pages.uploadQuotationAttachment = async function(id) {
   const reader = new FileReader();
   reader.onload = async () => {
     try {
-      await Core.post('/sales/sales-documents', {
+      await Core.post('/sales/documents', {
         entityType: 'quotation',
         entityId: id,
         title: title,
