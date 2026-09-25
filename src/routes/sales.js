@@ -233,6 +233,20 @@ router.patch('/quotations/:id/status', requirePerm('sales', 'edit'), (req, res) 
 });
 
 /* quotation -> sales order */
+
+router.delete('/quotations/:id', requirePerm('sales', 'edit'), (req, res) => {
+  const q = store.findOne('quotations', x => x.id === req.params.id && x.orgId === req.org.id);
+  if (!q) return res.status(404).json({ error: 'Quotation not found' });
+  
+  if (q.convertedToId) {
+    return res.status(400).json({ error: 'Cannot delete quotation because it has already been converted to a sales order.' });
+  }
+
+  store.remove('quotations', q.id);
+  audit(req.org.id, req.user.id, 'delete', 'quotation', q.id, { number: q.number });
+  res.json({ message: 'Deleted' });
+});
+
 router.post('/quotations/:id/convert-sales-order', requirePerm('sales', 'edit'), (req, res) => {
   const q = store.findOne('quotations', x => x.id === req.params.id && x.orgId === req.org.id);
   if (!q) return res.status(404).json({ error: 'Quotation not found' });

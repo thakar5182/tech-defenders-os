@@ -86,8 +86,21 @@ Core.route('sales/quotations/:id', async (p) => {
       </div>
       <div class="totals-box" id="q-totals" style="margin-top:18px"></div>
       <div class="document-actions">
-        <a class="btn btn-outline" style="margin-right:8px; display: ${existing ? 'inline-block' : 'none'}" id="q-print" href="#/print/quotation/${existing ? existing.id : 'new'}">Print PDF</a> <button class="btn btn-gold" id="q-save" onclick="Pages.saveQuotation('${existing ? existing.id : ''}')">Save Quotation</button>
+        <a class="btn btn-outline" style="margin-right:8px; display: ${existing ? 'inline-block' : 'none'}" id="q-print" href="#/print/quotation/${existing ? existing.id : 'new'}">Print PDF</a> <button class="btn btn-gold" id="q-save" onclick="Pages.saveQuotation('${existing ? existing.id : ''}')">Save Quotation</button>${existing ? ` <button class="btn btn-danger" onclick="Pages.deleteQuotation('${existing.id}')">Delete Quotation</button>` : ''}
       </div>
+      <div class="document-attachments" style="margin-top:20px; border-top: 1px solid var(--border); padding-top: 20px;">
+        <h3>Attachments</h3>
+        <div id="q-attachments-list" style="margin-bottom: 10px;">
+          ${existing && existing.documents && existing.documents.length ? existing.documents.map(d => `<div style="display:flex; justify-content:space-between; margin-bottom:5px;"><span>${Core.esc(d.title)}</span> <a href="/api/sales/documents/${d.id}/download" target="_blank" class="btn btn-sm btn-outline">Download</a></div>`).join('') : '<p class="muted">No attachments yet.</p>'}
+        </div>
+        ${existing ? `
+        <div style="display:flex; gap:10px; align-items:center;">
+          <input type="text" id="q-attach-title" placeholder="Document Title" class="field" style="width:200px; margin:0;">
+          <input type="file" id="q-attach-file" accept="application/pdf,image/png,image/jpeg,image/webp">
+          <button class="btn btn-outline" type="button" onclick="Pages.uploadQuotationAttachment('${existing.id}')">Attach File</button>
+        </div>` : '<p class="muted">Save quotation first to attach files.</p>'}
+      </div>
+
     </div>`;
   Pages.addSalesLine('q');
 });
