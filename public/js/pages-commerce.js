@@ -20,6 +20,7 @@ Core.route('sales/quotations', async () => {
       { label: 'Total', num: true, render: q => Core.money(q.totals?.grandTotal) },
       { label: 'Status', render: q => Core.badge(q.status) },
       { label: '', render: q => `<div class="actions-cell">
+        <a class="btn btn-outline btn-sm" href="#/print/quotation/${q.id}">Print</a>
         ${canEdit && ['draft'].includes(q.status) ? `<button class="btn btn-outline btn-sm" onclick="Pages.setQuoteStatus('${q.id}','sent')">Mark sent</button>` : ''}
         ${canEdit && ['draft', 'sent'].includes(q.status) ? `<button class="btn btn-outline btn-sm" onclick="Pages.setQuoteStatus('${q.id}','accepted')">Accept</button>` : ''}
         ${canEdit && q.status === 'accepted' && !q.convertedToId ? `<button class="btn btn-gold btn-sm" onclick="Pages.quoteToSO('${q.id}')">Convert to Order</button>` : ''}
